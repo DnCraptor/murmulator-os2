@@ -11,6 +11,7 @@
 #include "sys_table.h"
 
 #include "graphics.h"
+#include "keyboard.h"
 
 extern "C" {
 #include "ps2.h"
@@ -25,6 +26,7 @@ extern "C" {
 #include "task.h"
 #include "../../api/m-os-api-c-list.h"
 #include "hooks.h"
+#include "sound.h"
 
 const char _mc_con[] = ".mc.con";
 const char _cmd_history[] = ".cmd_history";
@@ -48,17 +50,6 @@ semaphore vga_start_semaphore;
 #define DISP_HEIGHT (240)
 
 uint16_t SCREEN[TEXTMODE_ROWS][TEXTMODE_COLS];
-
-static uint32_t input;
-
-extern "C" {
-bool __time_critical_func(handleScancode)(const uint32_t ps2scancode) {
-    if (ps2scancode)
-        input = ps2scancode;
-
-    return true;
-}
-}
 
 void __time_critical_func(render_core)() {
     multicore_lockout_victim_init();
@@ -185,11 +176,6 @@ inline static void tokenizeCfg(char* s, size_t sz) {
     }
     s[i] = 0;
 }
-char* next_token(char* t) {
-    char *t1 = t + strlen(t);
-    while(!*t1++);
-    return t1 - 1;
-}
 
 static void load_config_sys() {
     cmd_ctx_t* ctx = set_default_vars();
@@ -290,7 +276,7 @@ int __in_hfa() main() {
         sleep_ms(50);
 
         // F12 Boot to USB FIRMWARE UPDATE mode
-        if (nespad_state & DPAD_START || input == 0x58) {
+        if (nespad_state & DPAD_START || getch_now() == 0x58) {
             reset_usb_boot(0, 0);
         }
 
@@ -310,7 +296,8 @@ int __in_hfa() main() {
     get_cpu_flash_jedec_id(rx);
     flash_size = (1 << rx[3]);
     f_mount(&fs, SD, 1);
-    goutf("flash_size: %dK\n", flash_size >> 10);
+    init_sound();
+  ///  goutf("flash_size: %dK\n", flash_size >> 10);
 
     xTaskCreate(vCmdTask, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
 

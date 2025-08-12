@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdarg.h>
 
+#include "app.h"
+
 volatile uint8_t con_color = 7;
 volatile uint8_t con_bgcolor = 0;
 volatile int pos_x = 0;
@@ -10,6 +12,28 @@ volatile uint8_t font_width = 8;
 volatile uint8_t font_height = 16;
 volatile uint8_t bitness = 16; // TODO:
 volatile uint8_t* font_table = font_8x16;
+static volatile bool lock_buffer = false;
+
+void graphics_lock_buffer(bool v) {
+    // TODO:
+    lock_buffer = v;
+}
+
+void gbackspace() {
+    if (!text_buffer) return;
+    uint8_t* t_buf;
+    pos_x--;
+    if (pos_x < 0) {
+        pos_x = TEXTMODE_COLS - 2;
+        pos_y--;
+        if (pos_y < 0) {
+            pos_y = 0;
+        }
+    }
+    t_buf = text_buffer + TEXTMODE_COLS * 2 * pos_y + 2 * pos_x;
+    *t_buf++ = ' ';
+    *t_buf++ = con_bgcolor << 4 | con_color & 0xF;
+}
 
 void draw_text(const char string[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
     uint8_t* t_buf = text_buffer + TEXTMODE_COLS * 2 * y + 2 * x;
@@ -53,9 +77,7 @@ void graphics_set_con_color(uint8_t color, uint8_t bgcolor) {
     con_color = color;
     con_bgcolor = bgcolor;
 }
-FIL* get_stdout() {
-    return 0;
-}
+
 void goutf(const char *__restrict str, ...) {
     FIL* f = get_stdout();
     va_list ap;
@@ -315,5 +337,21 @@ void fgoutf(FIL *f, const char *__restrict str, ...) {
     } else {
         UINT bw;
         f_write(f, buf, strlen(buf), &bw); // TODO: error handling
+    }
+}
+
+void graphics_set_con_pos(int x, int y) {
+    pos_x = x;
+    pos_y = y;
+}
+
+void __putc(char c) {
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    if (ctx && ctx->std_out) {
+        UINT bw;
+        f_write(ctx->std_out, &c, 1, &bw);
+    } else {
+        char t[2] = { c, 0 };
+        gouta(t);
     }
 }

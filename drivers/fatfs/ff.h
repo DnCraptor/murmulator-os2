@@ -26,6 +26,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include "ffconf.h"		/* FatFs configuration options */
 
 #if FF_DEFINED != FFCONF_DEF
@@ -202,7 +203,7 @@ typedef struct {
 
 /* File object structure (FIL) */
 
-typedef struct {
+typedef struct FIL {
 	FFOBJID	obj;			/* Object identifier (must be the 1st member to detect invalid object pointer) */
 	BYTE	flag;			/* File status flags */
 	BYTE	err;			/* Abort flag (error code) */
@@ -219,6 +220,7 @@ typedef struct {
 #if !FF_FS_TINY
 	BYTE	buf[FF_MAX_SS];	/* File private data read/write window */
 #endif
+    struct FIL* chained;
 } FIL;
 
 
@@ -336,7 +338,7 @@ int f_puts (const TCHAR* str, FIL* cp);								/* Put a string to the file */
 int f_printf (FIL* fp, const TCHAR* str, ...);						/* Put a formatted string to the file */
 TCHAR* f_gets (TCHAR* buff, int len, FIL* fp);						/* Get a string from the file */
 
-#define f_eof(fp) ((int)((fp)->fptr == (fp)->obj.objsize))
+bool f_eof(FIL* fp);
 #define f_error(fp) ((fp)->err)
 #define f_tell(fp) ((fp)->fptr)
 #define f_size(fp) ((fp)->obj.objsize)
@@ -414,6 +416,7 @@ int ff_del_syncobj (FF_SYNC_t sobj);	/* Delete a sync object */
 #define AM_DIR	0x10	/* Directory */
 #define AM_ARC	0x20	/* Archive */
 
+FRESULT f_open_pipe(FIL* to, FIL* from);
 
 #ifdef __cplusplus
 }

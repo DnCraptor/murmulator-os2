@@ -1,4 +1,5 @@
 #include <time.h>
+#include <pico.h>
 #include <hardware/flash.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
@@ -15,17 +16,18 @@
 ///#include "timers.h" // TODO
 #include "ps2.h"
 #include "app.h"
-///#include "cmd.h"
 ///#include "psram_spi.h"
 ///#include "math-wrapper.h"
 ///#include "ram_page.h"
-///#include "overclock.h"
+#include "overclock.h"
 ///#include "hardfault.h"
-///#include "keyboard.h"
+#include "keyboard.h"
 #include "usb.h"
 #include "nespad.h"
-///#include "sound.h"
+#include "sound.h"
 #include <math.h>
+
+show_logo(bool with_top);
 
 // TODO: think about it
 //extern int __cxa_pure_virtual();
@@ -74,17 +76,17 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     vPortFree, // 33
     //
     graphics_set_mode, // 34
-    0, //graphics_lock_buffer, // was graphics_set_buffer 35
+    graphics_lock_buffer, // was graphics_set_buffer 35
     graphics_set_offset, // 36
     0, // graphics_set_palette, // 37
     graphics_set_buffer, // 38
     graphics_set_bgcolor, // 39
     0, // graphics_set_flashmode, // 40
     goutf, // 41
-    0, //graphics_set_con_pos, // 42
+    graphics_set_con_pos, // 42
     graphics_set_con_color, // 43
     clrScr, // 44
-    0, //gbackspace, // 45
+    gbackspace, // 45
 
     f_open, // 46
     f_close, // 47
@@ -105,7 +107,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     //
     strlen, // 62
     strncpy, // 63
-    0, //get_leds_stat, // 64
+    get_leds_stat, // 64
     //
     load_firmware, // 65
     run_app, // 66
@@ -113,7 +115,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     vsnprintf, // 67
     //
     get_stdout, // 68
-    0, //get_stderr, // 69
+    get_stderr, // 69
     //
     fgoutf, // 70
     //
@@ -152,36 +154,36 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     //
     atoi, // 100
     //
-    0, //overclocking, // 101
-    0, //overclocking_ex, // 102
-    0, //get_overclocking_khz, // 103
-    0, //set_overclocking, // 104
-    0, //set_sys_clock_pll, // 105
-    0, //check_sys_clock_khz, // 106
+    overclocking, // 101
+    overclocking_ex, // 102
+    get_overclocking_khz, // 103
+    set_overclocking, // 104
+    0, /// set_sys_clock_pll, // 105
+    0, /// check_sys_clock_khz, // 106
     //
-    0, //next_token, // 107
+    next_token, // 107
     //
     strcmp, // 108
     strncmp, // 109
     //
-    0, //vPortGetHeapStats, // 110
+    vPortGetHeapStats, // 110
     0, //get_cpu_ram_size, // 111
     0, //get_cpu_flash_size, // 112
     //
     get_mount_fs, // 113
     0, //f_getfree32, // 114
     //
-    0, //get_scancode_handler, // 115
-    0, //set_scancode_handler, // 116
-    0, //get_cp866_handler, // 117
-    0, //set_cp866_handler, // 118
-    0, //gbackspace, // 119
+    get_scancode_handler, // 115
+    set_scancode_handler, // 116
+    get_cp866_handler, // 117
+    set_cp866_handler, // 118
+    gbackspace, // 119 -- duplicate??
     //
     is_new_app, // 120
-    0, //run_new_app, // 121
+    run_new_app, // 121
     //
-    0, //__getch, // 122
-    0, //__putc, // 123
+    __getch, // 122
+    __putc, // 123
     //
     cleanup_bootb_ctx, // 124
     load_app, // 125
@@ -201,7 +203,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     //
     xTaskGetCurrentTaskHandle, // 136
     copy_str, // 137
-    0, //get_cmd_ctx, // 138
+    get_cmd_ctx, // 138
     cleanup_ctx, // 139
     get_ctx_var, // 140
     set_ctx_var, // 141
@@ -215,9 +217,9 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     get_console_height, // 147
     //
     0, //__getc, // 148
-    0, //f_eof, // 149
+    f_eof, // 149
     0, //f_getc, // 150
-    0, //f_open_pipe, // 151
+    f_open_pipe, // 151
     //
     get_buffer, // 152
     0, //get_buffer_size, // 153
@@ -253,8 +255,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     tud_msc_ejected, // 181
     set_tud_msc_ejected, // 182 (better use usb_driver)
     //
-    0, //show_logo, // 183
-    0, //getch_now, // 184
+    show_logo, // 183
+    getch_now, // 184
     //
     0, //usb_driver, // 185
     0, //set_cursor_color, // 186
@@ -268,13 +270,13 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     0, //graphics_set_font, // 192
     0, //graphics_set_ext_font, // 193
     //
-    0, //blimp, // 194
+    blimp, // 194
     0, //graphics_con_x, // 195
     0, //graphics_con_y, // 196
     //
-    0, //pcm_setup, // 197
-    0, //pcm_cleanup, // 198
-    0, //pcm_set_buffer, // 199
+    pcm_setup, // 197
+    pcm_cleanup, // 198
+    pcm_set_buffer, // 199
     // v.0.2.4
     0, //__trunc, // 200
     0, //__floor, // 201
@@ -311,8 +313,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     memmove, // 232
     // API v.20
     0, //cmd_tab, // 233
-    0, //history_steps, // 234
-    0, //cmd_enter_helper, // 235
+    history_steps, // 234
+    cmd_enter_helper, // 235
     0, //set_usb_detached_handler, // 236
     0, //op_console, // 237
     0, //f_read_str, // 238
@@ -321,7 +323,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     0, //draw_panel, // 241
     0, //draw_button, // 242
     0, //uxTaskGetSystemState, // 243
-    0, //kill, // 244
+    kill, // 244
     // API v.21
     0, //__aeabi_dmul, // 245
     0, //__aeabi_ddiv, // 246
@@ -333,7 +335,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // API v.22
     strcat, // 252
     memcmp, // 253
-    0, //reboot_me, // 254
+    reboot_me, // 254
     // API v.23
     0, //free_app_flash, // 255
     0, //__aeabi_d2uiz, // 256

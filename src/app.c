@@ -11,6 +11,7 @@ volatile bool reboot_is_requested = false;
 
 extern const char TEMP[];
 const char _flash_me[] = ".flash_me";
+const char _cmd_history[] = ".cmd_history";
 
 #define M_OS_APP_TABLE_BASE ((size_t*)0x10001000ul) // TODO:
 typedef int (*boota_ptr_t)( void *argv );
@@ -64,6 +65,12 @@ void set_ctx_var(cmd_ctx_t* ctx, const char* key, const char* val) {
     ctx->vars[ctx->vars_num].key = key; // const to be not reallocated
     ctx->vars[ctx->vars_num].value = copy_str(val);
     ctx->vars_num++;
+}
+
+char* next_token(char* t) {
+    char *t1 = t + strlen(t);
+    while(!*t1++);
+    return t1 - 1;
 }
 
 char* concat(const char* s1, const char* s2) {
@@ -1135,7 +1142,6 @@ void exec(cmd_ctx_t* ctx) {
 }
 
 void vCmdTask(void *pv) {
-    gouta("[vCmdTask]\n");
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     cmd_ctx_t* ctx = get_cmd_startup_ctx();
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
@@ -1296,4 +1302,301 @@ void mallocFailedHandler() {
 
 void overflowHook( TaskHandle_t pxTask, char *pcTaskName ) {
     goutf("WARN: stack overflow on task: '%s'\n", pcTaskName);
+}
+
+cmd_ctx_t* get_cmd_ctx() {
+    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    return (cmd_ctx_t*) pvTaskGetThreadLocalStoragePointer(th, 0);
+}
+
+FIL* get_stdout() {
+    cmd_ctx_t* pctx = get_cmd_ctx();
+    return pctx ? pctx->std_out : ctx.std_out;
+}
+FIL* get_stderr() {
+    cmd_ctx_t* pctx = get_cmd_ctx();
+    return pctx ? pctx->std_err : ctx.std_err;
+}
+
+
+inline static size_t in_quotas(size_t i, string_t* pcmd, string_t* t) {
+    for (; i < pcmd->size; ++i) {
+        char c = pcmd->p[i];
+        if (c == '"') {
+            return i;
+        }
+        string_push_back_c(t, c);
+    }
+    return i;
+}
+
+inline static char replace_spaces0(char t) {
+    return (t == ' ') ? 0 : t;
+}
+
+inline static void tokenize_cmd(list_t* lst, string_t* pcmd, cmd_ctx_t* ctx) {
+    while (pcmd->size && pcmd->p[0] == ' ') { // remove trailing spaces
+        string_clip(pcmd, 0);
+    }
+    if (!pcmd->size) {
+        return 0;
+    }
+    bool in_space = false;
+    int inTokenN = 0;
+    string_t* t = new_string_v();
+    for (size_t i = 0; i < pcmd->size; ++i) {
+        char c = pcmd->p[i];
+        if (c == '"') {
+            if(t->size) {
+                list_push_back(lst, t);
+                t = new_string_v();
+            }
+            i = in_quotas(++i, pcmd, t);
+            in_space = false;
+            continue;
+        }
+        c = replace_spaces0(c);
+        if (in_space) {
+            if(c) { // token started
+                in_space = false;
+                list_push_back(lst, t);
+                t = new_string_v();
+            }
+        } else if(!c) { // not in space, after the token
+            in_space = true;
+        }
+        string_push_back_c(t, c);
+    }
+    if (t->size) list_push_back(lst, t);
+}
+
+
+inline static string_t* get_std_out1(bool* p_append, string_t* pcmd, size_t i0, size_t sz) {
+    string_t* std_out_file = new_string_v();
+    for (size_t i = i0; i < sz; ++i) {
+        char c = pcmd->p[i];
+        if (i == i0 && c == '>') {
+            *p_append = true;
+            continue;
+        }
+        if (c == '"') {
+            in_quotas(++i, pcmd, std_out_file);
+            break;
+        }
+        if (c != ' ') {
+            string_push_back_c(std_out_file, c);
+        }
+    }
+    return std_out_file;
+}
+
+inline static string_t* get_std_out0(bool* p_append, string_t* pcmd) {
+    bool in_quotas = false;
+    size_t sz = pcmd->size;
+    for (size_t i = 0; i < sz; ++i) {
+        char c = pcmd->p[i];
+        if (c == '"') {
+            in_quotas = !in_quotas;
+        }
+        if (!in_quotas && c == '>') {
+            string_t* t = get_std_out1(p_append, pcmd, i + 1, sz);
+            string_resize(pcmd, i); // use only left side of the string
+            return t;
+        }
+    }
+    return NULL;
+}
+
+inline static bool prepare_ctx(string_t* pcmd, cmd_ctx_t* ctx) {
+    bool in_quotas = false;
+    bool append = false;
+    string_t* std_out_file = get_std_out0(&append, pcmd);
+    if (std_out_file) {
+        ctx->std_out = (FIL*)pvPortCalloc(1, sizeof(FIL));
+        if (FR_OK != f_open(ctx->std_out, std_out_file->p, FA_WRITE | (append ? FA_OPEN_APPEND : FA_CREATE_ALWAYS))) {
+            printf("Unable to open file: '%s'\n", std_out_file->p);
+            delete_string(std_out_file);
+            return false;
+        }
+        delete_string(std_out_file);
+    }
+
+    list_t* lst = new_list_v(new_string_v, delete_string, NULL);
+    tokenize_cmd(lst, pcmd, ctx);
+    if (!lst->size) {
+        delete_list(lst);
+        return false;
+    }
+
+    ctx->argc = lst->size;
+    ctx->argv = (char**)pvPortCalloc(sizeof(char*), lst->size);
+    node_t* n = lst->first;
+    for(size_t i = 0; i < lst->size && n != NULL; ++i, n = n->next) {
+        ctx->argv[i] = copy_str(c_str(n->data));
+    }
+    delete_list(lst);
+    if (ctx->orig_cmd) vPortFree(ctx->orig_cmd);
+    ctx->orig_cmd = copy_str(ctx->argv[0]);
+    ctx->stage = PREPARED;
+    return true;
+}
+
+inline static cmd_ctx_t* new_ctx(cmd_ctx_t* src) {
+    cmd_ctx_t* res = (cmd_ctx_t*)pvPortCalloc(1, sizeof(cmd_ctx_t));
+    if (src->vars_num && src->vars) {
+        res->vars = (vars_t*)pvPortMalloc( sizeof(vars_t) * src->vars_num );
+        res->vars_num = src->vars_num;
+        for (size_t i = 0; i < src->vars_num; ++i) {
+            if (src->vars[i].value) {
+                res->vars[i].value = copy_str(src->vars[i].value);
+            }
+            res->vars[i].key = src->vars[i].key; // const
+        }
+    }
+    res->stage = src->stage;
+    return res;
+}
+
+inline static void cmd_write_history(cmd_ctx_t* ctx, string_t* s_cmd) {
+    char* tmp = get_ctx_var(ctx, TEMP);
+    if(!tmp) tmp = "";
+    size_t cdl = strlen(tmp);
+    char * cmd_history_file = concat(tmp, _cmd_history);
+    FIL* pfh = (FIL*)pvPortMalloc(sizeof(FIL));
+    f_open(pfh, cmd_history_file, FA_OPEN_ALWAYS | FA_WRITE | FA_OPEN_APPEND);
+    UINT br;
+    f_write(pfh, s_cmd->p, s_cmd->size, &br);
+    f_write(pfh, "\n", 1, &br);
+    f_close(pfh);
+    vPortFree(pfh);
+    vPortFree(cmd_history_file);
+}
+
+bool cmd_enter_helper(cmd_ctx_t* ctx, string_t* s_cmd) {
+    if (s_cmd->size) {
+        cmd_write_history(ctx, s_cmd);
+    } else {
+        goto r2;
+    }
+    bool exit = false;
+    bool in_qutas = false;
+    cmd_ctx_t* ctxi = ctx;
+    string_t* t = new_string_v();
+    for (size_t i = 0; i <= s_cmd->size; ++i) {
+        char c = s_cmd->p[i];
+        if (!c) {
+            exit = prepare_ctx(t, ctxi);
+            break;
+        }
+        if (c == '"') {
+            in_qutas = !in_qutas;
+        }
+        if (!in_qutas && c == '|') {
+            cmd_ctx_t* curr = ctxi;
+            cmd_ctx_t* next = new_ctx(ctxi);
+            exit = prepare_ctx(t, curr);
+            curr->std_out = (FIL*)pvPortCalloc(1, sizeof(FIL));
+            curr->std_err = curr->std_out;
+            next->std_in = (FIL*)pvPortCalloc(1, sizeof(FIL));
+            f_open_pipe(curr->std_out, next->std_in);
+            curr->detached = true;
+            next->prev = curr;
+            curr->next = next;
+            next->detached = false;
+            ctxi = next;
+            string_resize(t, 0);
+            continue;
+        }
+        if (!in_qutas && c == '&') {
+            exit = prepare_ctx(t, ctxi);
+            ctxi->detached = true;
+            string_resize(t, 0);
+            break;
+        }
+        string_push_back_c(t, c);
+    }
+    delete_string(t);
+    if (exit) { // prepared ctx
+        return true;
+    }
+    ctxi = ctx->next;
+    ctx->next = 0;
+    while(ctxi) { // remove pipe chain
+        cmd_ctx_t* next = ctxi->next;
+        remove_ctx(ctxi);
+        ctxi = next;
+    }
+    cleanup_ctx(ctx); // base ctx to be there
+r2:
+    return false;
+}
+
+int history_steps(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cmd) {
+    char* tmp = get_ctx_var(ctx, TEMP);
+    if(!tmp) tmp = "";
+    size_t cdl = strlen(tmp);
+    char * cmd_history_file = concat(tmp, _cmd_history);
+    FIL* pfh = (FIL*)pvPortMalloc(sizeof(FIL));
+    int idx = 0;
+    UINT br;
+    f_open(pfh, cmd_history_file, FA_READ);
+    char* b = (char*)pvPortMalloc(512);
+    while(f_read(pfh, b, 512, &br) == FR_OK && br) {
+        for(size_t i = 0; i < br; ++i) {
+            char t = b[i];
+            if(t == '\n') { // next line
+                if(cmd_history_idx == idx)
+                    break;
+                string_resize(s_cmd, 0);
+                idx++;
+            } else {
+                string_push_back_c(s_cmd, t);
+            }
+        }
+    }
+    vPortFree(b);
+    f_close(pfh);
+    vPortFree(pfh);
+    vPortFree(cmd_history_file);
+    return idx;
+}
+
+bool run_new_app(cmd_ctx_t* ctx) {
+    // todo:
+    gouta("[run_new_app] tba\n");
+    return false;
+}
+// support sygnal for current "sync_ctx" context only for now
+void app_signal(void) {
+    if (bootb_sync_signal) bootb_sync_signal();
+}
+
+int kill(uint32_t task_number) {
+    configRUN_TIME_COUNTER_TYPE ulTotalRunTime, ulStatsAsPercentage;
+    volatile UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
+    TaskStatus_t *pxTaskStatusArray = pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );
+    uxArraySize = uxTaskGetSystemState( pxTaskStatusArray, uxArraySize, &ulTotalRunTime );
+    int res = 0;
+    for ( UBaseType_t x = 0; x < uxArraySize; x++ ) {
+        if (pxTaskStatusArray[ x ].xTaskNumber == task_number) {
+            res = 1;
+            cmd_ctx_t* ctx = (cmd_ctx_t*) pvTaskGetThreadLocalStoragePointer(pxTaskStatusArray[ x ].xHandle, 0);
+            if (ctx) {
+                ctx->stage = SIGTERM;
+                if (ctx->pboot_ctx && ctx->pboot_ctx->bootb[4]) {
+                    ctx->pboot_ctx->bootb[4](); // signal SIGTERM
+                    res = 2;
+                }
+            } else {
+                res = 3;
+            }
+            break;
+        }
+    }
+    vPortFree( pxTaskStatusArray );
+    return res;
+}
+
+void __not_in_flash_func(reboot_me)(void) {
+    reboot_is_requested = true;
 }

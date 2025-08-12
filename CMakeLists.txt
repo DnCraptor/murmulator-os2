@@ -57,6 +57,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 add_subdirectory(freertos_config)
 add_subdirectory(FreeRTOS-Kernel)
 
+add_subdirectory(drivers/audio)
 add_subdirectory(drivers/ps2)
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
@@ -95,6 +96,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         FreeRTOS-Kernel-Heap4
 
         ps2
+        audio
         sdcard
         fatfs
         nespad
@@ -169,11 +171,18 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         NES_GPIO_DATA=16
         NES_GPIO_LAT=15
 
+        WAV_IN_PIO=22
+        #I2S_SOUND
+        PWM_PIN0=26
+        PWM_PIN1=27
+        BEEPER_PIN=28
+
         M_API_VERSION=25
         MIN_API_VERSION=14
 
         # do not touch last 512 bytes in RAM on launch app, say, no more RAM
         RESERVED_RAM=512
+        OVERCLOCKING=378
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})

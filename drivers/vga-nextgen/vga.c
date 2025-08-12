@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include "sys_table.h"
 #include "hardware/clocks.h"
 #include "stdbool.h"
 #include "hardware/structs/pll.h"
@@ -279,7 +280,7 @@ void __time_critical_func() dma_handler_VGA() {
     dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
 }
 
-void graphics_set_mode(enum graphics_mode_t mode) {
+void __in_hfa() graphics_set_mode(enum graphics_mode_t mode) {
     switch (mode) {
         case TEXTMODE_53x30:
             text_buffer_width = 40;

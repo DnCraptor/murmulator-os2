@@ -12,6 +12,10 @@ uint8_t kbloop = 0;
 
 uint8_t led_status = 0b000;
 
+uint8_t get_leds_stat() {
+    return led_status;
+}
+
 #define PS2_ERR_NONE    0
 
 volatile int16_t ps2_error = PS2_ERR_NONE;

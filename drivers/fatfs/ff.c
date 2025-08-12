@@ -23,6 +23,8 @@
 #include "ff.h"			/* Declarations of FatFs API */
 #include "diskio.h"		/* Declarations of device I/O functions */
 
+#include "FreeRTOS.h"
+#include "queue.h"
 
 /*--------------------------------------------------------------------------
 
@@ -3328,8 +3330,9 @@ static UINT find_volume (	/* Returns BS status found in the hosting drive */
 /*-----------------------------------------------------------------------*/
 /* Determine logical drive number and mount the volume if needed         */
 /*-----------------------------------------------------------------------*/
+#include "sys_table.h"
 
-static FRESULT mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
+FRESULT __in_hfa() mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 	const TCHAR** path,			/* Pointer to pointer to the path name (drive number) */
 	FATFS** rfs,				/* Pointer to pointer to the found filesystem object */
 	BYTE mode					/* !=0: Check write protection for write access */
@@ -6980,3 +6983,21 @@ FRESULT f_setcp (
 }
 #endif	/* FF_CODE_PAGE == 0 */
 
+
+bool f_eof(FIL* fp) {
+	// if (fp->chained && fp->chained->obj.fs) return false;
+	return ((int)((fp)->fptr == (fp)->obj.objsize));
+}
+
+FRESULT f_open_pipe(FIL* to, FIL* from) {
+    from->chained = to;
+    to->chained = from;
+	QueueHandle_t q = xQueueCreate(512, sizeof(char));
+	to->fptr = q;
+	to->clust = 0;
+	from->clust = 1; // remove queue only on from close
+	from->fptr = q;
+	to->sect = 0;
+	from->sect = 0;
+	return FR_OK;
+}

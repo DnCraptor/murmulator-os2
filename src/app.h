@@ -15,6 +15,7 @@ extern "C" {
 
 #include "ff.h"
 #include "../../api/m-os-api-c-list.h"
+#include "../../api/m-os-api-c-string.h"
 
 #define FIRMWARE_MARKER_FN "/.firmware"
 
@@ -98,15 +99,28 @@ void cleanup_ctx(cmd_ctx_t* src);
 cmd_ctx_t* clone_ctx(cmd_ctx_t* src);
 void remove_ctx(cmd_ctx_t*);
 void cleanup_bootb_ctx(cmd_ctx_t* ctx);
+
 bool is_new_app(cmd_ctx_t* ctx);
+bool run_new_app(cmd_ctx_t* ctx);
+
 bool load_app(cmd_ctx_t* ctx);
 void exec(cmd_ctx_t* ctx);
+cmd_ctx_t* get_cmd_ctx();
+
+FIL * get_stdout(); // old system
+FIL * get_stderr(); // old system
+
+bool cmd_enter_helper(cmd_ctx_t* ctx, string_t* s_cmd);
+
+char* next_token(char* t);
 
 char* concat(const char* s1, const char* s2);
 char* concat2(const char* s1, size_t sz, const char* s2);
 char* copy_str(const char* s);
 
 void vCmdTask(void *pv);
+void app_signal(void);
+int kill(uint32_t task_number);
 
 void flash_block(uint8_t* buffer, size_t flash_target_offset);
 bool load_firmware(char* pathname);
@@ -115,9 +129,11 @@ void link_firmware(FIL* pf, const char* pathname);
 extern uint32_t flash_size;
 void get_cpu_flash_jedec_id(uint8_t rx[4]);
 void run_app(char * name);
+int history_steps(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cmd);
 
 void mallocFailedHandler();
 void overflowHook( TaskHandle_t pxTask, char *pcTaskName );
+void reboot_me(void);
 
 #define taskENTER_CRITICAL()
 #define taskEXIT_CRITICAL()

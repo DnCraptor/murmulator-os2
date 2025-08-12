@@ -88,6 +88,10 @@ bool is_buffer_text(void);
 FIL* get_stdout();
 uint8_t get_screen_bitness();
 void fgoutf(FIL *f, const char *__restrict str, ...);
+void graphics_set_con_pos(int x, int y);
+void graphics_lock_buffer(bool);
+void gbackspace();
+void __putc(char);
 
 #ifdef __cplusplus
 }
