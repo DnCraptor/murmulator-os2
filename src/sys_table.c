@@ -1,0 +1,347 @@
+#include <time.h>
+#include <hardware/flash.h>
+#include <pico/multicore.h>
+#include <pico/stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "FreeRTOS.h"
+#include "task.h"
+#include "sys_table.h"
+#include "graphics.h"
+#include "ff.h"
+#include "hooks.h"
+///#include "portable.h"
+///#include "timers.h" // TODO
+#include "ps2.h"
+#include "app.h"
+///#include "cmd.h"
+///#include "psram_spi.h"
+///#include "math-wrapper.h"
+///#include "ram_page.h"
+///#include "overclock.h"
+///#include "hardfault.h"
+///#include "keyboard.h"
+#include "usb.h"
+#include "nespad.h"
+///#include "sound.h"
+#include <math.h>
+
+// TODO: think about it
+//extern int __cxa_pure_virtual();
+
+FATFS* get_mount_fs(); // only one FS is supported foe now
+
+unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
+    // task.h
+    xTaskCreate, // 0
+    vTaskDelete, // 1
+    vTaskDelay,  // 2
+    xTaskDelayUntil, // 3
+    xTaskAbortDelay, // 4
+    uxTaskPriorityGet, // 5
+    uxTaskPriorityGetFromISR, // 6
+    uxTaskBasePriorityGet, // 7
+    uxTaskBasePriorityGetFromISR, // 8
+    eTaskGetState, // 9
+    vTaskGetInfo, // 10
+    vTaskPrioritySet, // 11
+    vTaskSuspend, // 12
+    vTaskResume, // 13
+    xTaskResumeFromISR, // 14
+    vTaskSuspendAll, // 15
+    xTaskResumeAll, // 16
+    xTaskGetTickCount, // 17
+    xTaskGetTickCountFromISR, // 18
+    uxTaskGetNumberOfTasks, // 19
+    pcTaskGetName, // 20
+    xTaskGetHandle, // 21
+    uxTaskGetStackHighWaterMark, // 22
+    vTaskSetThreadLocalStoragePointer, // 23
+    pvTaskGetThreadLocalStoragePointer, // 24
+    // TODO: hooks support?
+    getApplicationMallocFailedHookPtr, // 25
+    setApplicationMallocFailedHookPtr, // 26
+    getApplicationStackOverflowHookPtr, // 27
+    setApplicationStackOverflowHookPtr, // 28
+    // #include <stdio.h>
+    snprintf, // 29
+    // graphics.h
+    draw_text, // 30 
+    draw_window, // 31
+    // 
+    pvPortMalloc, // 32
+    vPortFree, // 33
+    //
+    graphics_set_mode, // 34
+    0, //graphics_lock_buffer, // was graphics_set_buffer 35
+    graphics_set_offset, // 36
+    0, // graphics_set_palette, // 37
+    graphics_set_buffer, // 38
+    graphics_set_bgcolor, // 39
+    0, // graphics_set_flashmode, // 40
+    goutf, // 41
+    0, //graphics_set_con_pos, // 42
+    graphics_set_con_color, // 43
+    clrScr, // 44
+    0, //gbackspace, // 45
+
+    f_open, // 46
+    f_close, // 47
+    f_write, // 48
+    f_read, // 49
+    f_stat, // 50
+    f_lseek, // 51
+    f_truncate, // 52
+    f_sync, // 53
+    f_opendir, // 54
+    f_closedir, // 55
+    f_readdir, // 56
+    f_mkdir, // 57
+    f_unlink, // 58
+    f_rename, // 59
+    strcpy, // 60
+    f_getfree, // 61
+    //
+    strlen, // 62
+    strncpy, // 63
+    0, //get_leds_stat, // 64
+    //
+    load_firmware, // 65
+    run_app, // 66
+    //
+    vsnprintf, // 67
+    //
+    get_stdout, // 68
+    0, //get_stderr, // 69
+    //
+    fgoutf, // 70
+    //
+    0, //psram_size, // 71
+    0, //psram_cleanup, // 72
+    0, //write8psram, // 73
+    0, //write16psram, // 74
+    0, //write32psram, // 75
+    0, //read8psram, // 76
+    0, //read16psram, // 77
+    0, //read32psram, // 78
+    //
+    0, //__u32u32u32_div, // 79
+    0, //__u32u32u32_rem, // 80
+    0, //__fff_div, // 81
+    0, //__fff_mul, // 82
+    0, //__ffu32_mul, // 83
+    0, //__ddd_div, // 84
+    0, //__ddd_mul, // 85
+    0, //__ddu32_mul, // 86
+    0, //__ddf_mul, // 87
+    0, //__ffu32_div, // 88
+    0, //__ddu32_div, // 89
+    //
+    0, //swap_size, // 90
+    0, //swap_base_size, // 91
+    0, //swap_base, // 92
+    0, //ram_page_read, // 93
+    0, //ram_page_read16, // 94
+    0, //ram_page_read32, // 95
+    0, //ram_page_write, // 96
+    0, //ram_page_write16, // 97
+    0, //ram_page_write32, // 98
+    //
+    get_cmd_startup_ctx, // 99
+    //
+    atoi, // 100
+    //
+    0, //overclocking, // 101
+    0, //overclocking_ex, // 102
+    0, //get_overclocking_khz, // 103
+    0, //set_overclocking, // 104
+    0, //set_sys_clock_pll, // 105
+    0, //check_sys_clock_khz, // 106
+    //
+    0, //next_token, // 107
+    //
+    strcmp, // 108
+    strncmp, // 109
+    //
+    0, //vPortGetHeapStats, // 110
+    0, //get_cpu_ram_size, // 111
+    0, //get_cpu_flash_size, // 112
+    //
+    get_mount_fs, // 113
+    0, //f_getfree32, // 114
+    //
+    0, //get_scancode_handler, // 115
+    0, //set_scancode_handler, // 116
+    0, //get_cp866_handler, // 117
+    0, //set_cp866_handler, // 118
+    0, //gbackspace, // 119
+    //
+    is_new_app, // 120
+    0, //run_new_app, // 121
+    //
+    0, //__getch, // 122
+    0, //__putc, // 123
+    //
+    cleanup_bootb_ctx, // 124
+    load_app, // 125
+    exec, // 126
+    //
+    gouta, // 127
+    //
+    exists, // 128
+    concat, // 129
+    concat2, // 130
+    //
+    flash_block, // 131
+    0, //get_heap_total, // 132
+    0, //swap_pages, // 133
+    0, //swap_pages_base, // 134
+    0, //swap_page_size, // 135
+    //
+    xTaskGetCurrentTaskHandle, // 136
+    copy_str, // 137
+    0, //get_cmd_ctx, // 138
+    cleanup_ctx, // 139
+    get_ctx_var, // 140
+    set_ctx_var, // 141
+    memset, // 142
+    clone_ctx, // 143
+    remove_ctx, // 144
+    //
+    xPortGetFreeHeapSize, // 145
+    //
+    get_console_width, // 146
+    get_console_height, // 147
+    //
+    0, //__getc, // 148
+    0, //f_eof, // 149
+    0, //f_getc, // 150
+    0, //f_open_pipe, // 151
+    //
+    get_buffer, // 152
+    0, //get_buffer_size, // 153
+    get_screen_bitness, // 154
+    0, //cleanup_graphics, // 155
+    0, //install_graphics_driver, // 156
+    0, //get_console_bitness, // 157
+    get_screen_width, // 158
+    get_screen_height, // 159
+    0, //get_graphics_driver, // 160
+    is_buffer_text, // 161
+    0, //graphics_get_mode, // 162
+    0, //graphics_is_mode_text, // 163
+    0, //set_vga_dma_handler_impl, // 164 (TODO: organize)
+    0, //set_vga_clkdiv, // 165
+    pvPortCalloc, // 166
+    memcpy, // 167
+    0, //vga_dma_channel_set_read_addr, // 168
+    //
+    qsort, // 169
+    strnlen,  // 170
+    flash_do_cmd, // 171
+    flash_range_erase, // 172
+    flash_range_program, // 173
+    flash_get_unique_id, // 174
+    multicore_lockout_start_blocking, // 175
+    multicore_lockout_end_blocking, // 176
+    get_cpu_flash_jedec_id, // 177
+    0, //psram_id, // 178
+    //
+    init_pico_usb_drive, // 179 (better use usb_driver)
+    pico_usb_drive_heartbeat, // 180 (better use usb_driver)
+    tud_msc_ejected, // 181
+    set_tud_msc_ejected, // 182 (better use usb_driver)
+    //
+    0, //show_logo, // 183
+    0, //getch_now, // 184
+    //
+    0, //usb_driver, // 185
+    0, //set_cursor_color, // 186
+    //
+    0, //nespad_stat, // 187
+    0, //graphics_get_default_mode, // 188
+    //
+    0, //graphics_get_font_table, // 189
+    0, //graphics_get_font_width, // 190
+    0, //graphics_get_font_height, // 191
+    0, //graphics_set_font, // 192
+    0, //graphics_set_ext_font, // 193
+    //
+    0, //blimp, // 194
+    0, //graphics_con_x, // 195
+    0, //graphics_con_y, // 196
+    //
+    0, //pcm_setup, // 197
+    0, //pcm_cleanup, // 198
+    0, //pcm_set_buffer, // 199
+    // v.0.2.4
+    0, //__trunc, // 200
+    0, //__floor, // 201
+    0, //__pow, // 202
+    0, //__sqrt, // 203
+    0, //__sin, // 204
+    0, //__cos, // 205
+    0, //__tan, // 206
+    0, //__atan, // 207
+    0, //__log, // 208
+    0, //__exp, // 209
+    0, //__aeabi_fmul, // 210
+    0, //__aeabi_i2f, // 211
+    0, //__aeabi_fadd, // 212
+    0, //__aeabi_fsub, // 213
+    0, //__aeabi_fdiv, // 214
+    0, //__aeabi_fcmpge, // 215
+    0, //__aeabi_idivmod, // 216
+    0, //__aeabi_idiv, // 217
+    0, //__aeabi_f2d, // 218
+    0, //__aeabi_d2f, // 219
+    0, //__aeabi_f2iz, // 220
+    0, //__aeabi_fcmplt, // 221
+    0, //__aeabi_dsub, // 222
+    0, //__aeabi_d2iz, // 223
+    0, //__aeabi_fcmpeq, // 224
+    0, //__aeabi_fcmpun, // 225
+    0, //__aeabi_fcmpgt, // 226
+    0, //__aeabi_dcmpge, // 227
+    0, //__aeabi_uidiv, // 228
+    0, //__aeabi_ui2f, // 229
+    0, //__aeabi_f2uiz, // 230
+    0, //__aeabi_fcmple, // 231
+    memmove, // 232
+    // API v.20
+    0, //cmd_tab, // 233
+    0, //history_steps, // 234
+    0, //cmd_enter_helper, // 235
+    0, //set_usb_detached_handler, // 236
+    0, //op_console, // 237
+    0, //f_read_str, // 238
+    0, //draw_label, // 239
+    0, //draw_box, // 240
+    0, //draw_panel, // 241
+    0, //draw_button, // 242
+    0, //uxTaskGetSystemState, // 243
+    0, //kill, // 244
+    // API v.21
+    0, //__aeabi_dmul, // 245
+    0, //__aeabi_ddiv, // 246
+    0, //__aeabi_dadd, // 247
+    0, //__aeabi_i2d, // 248
+    0, //__aeabi_dcmpeq, // 249
+    0, //__aeabi_ui2d, // 250
+    0, //__aeabi_dcmplt, // 251
+    // API v.22
+    strcat, // 252
+    memcmp, // 253
+    0, //reboot_me, // 254
+    // API v.23
+    0, //free_app_flash, // 255
+    0, //__aeabi_d2uiz, // 256
+    // API v.24
+    powf, // 257
+    // API v.25
+    0, //__clzsi2, // 258
+    0, //__aeabi_lmul, // 259
+    // TODO:
+    0
+};
