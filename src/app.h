@@ -9,7 +9,7 @@ extern "C" {
 
 #include "cmd.h"
 
-#define FIRMWARE_MARKER_FN "/.firmware_mos2"
+#define FIRMWARE_MARKER_FN "/.firmware"
 
 void reboot_me(void);
 bool load_firmware(char* pathname);

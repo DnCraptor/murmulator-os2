@@ -155,7 +155,7 @@ to exclude the API function. */
 #define configENABLE_FPU                        0
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY    16
 /// TODO:
-#define configCPU_CLOCK_HZ                      378000000
+#define configCPU_CLOCK_HZ                      352000000
 
 /* A header file that defines trace macro can be included here. */
 

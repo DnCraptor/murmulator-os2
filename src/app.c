@@ -144,7 +144,6 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
     char* buffer = (char*)((uint32_t)(alloc + 511) & 0xFFFFFE00); // align 512
 
     uint32_t flash_target_offset = 0;
-    bool boot_replaced = false;
     uint32_t already_written = 0;
     while(true) {
         size_t sz = 0;
@@ -157,18 +156,12 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
             fgoutf(get_stdout(), "Replace targe offset: %ph\n", flash_target_offset);
             continue;
         }
-        //подмена загрузчика boot2 прошивки на записанный ранее
-        if (flash_target_offset == 0) {
-            boot_replaced = true;
-            memcpy(buffer, (uint8_t *)XIP_BASE, 256);
-            fgoutf(get_stdout(), "Replace loader @ offset 0\n");
-        }
         already_written += FLASH_SECTOR_SIZE;
         uint32_t pcts = already_written * 100 / expected_to_write_size;
         if (pcts > 100) pcts = 100;
-        if (flash_target_offset == 0xFFFF00) {
+        if (flash_target_offset < (FIRMWARE_OFFSET << 10)) {
             fgoutf(get_stdout(), "Unexpected offset: %ph (%d%%). Breaking the process...\n", flash_target_offset, pcts);
-            break;
+            goto err;
         }
         fgoutf(get_stdout(), "Erase and write to flash, offset: %ph (%d%%)\n", flash_target_offset, pcts);
         flash_block(buffer, flash_target_offset);
@@ -176,16 +169,17 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
     }
     vPortFree(alloc);
     f_close(pf);
-    if (boot_replaced) {
-        goutf("Write FIRMWARE MARKER '%s' to '%s'\n", pathname, FIRMWARE_MARKER_FN);
-        link_firmware(pf, pathname);
-        goutf("Reboot is required!\n");
-        reboot_is_requested = true;
-        while(true) ;
-    }
+    goutf("Write FIRMWARE MARKER '%s' to '%s'\n", pathname, FIRMWARE_MARKER_FN);
+    link_firmware(pf, pathname);
+    goutf("Reboot is required!\n");
+    reboot_is_requested = true;
+    while(true) ;
+err:
+    vPortFree(alloc);
+    f_close(pf);
     vPortFree(pf);
     vPortFree(uf2);
-    return !boot_replaced;
+    return false;
 }
 
 bool load_firmware(char* pathname) {

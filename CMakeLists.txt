@@ -31,12 +31,11 @@ option(HDMI "Enable HDMI display" OFF)
 option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 
-#option(FLASH_SIZE "Target Flash Size" 4096) -- support any up to 16M
 option(FLASH_SIZE "Target Flash Size" 16384)
 set(VGA ON)
 
 if(NOT FLASH_SIZE)
-set(FLASH_SIZE 4096)
+set(FLASH_SIZE 16384)
 endif ()
 
 set(FIRMWARE_OFFSET 64)
@@ -204,9 +203,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
         # do not touch last 512 bytes in RAM on launch app, say, no more RAM
         RESERVED_RAM=512
-        OVERCLOCKING=378
-        DEBUG_APP_LOAD=1
-        MOS_VERSION_STR="2.0.0"
+        OVERCLOCKING=352
+        #DEBUG_APP_LOAD=1
+        MOS_VERSION_STR="2.0.1"
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})

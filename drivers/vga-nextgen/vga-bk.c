@@ -33,7 +33,7 @@ const static uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 
 const static uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
 
 int vga_get_default_mode(void) {
-    return TEXTMODE_100x37;
+    return TEXTMODE_80x30; // TEXTMODE_100x37;
 }
 
 typedef struct {
