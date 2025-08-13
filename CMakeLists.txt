@@ -183,6 +183,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         # do not touch last 512 bytes in RAM on launch app, say, no more RAM
         RESERVED_RAM=512
         OVERCLOCKING=378
+        DEBUG_APP_LOAD=1
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})

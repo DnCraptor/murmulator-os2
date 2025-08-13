@@ -135,9 +135,6 @@ void mallocFailedHandler();
 void overflowHook( TaskHandle_t pxTask, char *pcTaskName );
 void reboot_me(void);
 
-#define taskENTER_CRITICAL()
-#define taskEXIT_CRITICAL()
-
 #ifdef __cplusplus
 }
 #endif

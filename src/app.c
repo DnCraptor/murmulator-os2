@@ -462,7 +462,7 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
             goto e1;
         }
         #if DEBUG_APP_LOAD
-            goutf("Program section #%d (%d bytes) allocated into %ph\n", sec_num, sz, prg_addr);
+            goutf("Program section #%d (%d bytes) allocated into %ph\n", sec_num, psh->sh_size, prg_addr);
         #endif
             add_sec(c, del_addr, prg_addr, sec_num);
             // links and relocations
@@ -915,7 +915,7 @@ e1:
     bootb_ctx->sections = pctx->sections_lst;
     vPortFree(pctx);
     #if DEBUG_APP_LOAD
-    debug_sections(bootb_ctx->sect_entries);
+///    debug_sections(bootb_ctx->sect_entries);
     goutf("[%p][%p][%p][%p]\n", bootb_ctx->bootb[0], bootb_ctx->bootb[1], bootb_ctx->bootb[2], bootb_ctx->bootb[3]);
     #endif
     if (bootb_ctx->bootb[2] == 0) {
@@ -1158,7 +1158,7 @@ void vCmdTask(void *pv) {
         if (b_exists) {
             size_t len = strlen(ctx->orig_cmd); // TODO: more than one?
             // goutf("Command found: %s\n", ctx->orig_cmd);
-            if (len > 3 && strcmp(ctx->orig_cmd + len - 4, ".uf2") == 0) {
+            if (len > 4 && strcmp(ctx->orig_cmd + len - 5, ".m1p2") == 0) {
                 if(load_firmware(ctx->orig_cmd)) { // TODO: by ctx
                     ctx->stage = LOAD;
                     vTaskSetThreadLocalStoragePointer(th, 0, ctx);

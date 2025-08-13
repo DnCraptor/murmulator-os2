@@ -295,9 +295,9 @@ int __in_hfa() main() {
     uint8_t rx[4];
     get_cpu_flash_jedec_id(rx);
     flash_size = (1 << rx[3]);
+
     f_mount(&fs, SD, 1);
     init_sound();
-  ///  goutf("flash_size: %dK\n", flash_size >> 10);
 
     xTaskCreate(vCmdTask, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
 
