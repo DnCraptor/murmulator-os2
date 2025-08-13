@@ -134,6 +134,7 @@ int history_steps(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cmd);
 void mallocFailedHandler();
 void overflowHook( TaskHandle_t pxTask, char *pcTaskName );
 void reboot_me(void);
+void cmd_tab(cmd_ctx_t* ctx, string_t* s_cmd);
 
 #ifdef __cplusplus
 }

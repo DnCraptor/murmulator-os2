@@ -3,6 +3,7 @@
 #include <stdarg.h>
 
 #include "app.h"
+#include "sys_table.h"
 
 volatile uint8_t con_color = 7;
 volatile uint8_t con_bgcolor = 0;
@@ -122,7 +123,7 @@ static char* common_rollup(char* b, char* t_buf, uint32_t width, uint32_t height
     }
     return b + width * 2 * pos_y + 2 * pos_x;
 }
-static void common_print_char(uint8_t* graphics_buffer, uint32_t width, uint32_t height, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor, uint16_t c) {
+static void __in_hfa() common_print_char(uint8_t* graphics_buffer, uint32_t width, uint32_t height, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor, uint16_t c) {
     uint8_t bit = get_screen_bitness();
     uint8_t* pE = graphics_buffer + ((width * height * bit) >> 3);
     if (bit == 8) {

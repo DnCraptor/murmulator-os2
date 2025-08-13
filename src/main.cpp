@@ -27,6 +27,7 @@ extern "C" {
 #include "../../api/m-os-api-c-list.h"
 #include "hooks.h"
 #include "sound.h"
+#include "psram_spi.h"
 
 const char _mc_con[] = ".mc.con";
 const char _cmd_history[] = ".cmd_history";
@@ -291,6 +292,7 @@ int __in_hfa() main() {
     sem_release(&vga_start_semaphore);
     sleep_ms(250);
     load_config_sys();
+    init_psram();
     show_logo(true);
     uint8_t rx[4];
     get_cpu_flash_jedec_id(rx);

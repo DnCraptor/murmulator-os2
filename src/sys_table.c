@@ -16,7 +16,7 @@
 ///#include "timers.h" // TODO
 #include "ps2.h"
 #include "app.h"
-///#include "psram_spi.h"
+#include "psram_spi.h"
 ///#include "math-wrapper.h"
 ///#include "ram_page.h"
 #include "overclock.h"
@@ -119,14 +119,14 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     //
     fgoutf, // 70
     //
-    0, //psram_size, // 71
-    0, //psram_cleanup, // 72
-    0, //write8psram, // 73
-    0, //write16psram, // 74
-    0, //write32psram, // 75
-    0, //read8psram, // 76
-    0, //read16psram, // 77
-    0, //read32psram, // 78
+    psram_size, // 71
+    psram_cleanup, // 72
+    write8psram, // 73
+    write16psram, // 74
+    write32psram, // 75
+    read8psram, // 76
+    read16psram, // 77
+    read32psram, // 78
     //
     0, //__u32u32u32_div, // 79
     0, //__u32u32u32_rem, // 80
@@ -312,7 +312,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     0, //__aeabi_fcmple, // 231
     memmove, // 232
     // API v.20
-    0, //cmd_tab, // 233
+    cmd_tab, // 233
     history_steps, // 234
     cmd_enter_helper, // 235
     0, //set_usb_detached_handler, // 236

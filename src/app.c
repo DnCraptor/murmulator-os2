@@ -1600,3 +1600,90 @@ int kill(uint32_t task_number) {
 void __not_in_flash_func(reboot_me)(void) {
     reboot_is_requested = true;
 }
+
+inline static char* next_on(char* l, char *bi, bool in_quotas) {
+    char *b = bi;
+    while(*l && *b && *l == *b) {
+        if (*b == ' ' && !in_quotas) break;
+        l++;
+        b++;
+    }
+    if (*l == 0 && !in_quotas) {
+        char* bb = b;
+        while(*bb) {
+            if (*bb == ' ') {
+                return bi;
+            }
+            bb++;
+        }
+    }
+    return *l == 0 ? b : bi;
+}
+
+
+inline static void type_char(string_t* s_cmd, char c) {
+    __putc(c);
+    string_push_back_c(s_cmd, c);
+}
+
+void cmd_tab(cmd_ctx_t* ctx, string_t* s_cmd) {
+    char * p = s_cmd->p;
+    char * p2 = p;
+    bool in_quotas = false;
+    while (*p) {
+        char c = *p++;
+        if (c == '"') {
+            p2 = p;
+            in_quotas = true;
+            break;
+        }
+        if (c == ' ') {
+            p2 = p;
+        }
+    }
+    p = p2;
+    char * p3 = p2;
+    while (*p3) {
+        if (*p3++ == '/') {
+            p2 = p3;
+        }
+    }
+    string_t* s_b = NULL;
+    if (p != p2) {
+        s_b = new_string_cc(p);
+        string_resize(s_b, p2 - p);
+    } else {
+        s_b = new_string_v();
+    }
+    DIR* pdir = (DIR*)pvPortMalloc(sizeof(DIR));
+    FILINFO* pfileInfo = (FILINFO*)pvPortMalloc(sizeof(FILINFO));
+    //goutf("\nDIR: %s\n", p != p2 ? b : curr_dir);
+    if (FR_OK != f_opendir(pdir, p != p2 ? s_b->p : get_ctx_var(ctx, "CD"))) {
+        delete_string(s_b);
+        return;
+    }
+    int total_files = 0;
+    while (f_readdir(pdir, pfileInfo) == FR_OK && pfileInfo->fname[0] != '\0') {
+        p3 = next_on(p2, pfileInfo->fname, in_quotas);
+        if (p3 != pfileInfo->fname) {
+            string_replace_cs(s_b, p3);
+            total_files++;
+            break; // TODO: variants
+        }
+    }
+    if (total_files == 1) {
+        p3 = s_b->p;
+        while (*p3) {
+            type_char(s_cmd, *p3++);
+        }
+        if (in_quotas) {
+            type_char(s_cmd, '"');
+        }
+    } else {
+        blimp(10, 5);
+    }
+    delete_string(s_b);
+    f_closedir(pdir);
+    vPortFree(pfileInfo);
+    vPortFree(pdir);
+}

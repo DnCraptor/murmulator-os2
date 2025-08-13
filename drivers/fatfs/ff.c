@@ -25,6 +25,7 @@
 
 #include "FreeRTOS.h"
 #include "queue.h"
+#include "sys_table.h"
 
 /*--------------------------------------------------------------------------
 
@@ -2433,7 +2434,7 @@ static FRESULT dir_find (	/* FR_OK(0):succeeded, !=0:error */
 /* Register an object to the directory                                   */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT dir_register (	/* FR_OK:succeeded, FR_DENIED:no free entry or too many SFN collision, FR_DISK_ERR:disk error */
+FRESULT __in_hfa() dir_register (	/* FR_OK:succeeded, FR_DENIED:no free entry or too many SFN collision, FR_DISK_ERR:disk error */
 	DIR* dp						/* Target directory with object name to be created */
 )
 {
@@ -3330,7 +3331,6 @@ static UINT find_volume (	/* Returns BS status found in the hosting drive */
 /*-----------------------------------------------------------------------*/
 /* Determine logical drive number and mount the volume if needed         */
 /*-----------------------------------------------------------------------*/
-#include "sys_table.h"
 
 FRESULT __in_hfa() mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 	const TCHAR** path,			/* Pointer to pointer to the path name (drive number) */
@@ -4367,7 +4367,7 @@ FRESULT f_getcwd (
 /* Seek File Read/Write Pointer                                          */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_lseek (
+FRESULT __in_hfa() f_lseek (
 	FIL* fp,		/* Pointer to the file object */
 	FSIZE_t ofs		/* File pointer from top of file */
 )
