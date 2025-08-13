@@ -17,10 +17,10 @@
 #include "ps2.h"
 #include "app.h"
 #include "psram_spi.h"
-///#include "math-wrapper.h"
-///#include "ram_page.h"
+#include "math-wrapper.h"
+#include "ram_page.h"
 #include "overclock.h"
-///#include "hardfault.h"
+#include "hardfault.h"
 #include "keyboard.h"
 #include "usb.h"
 #include "nespad.h"
@@ -128,27 +128,27 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     read16psram, // 77
     read32psram, // 78
     //
-    0, //__u32u32u32_div, // 79
-    0, //__u32u32u32_rem, // 80
-    0, //__fff_div, // 81
-    0, //__fff_mul, // 82
-    0, //__ffu32_mul, // 83
-    0, //__ddd_div, // 84
-    0, //__ddd_mul, // 85
-    0, //__ddu32_mul, // 86
-    0, //__ddf_mul, // 87
-    0, //__ffu32_div, // 88
-    0, //__ddu32_div, // 89
+    __u32u32u32_div, // 79
+    __u32u32u32_rem, // 80
+    __fff_div, // 81
+    __fff_mul, // 82
+    __ffu32_mul, // 83
+    __ddd_div, // 84
+    __ddd_mul, // 85
+    __ddu32_mul, // 86
+    __ddf_mul, // 87
+    __ffu32_div, // 88
+    __ddu32_div, // 89
     //
-    0, //swap_size, // 90
-    0, //swap_base_size, // 91
-    0, //swap_base, // 92
-    0, //ram_page_read, // 93
-    0, //ram_page_read16, // 94
-    0, //ram_page_read32, // 95
-    0, //ram_page_write, // 96
-    0, //ram_page_write16, // 97
-    0, //ram_page_write32, // 98
+    swap_size, // 90
+    swap_base_size, // 91
+    swap_base, // 92
+    ram_page_read, // 93
+    ram_page_read16, // 94
+    ram_page_read32, // 95
+    ram_page_write, // 96
+    ram_page_write16, // 97
+    ram_page_write32, // 98
     //
     get_cmd_startup_ctx, // 99
     //
@@ -167,8 +167,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     strncmp, // 109
     //
     vPortGetHeapStats, // 110
-    0, //get_cpu_ram_size, // 111
-    0, //get_cpu_flash_size, // 112
+    get_cpu_ram_size, // 111
+    get_cpu_flash_size, // 112
     //
     get_mount_fs, // 113
     0, //f_getfree32, // 114
@@ -196,10 +196,10 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     concat2, // 130
     //
     flash_block, // 131
-    0, //get_heap_total, // 132
-    0, //swap_pages, // 133
-    0, //swap_pages_base, // 134
-    0, //swap_page_size, // 135
+    get_heap_total, // 132
+    swap_pages, // 133
+    swap_pages_base, // 134
+    swap_page_size, // 135
     //
     xTaskGetCurrentTaskHandle, // 136
     copy_str, // 137
@@ -216,9 +216,9 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     get_console_width, // 146
     get_console_height, // 147
     //
-    0, //__getc, // 148
+    __getc, // 148
     f_eof, // 149
-    0, //f_getc, // 150
+    f_getc, // 150
     f_open_pipe, // 151
     //
     get_buffer, // 152

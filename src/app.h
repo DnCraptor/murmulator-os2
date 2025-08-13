@@ -126,8 +126,6 @@ void flash_block(uint8_t* buffer, size_t flash_target_offset);
 bool load_firmware(char* pathname);
 void link_firmware(FIL* pf, const char* pathname);
 
-extern uint32_t flash_size;
-void get_cpu_flash_jedec_id(uint8_t rx[4]);
 void run_app(char * name);
 int history_steps(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cmd);
 
@@ -135,6 +133,7 @@ void mallocFailedHandler();
 void overflowHook( TaskHandle_t pxTask, char *pcTaskName );
 void reboot_me(void);
 void cmd_tab(cmd_ctx_t* ctx, string_t* s_cmd);
+size_t get_heap_total();
 
 #ifdef __cplusplus
 }

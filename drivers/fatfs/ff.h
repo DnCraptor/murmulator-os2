@@ -416,6 +416,7 @@ int ff_del_syncobj (FF_SYNC_t sobj);	/* Delete a sync object */
 #define AM_DIR	0x10	/* Directory */
 #define AM_ARC	0x20	/* Archive */
 
+int f_getc(FIL* fp);
 FRESULT f_open_pipe(FIL* to, FIL* from);
 
 #ifdef __cplusplus

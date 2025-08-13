@@ -6983,13 +6983,12 @@ FRESULT f_setcp (
 }
 #endif	/* FF_CODE_PAGE == 0 */
 
-
-bool f_eof(FIL* fp) {
+bool  __in_hfa() f_eof(FIL* fp) {
 	// if (fp->chained && fp->chained->obj.fs) return false;
 	return ((int)((fp)->fptr == (fp)->obj.objsize));
 }
 
-FRESULT f_open_pipe(FIL* to, FIL* from) {
+FRESULT __in_hfa() f_open_pipe(FIL* to, FIL* from) {
     from->chained = to;
     to->chained = from;
 	QueueHandle_t q = xQueueCreate(512, sizeof(char));
@@ -7000,4 +6999,26 @@ FRESULT f_open_pipe(FIL* to, FIL* from) {
 	to->sect = 0;
 	from->sect = 0;
 	return FR_OK;
+}
+
+int __in_hfa() f_getc(FIL* fp) {
+	uint8_t c;
+	int res = -1;
+	if  (fp->chained && fp->clust) { // "from" in pipe
+		if(!fp->fptr || (fp->sect && 0 == uxQueueMessagesWaiting(fp->fptr))) { // already closed or chained closed and empty queue
+			return -1;
+		}
+	//     goutf("f_getc: %p\n", fp->chained);
+		xQueueReceive(fp->fptr, &c, portMAX_DELAY);
+		res = c;
+    //     goutf("f_getc passed: %d\n", res);
+	} else {
+		UINT br;
+	    vTaskSuspendAll();;
+	    if (FR_OK == f_read(fp, &c, 1, &br)) {
+			res = c;
+		}
+      	xTaskResumeAll();;
+	}
+	return res;
 }

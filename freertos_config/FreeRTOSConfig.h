@@ -76,13 +76,14 @@
 #ifndef configSUPPORT_DYNAMIC_ALLOCATION
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
 #endif
-#define configTOTAL_HEAP_SIZE                   (128*1024)
+/// TODO: exect free size to be found
+#define configTOTAL_HEAP_SIZE                   ((128 + 256)*1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configCHECK_FOR_STACK_OVERFLOW          0
-#define configUSE_MALLOC_FAILED_HOOK            0
-#define configUSE_DAEMON_TASK_STARTUP_HOOK      0
+#define configCHECK_FOR_STACK_OVERFLOW          1
+#define configUSE_MALLOC_FAILED_HOOK            1
+#define configUSE_DAEMON_TASK_STARTUP_HOOK      1
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS           0

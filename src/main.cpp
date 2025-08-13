@@ -16,6 +16,8 @@
 extern "C" {
 #include "ps2.h"
 #include "usb.h"
+#include "ram_page.h"
+#include "hardfault.h"
 }
 
 #include "ff.h"
@@ -203,7 +205,7 @@ static void load_config_sys() {
                 set_ctx_var(ctx, COMSPEC, t);
             } else if (strcmp(t, SWAP) == 0) {
                 t = next_token(t);
-            ///    init_vram(t);
+                init_vram(t);
                 b_swap = true;
             } else if (strcmp(t, "GMODE") == 0) { // TODO: FONT
                 t = next_token(t);

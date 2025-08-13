@@ -6,6 +6,7 @@
 #include "app.h"
 #include "elf32.h"
 #include "sys_table.h"
+#include "hardfault.h"
 
 volatile bool reboot_is_requested = false;
 
@@ -16,7 +17,11 @@ const char _cmd_history[] = ".cmd_history";
 #define M_OS_APP_TABLE_BASE ((size_t*)0x10001000ul) // TODO:
 typedef int (*boota_ptr_t)( void *argv );
 
-uint32_t flash_size;
+static size_t TOTAL_HEAP_SIZE = configTOTAL_HEAP_SIZE;
+
+size_t get_heap_total() {
+    return TOTAL_HEAP_SIZE;
+}
 
 static cmd_ctx_t ctx = { 0 };
 cmd_ctx_t* get_cmd_startup_ctx() {
@@ -1246,19 +1251,6 @@ void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offse
     restore_interrupts(ints);
     multicore_lockout_end_blocking();
     gpio_put(PICO_DEFAULT_LED_PIN, false);
-}
-
-void get_cpu_flash_jedec_id(uint8_t _rx[4]) {
-    static uint8_t rx[4] = {0};
-    if (rx[0] == 0) {
-        uint8_t tx[4] = {0x9f};
-        multicore_lockout_start_blocking();
-        const uint32_t ints = save_and_disable_interrupts();
-        flash_do_cmd(tx, rx, 4);
-        restore_interrupts(ints);
-        multicore_lockout_end_blocking();
-    }
-    *(unsigned*)_rx = *(unsigned*)rx;
 }
 
 void vAppTask(void *pv) {
