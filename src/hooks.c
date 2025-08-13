@@ -47,13 +47,13 @@
 #include "semphr.h"
 
 /* Standard demo includes. */
-///#include "TimerDemo.h"
-///#include "QueueOverwrite.h"
-///#include "EventGroupsDemo.h"
-///#include "IntSemTest.h"
+//#include "TimerDemo.h"
+//#include "QueueOverwrite.h"
+//#include "EventGroupsDemo.h"
+//#include "IntSemTest.h"
 ///#include "TaskNotify.h"
 
-///#include "main.h"
+#include "main.h"
 
 /* Library includes. */
 #include <stdio.h>

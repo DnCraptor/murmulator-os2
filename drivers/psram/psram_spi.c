@@ -6,7 +6,7 @@ static psram_spi_inst_t psram_spi;
 #define ITE_PSRAM (1ul << 20)
 #define MAX_PSRAM (512ul << 20)
 
-uint32_t __in_hfa() psram_size() {
+uint32_t psram_size() {
     static int32_t _res = -1;
     int32_t res = 0;
     if (_res != -1) {
@@ -23,39 +23,39 @@ uint32_t __in_hfa() psram_size() {
     return _res;
 }
 
-uint32_t __in_hfa() init_psram() {
+uint32_t init_psram() {
     psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, true);
     return psram_size();
 }
 
-void __in_hfa() psram_cleanup() {
+void psram_cleanup() {
     //logMsg("PSRAM cleanup"); // TODO: block mode, ensure diapason
     for (uint32_t addr32 = (1ul << 20); addr32 < (2ul << 20); addr32 += 4) {
         psram_write32(&psram_spi, addr32, 0);
     }
 }
 
-void __in_hfa() write8psram(uint32_t addr32, uint8_t v) {
+void write8psram(uint32_t addr32, uint8_t v) {
     psram_write8(&psram_spi, addr32, v);
 }
 
-void __in_hfa() __in_hfa() write16psram(uint32_t addr32, uint16_t v) {
+void write16psram(uint32_t addr32, uint16_t v) {
     psram_write16(&psram_spi, addr32, v);
 }
 
-void __in_hfa() write32psram(uint32_t addr32, uint32_t v) {
+void write32psram(uint32_t addr32, uint32_t v) {
     psram_write32(&psram_spi, addr32, v);
 }
 
-uint8_t __in_hfa() read8psram(uint32_t addr32) {
+uint8_t read8psram(uint32_t addr32) {
     return psram_read8(&psram_spi, addr32);
 }
 
-uint16_t __in_hfa() read16psram(uint32_t addr32) {
+uint16_t read16psram(uint32_t addr32) {
     return psram_read16(&psram_spi, addr32);
 }
 
-uint32_t __in_hfa() read32psram(uint32_t addr32) {
+uint32_t read32psram(uint32_t addr32) {
     return psram_read32(&psram_spi, addr32);
 }
 
@@ -160,11 +160,11 @@ psram_spi_inst_t __in_hfa() psram_spi_init_clkdiv(PIO pio, int sm, float clkdiv,
     return spi;
 };
 
-psram_spi_inst_t __in_hfa() psram_spi_init(PIO pio, int sm) {
+psram_spi_inst_t psram_spi_init(PIO pio, int sm) {
     return psram_spi_init_clkdiv(pio, sm, 1.8, true);
 }
 
-void __in_hfa() psram_spi_uninit(psram_spi_inst_t spi, bool fudge) {
+void psram_spi_uninit(psram_spi_inst_t spi, bool fudge) {
 #if defined(PSRAM_ASYNC)
     // Asynchronous DMA channel teardown
     dma_channel_unclaim(spi.async_dma_chan);
@@ -197,6 +197,6 @@ const static uint8_t read_id_command[] = {
     0, 0, 0     // Address
 };
 
-void __in_hfa() psram_id(uint8_t rx[8]) {
+void psram_id(uint8_t rx[8]) {
     pio_spi_write_read_dma_blocking(&psram_spi, read_id_command, sizeof(read_id_command), rx, 8);
 }

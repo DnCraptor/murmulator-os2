@@ -1,10 +1,4 @@
 #pragma once
-#ifndef _KEYBOARD_H
-#define _KEYBOARD_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -38,9 +32,3 @@ void set_scancode_handler(scancode_handler_t h);
 typedef bool (*cp866_handler_t)(const char, uint32_t);
 cp866_handler_t get_cp866_handler();
 void set_cp866_handler(cp866_handler_t h);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

@@ -1,10 +1,4 @@
 #pragma once
-#ifndef _SOUND_H
-#define _SOUND_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 void init_sound();
 
@@ -17,9 +11,3 @@ void pcm_set_buffer(int16_t* buff, uint8_t channels, size_t size, pcm_end_callba
 
 // internal call on core#1
 void pcm_call();
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

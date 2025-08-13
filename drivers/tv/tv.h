@@ -7,11 +7,6 @@
 
 #define TV_BASE_PIN (6)
 
-// TODO: Сделать настраиваемо
-static const uint8_t textmode_palette[16] = {
-    200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215
-};
-
 #define TEXTMODE_COLS 53
 #define TEXTMODE_ROWS 30
 
@@ -22,11 +17,21 @@ typedef enum {
     TV_OUT_NTSC
 } output_format_e;
 
-
-static void graphics_set_flashmode(bool flash_line, bool flash_frame) {
-    // dummy
-}
-
-static void graphics_set_bgcolor(uint32_t color888) {
-    // dummy
-}
+int tv_get_default_mode(void);
+void tv_driver_init(void);
+void tv_cleanup(void);
+void tv_set_mode(int mode);
+bool tv_is_mode_text(int mode);
+bool tv_is_text_mode();
+int tv_get_mode(void);
+uint32_t tv_console_width(void);
+uint32_t tv_console_height(void);
+uint8_t* get_tv_buffer(void);
+void set_tv_buffer(uint8_t*);
+void tv_clr_scr(const uint8_t color);
+uint8_t get_tv_buffer_bitness(void);
+void tv_set_offset(int x, int y);
+void tv_set_bgcolor(uint32_t color888); //определяем зарезервированный цвет в палитре
+size_t tv_buffer_size();
+void tv_lock_buffer(bool b);
+void tv_set_cursor_color(uint8_t color);

@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-extern uint32_t flash_size;
 uint32_t get_cpu_ram_size(void);
 uint32_t get_cpu_flash_size(void);
 void get_cpu_flash_jedec_id(uint8_t rx[4]);

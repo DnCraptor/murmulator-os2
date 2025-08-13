@@ -24,7 +24,10 @@
 #include "diskio.h"		/* Declarations of device I/O functions */
 
 #include "FreeRTOS.h"
+#include "task.h"
 #include "queue.h"
+
+#include "graphics.h"
 #include "sys_table.h"
 
 /*--------------------------------------------------------------------------
@@ -1124,9 +1127,6 @@ static LBA_t clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
 	return fs->database + (LBA_t)fs->csize * clst;	/* Start sector number of the cluster */
 }
 
-
-
-
 /*-----------------------------------------------------------------------*/
 /* FAT access - Read value of an FAT entry                               */
 /*-----------------------------------------------------------------------*/
@@ -1494,7 +1494,7 @@ static FRESULT remove_chain (	/* FR_OK(0):succeeded, !=0:error */
 /* FAT handling - Stretch a chain or Create a new chain                  */
 /*-----------------------------------------------------------------------*/
 
-static DWORD create_chain (	/* 0:No free cluster, 1:Internal error, 0xFFFFFFFF:Disk error, >=2:New cluster# */
+static DWORD __in_hfa() create_chain (	/* 0:No free cluster, 1:Internal error, 0xFFFFFFFF:Disk error, >=2:New cluster# */
 	FFOBJID* obj,		/* Corresponding object */
 	DWORD clst			/* Cluster# to stretch, 0:Create a new chain */
 )
@@ -2353,7 +2353,7 @@ static FRESULT dir_read (
 /* Directory handling - Find an object in the directory                  */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT dir_find (	/* FR_OK(0):succeeded, !=0:error */
+static FRESULT  __in_hfa()  dir_find (	/* FR_OK(0):succeeded, !=0:error */
 	DIR* dp					/* Pointer to the directory object with the file name */
 )
 {
@@ -2434,7 +2434,7 @@ static FRESULT dir_find (	/* FR_OK(0):succeeded, !=0:error */
 /* Register an object to the directory                                   */
 /*-----------------------------------------------------------------------*/
 
-FRESULT __in_hfa() dir_register (	/* FR_OK:succeeded, FR_DENIED:no free entry or too many SFN collision, FR_DISK_ERR:disk error */
+static FRESULT __in_hfa() dir_register (	/* FR_OK:succeeded, FR_DENIED:no free entry or too many SFN collision, FR_DISK_ERR:disk error */
 	DIR* dp						/* Target directory with object name to be created */
 )
 {
@@ -2586,7 +2586,7 @@ static FRESULT dir_remove (	/* FR_OK:Succeeded, FR_DISK_ERR:A disk error */
 /* Get file information from directory entry                             */
 /*-----------------------------------------------------------------------*/
 
-static void get_fileinfo (
+static void __in_hfa() get_fileinfo (
 	DIR* dp,			/* Pointer to the directory object */
 	FILINFO* fno		/* Pointer to the file information to be filled */
 )
@@ -3003,7 +3003,7 @@ static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not cr
 /* Follow a file path                                                    */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
+static FRESULT __in_hfa() follow_path (	/* FR_OK(0): successful, !=0: error code */
 	DIR* dp,					/* Directory object to return last directory and found object */
 	const TCHAR* path			/* Full-path string to find a file or directory */
 )
@@ -3332,7 +3332,7 @@ static UINT find_volume (	/* Returns BS status found in the hosting drive */
 /* Determine logical drive number and mount the volume if needed         */
 /*-----------------------------------------------------------------------*/
 
-FRESULT __in_hfa() mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
+static FRESULT __in_hfa() mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 	const TCHAR** path,			/* Pointer to pointer to the path name (drive number) */
 	FATFS** rfs,				/* Pointer to pointer to the found filesystem object */
 	BYTE mode					/* !=0: Check write protection for write access */
@@ -3605,7 +3605,7 @@ static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
 /* Mount/Unmount a Logical Drive                                         */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_mount (
+FRESULT  __in_hfa() f_mount (
 	FATFS* fs,			/* Pointer to the filesystem object to be registered (NULL:unmount)*/
 	const TCHAR* path,	/* Logical drive number to be mounted/unmounted */
 	BYTE opt			/* Mount option: 0=Do not mount (delayed mount), 1=Mount immediately */
@@ -3646,14 +3646,10 @@ FRESULT f_mount (
 	LEAVE_FF(fs, res);
 }
 
-
-
-
 /*-----------------------------------------------------------------------*/
 /* Open or Create a File                                                 */
 /*-----------------------------------------------------------------------*/
-
-FRESULT f_open (
+inline static FRESULT __always_inline(_f_open) (
 	FIL* fp,			/* Pointer to the blank file object */
 	const TCHAR* path,	/* Pointer to the file name */
 	BYTE mode			/* Access mode and open mode flags */
@@ -3843,6 +3839,18 @@ FRESULT f_open (
 	LEAVE_FF(fs, res);
 }
 
+FRESULT __in_hfa() f_open (
+	FIL* fp,			/* Pointer to the blank file object */
+	const TCHAR* path,	/* Pointer to the file name */
+	BYTE mode			/* Access mode and open mode flags */
+)
+{
+    vTaskSuspendAll();;
+	FRESULT res = _f_open(fp, path, mode);
+	fp->chained = 0;
+	xTaskResumeAll();;
+	return res;
+}
 
 
 
@@ -3850,7 +3858,7 @@ FRESULT f_open (
 /* Read File                                                             */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_read (
+inline static FRESULT __always_inline(_f_read) (
 	FIL* fp, 	/* Open file to be read */
 	void* buff,	/* Data buffer to store the read data */
 	UINT btr,	/* Number of bytes to read */
@@ -3864,7 +3872,6 @@ FRESULT f_read (
 	FSIZE_t remain;
 	UINT rcnt, cc, csect;
 	BYTE *rbuff = (BYTE*)buff;
-
 
 	*br = 0;	/* Clear read byte counter */
 	res = validate(&fp->obj, &fs);				/* Check validity of the file object */
@@ -3938,11 +3945,58 @@ FRESULT f_read (
 		memcpy(rbuff, fp->buf + fp->fptr % SS(fs), rcnt);	/* Extract partial sector */
 #endif
 	}
-
 	LEAVE_FF(fs, FR_OK);
 }
 
+int  __in_hfa() f_getc(FIL* fp) {
+	uint8_t c;
+	int res = -1;
+	if  (fp->chained && fp->clust) { // "from" in pipe
+		if(!fp->fptr || (fp->sect && 0 == uxQueueMessagesWaiting(fp->fptr))) { // already closed or chained closed and empty queue
+			return -1;
+		}
+	//     goutf("f_getc: %p\n", fp->chained);
+		xQueueReceive(fp->fptr, &c, portMAX_DELAY);
+		res = c;
+    //     goutf("f_getc passed: %d\n", res);
+	} else {
+		UINT br;
+	    vTaskSuspendAll();;
+	    if (FR_OK == _f_read(fp, &c, 1, &br)) {
+			res = c;
+		}
+      	xTaskResumeAll();;
+	}
+	return res;
+}
 
+FRESULT __in_hfa() f_read (
+	FIL* fp, 	/* Open file to be read */
+	void* buff,	/* Data buffer to store the read data */
+	UINT btr,	/* Number of bytes to read */
+	UINT* br	/* Number of bytes read */
+) {
+	FRESULT res;
+	vTaskSuspendAll();;
+	if  (fp->chained && fp->clust) { // "from" in pipe
+	    uint32_t sz = uxQueueMessagesWaiting(fp->fptr);
+		if(!fp->fptr || (fp->sect && 0 == sz)) { // already closed or chained closed and empty queue
+			return -1;
+		}
+		sz = MIN(sz, btr);
+	    // goutf("f_read: %p\n", fp->chained);
+		for(int i = 0; i < sz; ++i) { // todo: uxQueueMessagesWaiting
+			xQueueReceive(fp->fptr, buff + i, portMAX_DELAY);
+		}
+		res = FR_OK;
+		*br = sz;
+        // goutf("f_read passed: %d\n", *br);
+	} else {
+	    res = _f_read(fp, buff, btr, br);
+	}
+	xTaskResumeAll();;
+	return res;
+}
 
 
 #if !FF_FS_READONLY
@@ -3950,7 +4004,7 @@ FRESULT f_read (
 /* Write File                                                            */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_write (
+inline static FRESULT __always_inline (_f_write) (
 	FIL* fp,			/* Open file to be written */
 	const void* buff,	/* Data to be written */
 	UINT btw,			/* Number of bytes to write */
@@ -3963,7 +4017,6 @@ FRESULT f_write (
 	LBA_t sect;
 	UINT wcnt, cc, csect;
 	const BYTE *wbuff = (const BYTE*)buff;
-
 
 	*bw = 0;	/* Clear write byte counter */
 	res = validate(&fp->obj, &fs);			/* Check validity of the file object */
@@ -4060,18 +4113,44 @@ FRESULT f_write (
 	}
 
 	fp->flag |= FA_MODIFIED;				/* Set file change flag */
-
 	LEAVE_FF(fs, FR_OK);
 }
 
-
+FRESULT __in_hfa() f_write (
+	FIL* fp,			/* Open file to be written */
+	const void* buff,	/* Data to be written */
+	UINT btw,			/* Number of bytes to write */
+	UINT* bw			/* Number of bytes written */
+)
+{
+	FRESULT res;
+	if (fp->chained) {
+	    // goutf("f_write: %p (%d)\n", fp->chained, btw);
+		if (!fp->fptr) {
+			*bw = 0;
+	        // goutf("f_write: %p (%d) failed\n", fp->chained, btw);
+			return FR_DENIED;
+		}
+		for (uint32_t off = 0; off < btw; ++off) {
+			xQueueSend(fp->fptr, buff + off, portMAX_DELAY);
+		}
+	    // goutf("f_write: %p (%d) passed\n", fp->chained, btw);
+		*bw = btw;
+		res = FR_OK;
+	} else {
+		vTaskSuspendAll();;
+		res = _f_write(fp, buff, btw, bw);
+		xTaskResumeAll();;
+	}
+	return res;
+}
 
 
 /*-----------------------------------------------------------------------*/
 /* Synchronize the File                                                  */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_sync (
+inline static FRESULT __always_inline (_f_sync) (
 	FIL* fp		/* Open file to be synced */
 )
 {
@@ -4143,6 +4222,15 @@ FRESULT f_sync (
 	LEAVE_FF(fs, res);
 }
 
+FRESULT  __in_hfa() f_sync (
+	FIL* fp		/* Open file to be synced */
+) {
+	vTaskSuspendAll();;
+	FRESULT res = _f_sync(fp);
+	xTaskResumeAll();;
+	return res;
+}
+
 #endif /* !FF_FS_READONLY */
 
 
@@ -4152,13 +4240,21 @@ FRESULT f_sync (
 /* Close File                                                            */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_close (
+FRESULT  __in_hfa() f_close (
 	FIL* fp		/* Open file to be closed */
 )
 {
 	FRESULT res;
 	FATFS *fs;
+    if(fp->chained) {
+		// goutf("f_close[%p]\n", fp);
+        fp->chained->sect = 1; // notify chained
+		if(fp->fptr && fp->clust) vQueueDelete(fp->fptr);
+		fp->fptr = 0;
+		return FR_OK;
+	}
 
+	vTaskSuspendAll();;
 #if !FF_FS_READONLY
 	res = f_sync(fp);					/* Flush cached data */
 	if (res == FR_OK)
@@ -4177,9 +4273,9 @@ FRESULT f_close (
 #endif
 		}
 	}
+	xTaskResumeAll();;
 	return res;
 }
-
 
 
 
@@ -4217,7 +4313,7 @@ FRESULT f_chdir (
 	FATFS *fs;
 	DEF_NAMBUF
 
-
+	vTaskSuspendAll();;
 	/* Get logical drive */
 	res = mount_volume(&path, &fs, 0);
 	if (res == FR_OK) {
@@ -4261,7 +4357,7 @@ FRESULT f_chdir (
 		}
 #endif
 	}
-
+	xTaskResumeAll();;
 	LEAVE_FF(fs, res);
 }
 
@@ -4382,7 +4478,7 @@ FRESULT __in_hfa() f_lseek (
 	DWORD *tbl;
 	LBA_t dsc;
 #endif
-
+	vTaskSuspendAll();;
 	res = validate(&fp->obj, &fs);		/* Check validity of the file object */
 	if (res == FR_OK) res = (FRESULT)fp->err;
 #if FF_FS_EXFAT && !FF_FS_READONLY
@@ -4390,7 +4486,10 @@ FRESULT __in_hfa() f_lseek (
 		res = fill_last_frag(&fp->obj, fp->clust, 0xFFFFFFFF);	/* Fill last fragment on the FAT if needed */
 	}
 #endif
-	if (res != FR_OK) LEAVE_FF(fs, res);
+	if (res != FR_OK) {
+		xTaskResumeAll();;
+		LEAVE_FF(fs, res);
+	}
 
 #if FF_USE_FASTSEEK
 	if (fp->cltbl) {	/* Fast seek */
@@ -4520,7 +4619,7 @@ FRESULT __in_hfa() f_lseek (
 			fp->sect = nsect;
 		}
 	}
-
+	xTaskResumeAll();;
 	LEAVE_FF(fs, res);
 }
 
@@ -4531,7 +4630,7 @@ FRESULT __in_hfa() f_lseek (
 /* Create a Directory Object                                             */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_opendir (
+FRESULT  __in_hfa() f_opendir (
 	DIR* dp,			/* Pointer to directory object to create */
 	const TCHAR* path	/* Pointer to the directory path */
 )
@@ -4540,9 +4639,9 @@ FRESULT f_opendir (
 	FATFS *fs;
 	DEF_NAMBUF
 
-
 	if (!dp) return FR_INVALID_OBJECT;
 
+	vTaskSuspendAll();;
 	/* Get logical drive */
 	res = mount_volume(&path, &fs, 0);
 	if (res == FR_OK) {
@@ -4586,7 +4685,7 @@ FRESULT f_opendir (
 		if (res == FR_NO_FILE) res = FR_NO_PATH;
 	}
 	if (res != FR_OK) dp->obj.fs = 0;		/* Invalidate the directory object if function faild */
-
+	xTaskResumeAll();;
 	LEAVE_FF(fs, res);
 }
 
@@ -4597,13 +4696,14 @@ FRESULT f_opendir (
 /* Close Directory                                                       */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_closedir (
+FRESULT  __in_hfa() f_closedir (
 	DIR *dp		/* Pointer to the directory object to be closed */
 )
 {
 	FRESULT res;
 	FATFS *fs;
 
+    vTaskSuspendAll();;
 
 	res = validate(&dp->obj, &fs);	/* Check validity of the file object */
 	if (res == FR_OK) {
@@ -4617,6 +4717,7 @@ FRESULT f_closedir (
 		unlock_fs(fs, FR_OK);		/* Unlock volume */
 #endif
 	}
+	xTaskResumeAll();;
 	return res;
 }
 
@@ -4627,7 +4728,7 @@ FRESULT f_closedir (
 /* Read Directory Entries in Sequence                                    */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_readdir (
+FRESULT  __in_hfa() f_readdir (
 	DIR* dp,			/* Pointer to the open directory object */
 	FILINFO* fno		/* Pointer to file information to return */
 )
@@ -4635,7 +4736,7 @@ FRESULT f_readdir (
 	FRESULT res;
 	FATFS *fs;
 	DEF_NAMBUF
-
+	vTaskSuspendAll();;
 
 	res = validate(&dp->obj, &fs);	/* Check validity of the directory object */
 	if (res == FR_OK) {
@@ -4653,6 +4754,8 @@ FRESULT f_readdir (
 			FREE_NAMBUF();
 		}
 	}
+	xTaskResumeAll();;
+
 	LEAVE_FF(fs, res);
 }
 
@@ -4715,7 +4818,7 @@ FRESULT f_findfirst (
 /* Get File Status                                                       */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_stat (
+FRESULT  __in_hfa() f_stat (
 	const TCHAR* path,	/* Pointer to the file path */
 	FILINFO* fno		/* Pointer to file information to return */
 )
@@ -4723,7 +4826,7 @@ FRESULT f_stat (
 	FRESULT res;
 	DIR dj;
 	DEF_NAMBUF
-
+	vTaskSuspendAll();
 
 	/* Get logical drive */
 	res = mount_volume(&path, &dj.obj.fs, 0);
@@ -4739,7 +4842,7 @@ FRESULT f_stat (
 		}
 		FREE_NAMBUF();
 	}
-
+	xTaskResumeAll();;
 	LEAVE_FF(dj.obj.fs, res);
 }
 
@@ -4750,7 +4853,7 @@ FRESULT f_stat (
 /* Get Number of Free Clusters                                           */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_getfree (
+FRESULT  __in_hfa() f_getfree (
 	const TCHAR* path,	/* Logical drive number */
 	DWORD* nclst,		/* Pointer to a variable to return number of free clusters */
 	FATFS** fatfs		/* Pointer to return pointer to corresponding filesystem object */
@@ -4842,14 +4945,13 @@ FRESULT f_getfree (
 /* Truncate File                                                         */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_truncate (
+inline static FRESULT __always_inline( _f_truncate ) (
 	FIL* fp		/* Pointer to the file object */
 )
 {
 	FRESULT res;
 	FATFS *fs;
 	DWORD ncl;
-
 
 	res = validate(&fp->obj, &fs);	/* Check validity of the file object */
 	if (res != FR_OK || (res = (FRESULT)fp->err) != FR_OK) LEAVE_FF(fs, res);
@@ -4885,6 +4987,14 @@ FRESULT f_truncate (
 	LEAVE_FF(fs, res);
 }
 
+FRESULT  __in_hfa() f_truncate (
+	FIL* fp		/* Pointer to the file object */
+) {
+	vTaskSuspendAll();;
+	FRESULT res = _f_truncate(fp);
+	xTaskResumeAll();
+	return res;
+}
 
 
 
@@ -4892,7 +5002,7 @@ FRESULT f_truncate (
 /* Delete a File/Directory                                               */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_unlink (
+FRESULT  __in_hfa() f_unlink (
 	const TCHAR* path		/* Pointer to the file or directory path */
 )
 {
@@ -4904,7 +5014,7 @@ FRESULT f_unlink (
 	FFOBJID obj;
 #endif
 	DEF_NAMBUF
-
+	vTaskSuspendAll();;
 
 	/* Get logical drive */
 	res = mount_volume(&path, &fs, FA_WRITE);
@@ -4975,7 +5085,7 @@ FRESULT f_unlink (
 		}
 		FREE_NAMBUF();
 	}
-
+	xTaskResumeAll();;
 	LEAVE_FF(fs, res);
 }
 
@@ -4986,7 +5096,7 @@ FRESULT f_unlink (
 /* Create a Directory                                                    */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_mkdir (
+FRESULT  __in_hfa() f_mkdir (
 	const TCHAR* path		/* Pointer to the directory path */
 )
 {
@@ -4997,7 +5107,7 @@ FRESULT f_mkdir (
 	DWORD dcl, pcl, tm;
 	DEF_NAMBUF
 
-
+	vTaskSuspendAll();;
 	res = mount_volume(&path, &fs, FA_WRITE);	/* Get logical drive */
 	if (res == FR_OK) {
 		dj.obj.fs = fs;
@@ -5059,7 +5169,7 @@ FRESULT f_mkdir (
 		}
 		FREE_NAMBUF();
 	}
-
+	xTaskResumeAll();;
 	LEAVE_FF(fs, res);
 }
 
@@ -5070,7 +5180,7 @@ FRESULT f_mkdir (
 /* Rename a File/Directory                                               */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_rename (
+FRESULT  __in_hfa() f_rename (
 	const TCHAR* path_old,	/* Pointer to the object name to be renamed */
 	const TCHAR* path_new	/* Pointer to the new name */
 )
@@ -5082,7 +5192,7 @@ FRESULT f_rename (
 	LBA_t sect;
 	DEF_NAMBUF
 
-
+	vTaskSuspendAll();;
 	get_ldnumber(&path_new);						/* Snip the drive number of new name off */
 	res = mount_volume(&path_old, &fs, FA_WRITE);	/* Get logical drive of the old object */
 	if (res == FR_OK) {
@@ -5164,7 +5274,7 @@ FRESULT f_rename (
 		}
 		FREE_NAMBUF();
 	}
-
+	xTaskResumeAll();;
 	LEAVE_FF(fs, res);
 }
 
@@ -6953,6 +7063,75 @@ int f_printf (
 #endif /* FF_USE_STRFUNC */
 
 
+uint32_t f_getfree32(FATFS * fs) {
+	DWORD nfree, clst, stat;
+	LBA_t sect;
+	UINT i;
+	FFOBJID obj;
+    FRESULT res;
+    /* If free_clst is valid, return it without full FAT scan */
+	if (fs->free_clst <= fs->n_fatent - 2) {
+		return fs->free_clst;
+	}
+	/* Scan FAT to obtain number of free clusters */
+	nfree = 0;
+	if (fs->fs_type == FS_FAT12) {	/* FAT12: Scan bit field FAT entries */
+		clst = 2; obj.fs = &fs;
+		do {
+			stat = get_fat(&obj, clst);
+			if (stat == 0xFFFFFFFF) { return 0; }
+			if (stat == 1) { return 0; }
+			if (stat == 0) nfree++;
+		} while (++clst < fs->n_fatent);
+	} else {
+#if FF_FS_EXFAT
+		if (fs->fs_type == FS_EXFAT) {	/* exFAT: Scan allocation bitmap */
+			BYTE bm;
+			UINT b;
+			clst = fs->n_fatent - 2;	/* Number of clusters */
+			sect = fs->bitbase;			/* Bitmap sector */
+			i = 0;						/* Offset in the sector */
+			do {	/* Counts numbuer of bits with zero in the bitmap */
+				if (i == 0) {
+					res = move_window(fs, sect++);
+					if (res != FR_OK) break;
+				}
+				for (b = 8, bm = fs->win[i]; b && clst; b--, clst--) {
+					if (!(bm & 1)) nfree++;
+					bm >>= 1;
+				}
+				i = (i + 1) % SS(fs);
+			} while (clst);
+		} else
+#endif
+		{	/* FAT16/32: Scan WORD/DWORD FAT entries */
+			clst = fs->n_fatent;	/* Number of entries */
+			sect = fs->fatbase;		/* Top of the FAT */
+			i = 0;					/* Offset in the sector */
+			do {	/* Counts numbuer of entries with zero in the FAT */
+				if (i == 0) {
+					res = move_window(fs, sect++);
+					if (res != FR_OK) break;
+				}
+				if (fs->fs_type == FS_FAT16) {
+					if (ld_word(fs->win + i) == 0) nfree++;
+					i += 2;
+				} else {
+					if ((ld_dword(fs->win + i) & 0x0FFFFFFF) == 0) nfree++;
+					i += 4;
+				}
+				i %= SS(fs);
+			} while (--clst);
+		}
+	}
+	if (res == FR_OK) {		/* Update parameters if succeeded */
+		fs->free_clst = nfree;	/* Now free_clst is valid */
+		fs->fsi_flag |= 1;		/* FAT32: FSInfo is to be updated */
+        return nfree;
+	}
+    return 0;
+}
+
 
 #if FF_CODE_PAGE == 0
 /*-----------------------------------------------------------------------*/
@@ -6983,12 +7162,12 @@ FRESULT f_setcp (
 }
 #endif	/* FF_CODE_PAGE == 0 */
 
-bool  __in_hfa() f_eof(FIL* fp) {
+bool f_eof(FIL* fp) {
 	// if (fp->chained && fp->chained->obj.fs) return false;
 	return ((int)((fp)->fptr == (fp)->obj.objsize));
 }
 
-FRESULT __in_hfa() f_open_pipe(FIL* to, FIL* from) {
+FRESULT f_open_pipe(FIL* to, FIL* from) {
     from->chained = to;
     to->chained = from;
 	QueueHandle_t q = xQueueCreate(512, sizeof(char));
@@ -6999,26 +7178,4 @@ FRESULT __in_hfa() f_open_pipe(FIL* to, FIL* from) {
 	to->sect = 0;
 	from->sect = 0;
 	return FR_OK;
-}
-
-int __in_hfa() f_getc(FIL* fp) {
-	uint8_t c;
-	int res = -1;
-	if  (fp->chained && fp->clust) { // "from" in pipe
-		if(!fp->fptr || (fp->sect && 0 == uxQueueMessagesWaiting(fp->fptr))) { // already closed or chained closed and empty queue
-			return -1;
-		}
-	//     goutf("f_getc: %p\n", fp->chained);
-		xQueueReceive(fp->fptr, &c, portMAX_DELAY);
-		res = c;
-    //     goutf("f_getc passed: %d\n", res);
-	} else {
-		UINT br;
-	    vTaskSuspendAll();;
-	    if (FR_OK == f_read(fp, &c, 1, &br)) {
-			res = c;
-		}
-      	xTaskResumeAll();;
-	}
-	return res;
 }

@@ -1,7 +1,6 @@
 #include "overclock.h"
 #include "graphics.h"
-#include "app.h"
-#include <pico.h>
+#include "cmd.h"
 #include <pico/stdlib.h>
 
 static uint32_t overclocking_khz = OVERCLOCKING * 1000;

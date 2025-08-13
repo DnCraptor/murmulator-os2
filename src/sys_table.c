@@ -1,5 +1,5 @@
 #include <time.h>
-#include <pico.h>
+#include <hardware/clocks.h>
 #include <hardware/flash.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
@@ -12,10 +12,11 @@
 #include "graphics.h"
 #include "ff.h"
 #include "hooks.h"
-///#include "portable.h"
-///#include "timers.h" // TODO
+#include "portable.h"
+#include "timers.h" // TODO
 #include "ps2.h"
 #include "app.h"
+#include "cmd.h"
 #include "psram_spi.h"
 #include "math-wrapper.h"
 #include "ram_page.h"
@@ -27,12 +28,13 @@
 #include "sound.h"
 #include <math.h>
 
-show_logo(bool with_top);
-
 // TODO: think about it
 //extern int __cxa_pure_virtual();
 
 FATFS* get_mount_fs(); // only one FS is supported foe now
+
+// to cleanup BOOTA memory region on the MOS flashing
+///unsigned long __in_boota() __aligned(4096) cleanup_boota[] = { 0 };
 
 unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // task.h
@@ -158,8 +160,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     overclocking_ex, // 102
     get_overclocking_khz, // 103
     set_overclocking, // 104
-    0, /// set_sys_clock_pll, // 105
-    0, /// check_sys_clock_khz, // 106
+    set_sys_clock_pll, // 105
+    check_sys_clock_khz, // 106
     //
     next_token, // 107
     //
@@ -171,13 +173,13 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     get_cpu_flash_size, // 112
     //
     get_mount_fs, // 113
-    0, //f_getfree32, // 114
+    f_getfree32, // 114
     //
     get_scancode_handler, // 115
     set_scancode_handler, // 116
     get_cp866_handler, // 117
     set_cp866_handler, // 118
-    gbackspace, // 119 -- duplicate??
+    gbackspace, // 119
     //
     is_new_app, // 120
     run_new_app, // 121
@@ -222,22 +224,22 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     f_open_pipe, // 151
     //
     get_buffer, // 152
-    0, //get_buffer_size, // 153
+    get_buffer_size, // 153
     get_screen_bitness, // 154
-    0, //cleanup_graphics, // 155
-    0, //install_graphics_driver, // 156
-    0, //get_console_bitness, // 157
+    cleanup_graphics, // 155
+    install_graphics_driver, // 156
+    get_console_bitness, // 157
     get_screen_width, // 158
     get_screen_height, // 159
-    0, //get_graphics_driver, // 160
+    get_graphics_driver, // 160
     is_buffer_text, // 161
-    0, //graphics_get_mode, // 162
-    0, //graphics_is_mode_text, // 163
-    0, //set_vga_dma_handler_impl, // 164 (TODO: organize)
-    0, //set_vga_clkdiv, // 165
+    graphics_get_mode, // 162
+    graphics_is_mode_text, // 163
+    set_vga_dma_handler_impl, // 164 (TODO: organize)
+    set_vga_clkdiv, // 165
     pvPortCalloc, // 166
     memcpy, // 167
-    0, //vga_dma_channel_set_read_addr, // 168
+    vga_dma_channel_set_read_addr, // 168
     //
     qsort, // 169
     strnlen,  // 170
@@ -248,7 +250,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     multicore_lockout_start_blocking, // 175
     multicore_lockout_end_blocking, // 176
     get_cpu_flash_jedec_id, // 177
-    0, //psram_id, // 178
+    psram_id, // 178
     //
     init_pico_usb_drive, // 179 (better use usb_driver)
     pico_usb_drive_heartbeat, // 180 (better use usb_driver)
@@ -258,92 +260,92 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     show_logo, // 183
     getch_now, // 184
     //
-    0, //usb_driver, // 185
-    0, //set_cursor_color, // 186
+    usb_driver, // 185
+    set_cursor_color, // 186
     //
-    0, //nespad_stat, // 187
-    0, //graphics_get_default_mode, // 188
+    nespad_stat, // 187
+    graphics_get_default_mode, // 188
     //
-    0, //graphics_get_font_table, // 189
-    0, //graphics_get_font_width, // 190
-    0, //graphics_get_font_height, // 191
-    0, //graphics_set_font, // 192
-    0, //graphics_set_ext_font, // 193
+    graphics_get_font_table, // 189
+    graphics_get_font_width, // 190
+    graphics_get_font_height, // 191
+    graphics_set_font, // 192
+    graphics_set_ext_font, // 193
     //
     blimp, // 194
-    0, //graphics_con_x, // 195
-    0, //graphics_con_y, // 196
+    graphics_con_x, // 195
+    graphics_con_y, // 196
     //
     pcm_setup, // 197
     pcm_cleanup, // 198
     pcm_set_buffer, // 199
     // v.0.2.4
-    0, //__trunc, // 200
-    0, //__floor, // 201
-    0, //__pow, // 202
-    0, //__sqrt, // 203
-    0, //__sin, // 204
-    0, //__cos, // 205
-    0, //__tan, // 206
-    0, //__atan, // 207
-    0, //__log, // 208
-    0, //__exp, // 209
-    0, //__aeabi_fmul, // 210
-    0, //__aeabi_i2f, // 211
-    0, //__aeabi_fadd, // 212
-    0, //__aeabi_fsub, // 213
-    0, //__aeabi_fdiv, // 214
-    0, //__aeabi_fcmpge, // 215
-    0, //__aeabi_idivmod, // 216
-    0, //__aeabi_idiv, // 217
-    0, //__aeabi_f2d, // 218
-    0, //__aeabi_d2f, // 219
-    0, //__aeabi_f2iz, // 220
-    0, //__aeabi_fcmplt, // 221
-    0, //__aeabi_dsub, // 222
-    0, //__aeabi_d2iz, // 223
-    0, //__aeabi_fcmpeq, // 224
-    0, //__aeabi_fcmpun, // 225
-    0, //__aeabi_fcmpgt, // 226
-    0, //__aeabi_dcmpge, // 227
-    0, //__aeabi_uidiv, // 228
-    0, //__aeabi_ui2f, // 229
-    0, //__aeabi_f2uiz, // 230
-    0, //__aeabi_fcmple, // 231
+    __trunc, // 200
+    __floor, // 201
+    __pow, // 202
+    __sqrt, // 203
+    __sin, // 204
+    __cos, // 205
+    __tan, // 206
+    __atan, // 207
+    __log, // 208
+    __exp, // 209
+    __aeabi_fmul, // 210
+    __aeabi_i2f, // 211
+    __aeabi_fadd, // 212
+    __aeabi_fsub, // 213
+    __aeabi_fdiv, // 214
+    __aeabi_fcmpge, // 215
+    __aeabi_idivmod, // 216
+    __aeabi_idiv, // 217
+    __aeabi_f2d, // 218
+    __aeabi_d2f, // 219
+    __aeabi_f2iz, // 220
+    __aeabi_fcmplt, // 221
+    __aeabi_dsub, // 222
+    __aeabi_d2iz, // 223
+    __aeabi_fcmpeq, // 224
+    __aeabi_fcmpun, // 225
+    __aeabi_fcmpgt, // 226
+    __aeabi_dcmpge, // 227
+    __aeabi_uidiv, // 228
+    __aeabi_ui2f, // 229
+    __aeabi_f2uiz, // 230
+    __aeabi_fcmple, // 231
     memmove, // 232
     // API v.20
     cmd_tab, // 233
     history_steps, // 234
     cmd_enter_helper, // 235
-    0, //set_usb_detached_handler, // 236
-    0, //op_console, // 237
-    0, //f_read_str, // 238
-    0, //draw_label, // 239
-    0, //draw_box, // 240
-    0, //draw_panel, // 241
-    0, //draw_button, // 242
-    0, //uxTaskGetSystemState, // 243
+    set_usb_detached_handler, // 236
+    op_console, // 237
+    f_read_str, // 238
+    draw_label, // 239
+    draw_box, // 240
+    draw_panel, // 241
+    draw_button, // 242
+    uxTaskGetSystemState, // 243
     kill, // 244
     // API v.21
-    0, //__aeabi_dmul, // 245
-    0, //__aeabi_ddiv, // 246
-    0, //__aeabi_dadd, // 247
-    0, //__aeabi_i2d, // 248
-    0, //__aeabi_dcmpeq, // 249
-    0, //__aeabi_ui2d, // 250
-    0, //__aeabi_dcmplt, // 251
+    __aeabi_dmul, // 245
+    __aeabi_ddiv, // 246
+    __aeabi_dadd, // 247
+    __aeabi_i2d, // 248
+    __aeabi_dcmpeq, // 249
+    __aeabi_ui2d, // 250
+    __aeabi_dcmplt, // 251
     // API v.22
     strcat, // 252
     memcmp, // 253
     reboot_me, // 254
     // API v.23
-    0, //free_app_flash, // 255
-    0, //__aeabi_d2uiz, // 256
+    free_app_flash, // 255
+    __aeabi_d2uiz, // 256
     // API v.24
     powf, // 257
     // API v.25
-    0, //__clzsi2, // 258
-    0, //__aeabi_lmul, // 259
+    __clzsi2, // 258
+    __aeabi_lmul, // 259
     // TODO:
     0
 };

@@ -24,7 +24,7 @@ pico_sdk_init()
 
 include(FreeRTOS_Kernel_import.cmake)
 
-option(VGA "Enable VGA" OFF)
+option(VGA "Enable VGA" ON)
 option(TFT "Enable TFT display" OFF)
 option(ILI9341 "Enable TFT ILI9341 display" OFF)
 option(HDMI "Enable HDMI display" OFF)
@@ -33,6 +33,7 @@ option(SOFTTV "Enable TV soft composite output" OFF)
 
 #option(FLASH_SIZE "Target Flash Size" 4096) -- support any up to 16M
 option(FLASH_SIZE "Target Flash Size" 16384)
+set(VGA ON)
 
 if(NOT FLASH_SIZE)
 set(FLASH_SIZE 4096)
@@ -108,6 +109,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         pico_runtime
         pico_stdlib
         hardware_pio
+        hardware_pwm
 
         pico_multicore
         hardware_flash
@@ -115,6 +117,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         tinyusb_board
         tinyusb_device
 )
+
+if (HDMI)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=HDMI_DRV)
+elseif(VGA)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=VGA_DRV)
+else()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=RGB_DRV)
+endif()
 
 #family_configure_device_example(${PROJECT_NAME} noos)
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
@@ -196,6 +206,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         RESERVED_RAM=512
         OVERCLOCKING=378
         DEBUG_APP_LOAD=1
+        MOS_VERSION_STR="2.0.0"
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})

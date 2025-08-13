@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "string.h"
 #include "hardware/irq.h"
-
+#include "graphics.h"
 
 volatile int bitcount;
 static uint8_t ps2bufsize = 0;
@@ -184,7 +184,7 @@ int16_t keyboard_send(uint8_t data) {
     int_on();
     return ps2_recv_response();
 ERROR:
-    printf("KBD error %02X \r\n", ps2_error);
+    goutf("\nKBD error %02X\n", ps2_error);
     ps2_error = 0;
     idle();
     int_on();
@@ -207,10 +207,10 @@ uint8_t ps2_to_xt_1(uint32_t val) {
     return 0;
 }
 
-uint8_t ps2_to_xt_2(uint32_t val) {
+uint16_t ps2_to_xt_2(uint32_t val) {
     uint8_t i;
     for (i = 0; i < 16; i++) {
-        if (ps2_group2[i].xt_make == val) return ps2_group2[i].make;
+        if (ps2_group2[i].xt_make == val) return 0xE000 | ps2_group2[i].make;
     }
     return 0;
 }

@@ -1,82 +1,372 @@
 #include "graphics.h"
 #include <string.h>
+#include "FreeRTOS.h"
+#include "task.h"
 #include <stdarg.h>
-
-#include "app.h"
 #include "sys_table.h"
 
-volatile uint8_t con_color = 7;
-volatile uint8_t con_bgcolor = 0;
-volatile int pos_x = 0;
-volatile int pos_y = 0;
-volatile uint8_t font_width = 8;
-volatile uint8_t font_height = 16;
-volatile uint8_t bitness = 16; // TODO:
-volatile uint8_t* font_table = font_8x16;
-static volatile bool lock_buffer = false;
+#ifndef logMsg
+   
+#ifdef DEBUG_VGA
+char vga_dbg_msg[1024] = { 0 };
+#define DBG_PRINT(...) { sprintf(vga_dbg_msg + strlen(vga_dbg_msg), __VA_ARGS__); }
+#else
+#define DBG_PRINT(...)
+#endif
 
-void graphics_lock_buffer(bool v) {
-    // TODO:
-    lock_buffer = v;
+#endif
+
+void common_set_con_pos(int x, int y);
+int common_con_x(void);
+int common_con_y(void);
+void common_set_con_color(uint8_t color, uint8_t bgcolor);
+void common_print(char* buf);
+void common_backspace(void);
+void common_draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor);
+bool common_set_font(uint8_t width, uint8_t height);
+uint8_t common_get_font_width(void);
+uint8_t common_get_font_height(void);
+bool common_set_ext_font(uint8_t*, uint8_t width, uint8_t height);
+uint8_t* common_get_font_table(void);
+
+const static graphics_driver_t internal_vga_driver = {
+    0, //ctx
+    vga_driver_init,
+    vga_cleanup,
+    vga_set_mode, // set_mode
+    vga_is_text_mode, // is_text
+    get_vga_console_width,
+    get_vga_console_height,
+    get_vga_screen_width,
+    get_vga_screen_height,
+    get_vga_buffer,
+    set_vga_buffer,
+    vga_clr_scr,
+    common_draw_text,
+    get_vga_buffer_bitness,
+    get_vga_buffer_bitness,
+    0, // set_offsets
+    vga_set_bgcolor,
+    vga_buffer_size,
+    common_set_con_pos,
+    common_con_x,
+    common_con_y,
+    common_set_con_color,
+    common_print,
+    common_backspace,
+    vga_lock_buffer,
+    vga_get_mode,
+    vga_is_mode_text,
+    vga_set_cursor_color,
+    vga_get_default_mode,
+    common_set_font,
+    common_get_font_width,
+    common_get_font_height,
+    common_set_ext_font,
+    common_get_font_table
+};
+
+#ifdef HDMI
+const static graphics_driver_t internal_hdmi_driver = {
+    0, //ctx
+    hdmi_driver_init,
+    hdmi_cleanup,
+    hdmi_set_mode, // set_mode
+    hdmi_is_text_mode, // is_text
+    hdmi_console_width,
+    hdmi_console_height,
+    hdmi_screen_width,
+    hdmi_screen_height,
+    get_hdmi_buffer,
+    set_hdmi_buffer,
+    hdmi_clr_scr,
+    common_draw_text,
+    get_hdmi_buffer_bitness,
+    get_hdmi_buffer_bitness,
+    hdmi_set_offset, // set_offsets
+    hdmi_set_bgcolor,
+    hdmi_buffer_size,
+    common_set_con_pos,
+    common_con_x,
+    common_con_y,
+    common_set_con_color,
+    common_print,
+    common_backspace,
+    hdmi_lock_buffer,
+    hdmi_get_mode,
+    hdmi_is_mode_text,
+    hdmi_set_cursor_color,
+    hdmi_get_default_mode,
+    common_set_font,
+    common_get_font_width,
+    common_get_font_height,
+    common_set_ext_font,
+    common_get_font_table
+};
+#endif
+
+#ifdef TV
+const static graphics_driver_t internal_tv_driver = {
+    0, //ctx
+    tv_driver_init,
+    tv_cleanup,
+    tv_set_mode, // set_mode
+    tv_is_text_mode, // is_text
+    tv_console_width,
+    tv_console_height,
+    tv_console_width,
+    tv_console_height,
+    get_tv_buffer,
+    set_tv_buffer,
+    tv_clr_scr,
+    common_draw_text,
+    get_tv_buffer_bitness,
+    get_tv_buffer_bitness,
+    tv_set_offset, // set_offsets
+    tv_set_bgcolor,
+    tv_buffer_size,
+    common_set_con_pos,
+    common_con_x,
+    common_con_y,
+    common_set_con_color,
+    common_print,
+    common_backspace,
+    tv_lock_buffer,
+    tv_get_mode,
+    tv_is_mode_text,
+    tv_set_cursor_color,
+    tv_get_default_mode,
+    common_set_font,
+    common_get_font_width,
+    common_get_font_height,
+    common_set_ext_font,
+    common_get_font_table
+};
+#endif
+
+#ifdef SOFTTV
+const static graphics_driver_t internal_stv_driver = {
+    0, //ctx
+    stv_driver_init,
+    0, // stv_cleanup,
+    stv_set_mode, // set_mode
+    stv_is_text_mode, // is_text
+    stv_console_width,
+    stv_console_height,
+    stv_console_width,
+    stv_console_height,
+    get_stv_buffer,
+    set_stv_buffer,
+    stv_clr_scr,
+    common_draw_text,
+    get_stv_buffer_bitness,
+    get_stv_buffer_bitness,
+    stv_set_offset, // set_offsets
+    stv_set_bgcolor,
+    stv_buffer_size,
+    common_set_con_pos,
+    common_con_x,
+    common_con_y,
+    common_set_con_color,
+    common_print,
+    common_backspace,
+    stv_lock_buffer,
+    stv_get_mode,
+    stv_is_mode_text,
+    stv_set_cursor_color,
+    stv_get_default_mode,
+    common_set_font,
+    common_get_font_width,
+    common_get_font_height,
+    common_set_ext_font,
+    common_get_font_table
+};
+#endif
+
+static volatile graphics_driver_t* __scratch_y("_driver_bss") graphics_driver = 0;
+
+int graphics_get_default_mode(void) {
+    if (graphics_driver != 0  && graphics_driver->get_default_mode) {
+        return graphics_driver->get_default_mode();
+    }
+    return 0;
 }
 
-void gbackspace() {
-    if (!text_buffer) return;
-    uint8_t* t_buf;
-    pos_x--;
-    if (pos_x < 0) {
-        pos_x = TEXTMODE_COLS - 2;
-        pos_y--;
-        if (pos_y < 0) {
-            pos_y = 0;
+uint8_t* graphics_get_font_table(void) {
+    if (graphics_driver != 0  && graphics_driver->get_font_table) {
+        return graphics_driver->get_font_table();
+    }
+    return 0;
+}
+uint8_t graphics_get_font_width(void) {
+    if (graphics_driver != 0  && graphics_driver->get_font_width) {
+        return graphics_driver->get_font_width();
+    }
+    return 0;
+}
+uint8_t graphics_get_font_height(void) {
+    if (graphics_driver != 0  && graphics_driver->get_font_height) {
+        return graphics_driver->get_font_height();
+    }
+    return 0;
+}
+bool graphics_set_font(uint8_t w, uint8_t h) {
+    if (graphics_driver != 0  && graphics_driver->set_font) {
+        return graphics_driver->set_font(w, h);
+    }
+    return false;
+}
+bool graphics_set_ext_font(uint8_t* t, uint8_t w, uint8_t h) {
+    if (graphics_driver != 0  && graphics_driver->set_ext_font) {
+        return graphics_driver->set_ext_font(t, w, h);
+    }
+    return false;
+}
+
+
+void graphics_init(int drv_type) {
+    if (graphics_driver == 0) {
+        switch(drv_type) {
+#ifdef HDMI
+            case HDMI_DRV:
+                graphics_driver = &internal_hdmi_driver;
+                break;
+#endif
+#ifdef TV
+            case RGB_DRV:
+                graphics_driver = &internal_tv_driver;
+                break;
+#endif
+#ifdef SOFTTV
+            case SOFTTV_DRV:
+                graphics_driver = &internal_stv_driver;
+                break;
+#endif
+            default:
+                graphics_driver = &internal_vga_driver;
+                break;
         }
     }
-    t_buf = text_buffer + TEXTMODE_COLS * 2 * pos_y + 2 * pos_x;
-    *t_buf++ = ' ';
-    *t_buf++ = con_bgcolor << 4 | con_color & 0xF;
-}
-
-void draw_text(const char string[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
-    uint8_t* t_buf = text_buffer + TEXTMODE_COLS * 2 * y + 2 * x;
-    for (int xi = TEXTMODE_COLS * 2; xi--;) {
-        if (!*string) break;
-        *t_buf++ = *string++;
-        *t_buf++ = bgcolor << 4 | color & 0xF;
+    DBG_PRINT("graphics_init %ph\n", graphics_driver);
+    if(graphics_driver && graphics_driver->init) {
+        DBG_PRINT("graphics_init->init %ph\n", graphics_driver->init);
+        graphics_driver->init();
+    }
+    DBG_PRINT("graphics_init %ph exit\n", graphics_driver);
+    switch(drv_type) {
+#ifdef HDMI
+        case HDMI_DRV:
+            hdmi_init();
+            break;
+#endif
+#ifdef TV
+        case RGB_DRV:
+            tv_init();
+            break;
+#endif
+#ifdef SOFTTV
+        case SOFTTV_DRV:
+            stv_init();
+            break;
+#endif
+        default:
+            vga_init();
+            break;
     }
 }
 
-void draw_window(const char title[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+void set_cursor_color(uint8_t color) {
+    if(graphics_driver && graphics_driver->set_cursor_color) {
+        return graphics_driver->set_cursor_color(color);
+    }
+}
+
+bool is_buffer_text(void) { // TODO: separate calls by supported or not
+    if(graphics_driver && graphics_driver->is_text) {
+        return graphics_driver->is_text();
+    }
+    return true;
+}
+
+uint32_t get_console_width() {
+    if(graphics_driver && graphics_driver->console_width) {
+        return graphics_driver->console_width();
+    }
+    return 0;
+}
+uint32_t get_console_height() {
+    if(graphics_driver && graphics_driver->console_height) {
+        return graphics_driver->console_height();
+    }
+    return 0;
+}
+uint32_t get_screen_width() {
+    if(graphics_driver && graphics_driver->screen_width) {
+        return graphics_driver->screen_width();
+    }
+    return 0;
+}
+uint32_t get_screen_height() {
+    if(graphics_driver && graphics_driver->screen_height) {
+        return graphics_driver->screen_height();
+    }
+    return 0;
+}
+uint8_t* get_buffer() {
+    if(graphics_driver && graphics_driver->buffer) {
+        return graphics_driver->buffer();
+    }
+    return 0;
+}
+void graphics_set_buffer(uint8_t* buffer) {
+    if(graphics_driver && graphics_driver->set_buffer) {
+        graphics_driver->set_buffer(buffer);
+    }
+}
+
+void clrScr(const uint8_t color) {
+    if(graphics_driver && graphics_driver->cls) {
+        graphics_driver->cls(color);
+    }
+}
+
+void draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
+    if(graphics_driver && graphics_driver->draw_text) {
+        graphics_driver->draw_text(string, x, y, color, bgcolor);
+    }
+}
+
+void draw_window(const char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
     char line[width + 1];
     memset(line, 0, sizeof line);
     width--;
     height--;
     // Рисуем рамки
-
     memset(line, 0xCD, width); // ═══
-
-
     line[0] = 0xC9; // ╔
     line[width] = 0xBB; // ╗
     draw_text(line, x, y, 11, 1);
-
     line[0] = 0xC8; // ╚
     line[width] = 0xBC; //  ╝
     draw_text(line, x, height + y, 11, 1);
-
     memset(line, ' ', width);
     line[0] = line[width] = 0xBA;
-
     for (int i = 1; i < height; i++) {
         draw_text(line, x, y + i, 11, 1);
     }
-
     snprintf(line, width - 1, " %s ", title);
     draw_text(line, x + (width - strlen(line)) / 2, y, 14, 3);
 }
 
-void graphics_set_con_color(uint8_t color, uint8_t bgcolor) {
-    con_color = color;
-    con_bgcolor = bgcolor;
+void __putc(char c) {
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    if (ctx && ctx->std_out) {
+        UINT bw;
+        f_write(ctx->std_out, &c, 1, &bw);
+    } else {
+        char t[2] = { c, 0 };
+        gouta(t);
+    }
 }
 
 void goutf(const char *__restrict str, ...) {
@@ -100,17 +390,206 @@ void goutf(const char *__restrict str, ...) {
 //    vPortFree(buf);
 //#endif
 }
-static void graphics_rollup(uint8_t* graphics_buffer, uint32_t width) {
-    uint32_t height = get_screen_height();
-    uint8_t bit = get_screen_bitness();
-    uint32_t h = height / font_height;
-    if (pos_y >= h - 1) {
-        uint32_t sz = (width * (height - 2 * font_height) * bit) >> 3;
-        memmove(graphics_buffer, graphics_buffer + (width * bit * font_height >> 3), sz);
-        memset(graphics_buffer + sz, 0, width * bit * font_height >> 3);
-        pos_y = h - 2;
+
+void fgoutf(FIL *f, const char *__restrict str, ...) {
+//    char* buf = (char*)pvPortMalloc(512);
+    char buf[512];
+    va_list ap;
+    va_start(ap, str);
+    vsnprintf(buf, 512, str, ap); // TODO: optimise (skip)
+    va_end(ap);
+    if (!f) {
+        gouta(buf);
+    } else {
+        UINT bw;
+        f_write(f, buf, strlen(buf), &bw); // TODO: error handling
+    }
+//    vPortFree(buf);
+}
+
+graphics_driver_t* get_graphics_driver() {
+    DBG_PRINT("get_graphics_driver %ph\n", graphics_driver);
+    return graphics_driver;
+}
+
+void install_graphics_driver(graphics_driver_t* gd) {
+    DBG_PRINT("install_graphics_driver %ph\n", gd);
+    if (graphics_driver) {
+        DBG_PRINT("install_graphics_driver: to cleanup %ph\n", graphics_driver);
+        cleanup_graphics();
+    }
+    graphics_driver = gd;
+    DBG_PRINT("install_graphics_driver to init %ph\n", gd);
+    graphics_init(VGA_DRV); // TODO: detect type and reject!!
+    DBG_PRINT("install_graphics_driver exit\n");
+}
+
+bool graphics_set_mode(int mode) {
+    if(graphics_driver && graphics_driver->set_mode) {
+        return graphics_driver->set_mode(mode);
+    }
+    return false;
+}
+bool graphics_is_mode_text(int mode) {
+    if(graphics_driver && graphics_driver->is_mode_text) {
+        return graphics_driver->is_mode_text(mode);
+    }
+    return false;
+}
+
+int graphics_get_mode(void) {
+    if(graphics_driver && graphics_driver->get_mode) {
+        return graphics_driver->get_mode();
+    }
+    return 0;
+}
+
+void cleanup_graphics(void) {
+    if(graphics_driver && graphics_driver->cleanup) {
+        graphics_driver->cleanup();
     }
 }
+
+uint8_t get_console_bitness() {
+    if(graphics_driver && graphics_driver->console_bitness) {
+        return graphics_driver->console_bitness();
+    }
+    return 0;
+}
+
+uint8_t get_screen_bitness() {
+    if(graphics_driver && graphics_driver->screen_bitness) {
+        return graphics_driver->screen_bitness();
+    }
+    return 0;
+}
+
+void graphics_set_offset(const int x, const int y) {
+    if(graphics_driver && graphics_driver->set_offsets) {
+        graphics_driver->set_offsets(x, y);
+    }
+}
+
+void graphics_set_bgcolor(const uint32_t color888) {
+    if(graphics_driver && graphics_driver->set_bgcolor) {
+        graphics_driver->set_bgcolor(color888);
+    }
+}
+void graphics_lock_buffer(bool b) {
+    if(graphics_driver && graphics_driver->lock_buffer) {
+        graphics_driver->lock_buffer(b);
+    }
+}
+
+size_t get_buffer_size() {
+    if(graphics_driver && graphics_driver->allocated) {
+        return graphics_driver->allocated();
+    }
+    return 0;
+}
+
+void graphics_set_con_pos(int x, int y) {
+    if(graphics_driver && graphics_driver->set_con_pos) {
+        graphics_driver->set_con_pos(x, y);
+    }
+}
+
+int graphics_con_x(void) {
+    if(graphics_driver && graphics_driver->pos_x) {
+        return graphics_driver->pos_x();
+    }
+    return 0;
+}
+int graphics_con_y(void) {
+    if(graphics_driver && graphics_driver->pos_y) {
+        return graphics_driver->pos_y();
+    }
+    return 0;
+}
+
+void graphics_set_con_color(uint8_t color, uint8_t bgcolor) {
+    if(graphics_driver && graphics_driver->set_con_color) {
+        graphics_driver->set_con_color(color, bgcolor);
+    }
+}
+
+void gouta(char* buf) {
+    if(graphics_driver && graphics_driver->print) {
+        graphics_driver->print(buf);
+    }
+}
+
+void gbackspace() {
+    if(graphics_driver && graphics_driver->backspace) {
+        graphics_driver->backspace();
+    }
+}
+
+// common
+#include "font6x8.h"
+#include "fnt8x16.h"
+
+volatile int __scratch_y("_driver_text") pos_x = 0;
+volatile int __scratch_y("_driver_text") pos_y = 0;
+volatile uint8_t __scratch_y("_driver_text") con_color = 7;
+volatile uint8_t __scratch_y("_driver_text") con_bgcolor = 0;
+volatile uint8_t __scratch_y("_driver_text") font_width = 8;
+volatile uint8_t __scratch_y("_driver_text") font_height = 16;
+volatile uint8_t* __scratch_y("_driver_text") font_table = font_8x16;
+
+uint8_t* common_get_font_table(void) {
+    return font_table;
+}
+
+bool common_set_ext_font(uint8_t* table, uint8_t width, uint8_t height) {
+    if (font_height == 8  || font_height == 6) { // unsupported for now heights
+        return false;
+    }
+    font_width = width;
+    font_height = height;
+    font_table = table;
+    return true;
+}
+
+bool common_set_font(uint8_t width, uint8_t height) {
+    if (width == 8 && height == 16) {
+        font_width = width;
+        font_height = height;
+        font_table = font_8x16;
+        return true;
+    }
+    if (width == 6 && height == 8) {
+        font_width = width;
+        font_height = height;
+        font_table = font_6x8;
+        return true;
+    }
+    return false;
+}
+uint8_t common_get_font_width(void) {
+    return font_width;
+}
+uint8_t common_get_font_height(void) {
+    return font_height;
+}
+
+void common_set_con_pos(int x, int y) {
+    pos_x = x;
+    pos_y = y;
+}
+
+int common_con_x(void) {
+    return pos_x;
+}
+int common_con_y(void) {
+    return pos_y;
+}
+
+void common_set_con_color(uint8_t color, uint8_t bgcolor) {
+    con_color = color;
+    con_bgcolor = bgcolor;
+}
+
 static char* common_rollup(char* b, char* t_buf, uint32_t width, uint32_t height) {
     if (pos_y >= height - 1) {
         memmove(b, b + width * 2, width * (height - 2) * 2);
@@ -123,6 +602,9 @@ static char* common_rollup(char* b, char* t_buf, uint32_t width, uint32_t height
     }
     return b + width * 2 * pos_y + 2 * pos_x;
 }
+
+extern uint16_t txt_palette[16];
+
 static void __in_hfa() common_print_char(uint8_t* graphics_buffer, uint32_t width, uint32_t height, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor, uint16_t c) {
     uint8_t bit = get_screen_bitness();
     uint8_t* pE = graphics_buffer + ((width * height * bit) >> 3);
@@ -230,7 +712,7 @@ static void __in_hfa() common_print_char(uint8_t* graphics_buffer, uint32_t widt
         return;
     }
     if (bit == 1) {
-        uint32_t height = get_screen_height();
+        uint8_t height = get_screen_height();
         uint8_t* p0 = graphics_buffer + ((width * y * font_height + x * font_width) >> 3);
 //        uint8_t* pE = graphics_buffer + ((width * height) >> 3);
         uint8_t cf = color; // & 1; // TODO: mapping
@@ -265,7 +747,19 @@ static void __in_hfa() common_print_char(uint8_t* graphics_buffer, uint32_t widt
     }
 }
 
-void gouta(char* buf) {
+static void graphics_rollup(uint8_t* graphics_buffer, uint32_t width) {
+    uint32_t height = get_screen_height();
+    uint8_t bit = get_screen_bitness();
+    uint32_t h = height / font_height;
+    if (pos_y >= h - 1) {
+        uint32_t sz = (width * (height - 2 * font_height) * bit) >> 3;
+        memmove(graphics_buffer, graphics_buffer + (width * bit * font_height >> 3), sz);
+        memset(graphics_buffer + sz, 0, width * bit * font_height >> 3);
+        pos_y = h - 2;
+    }
+}
+
+void common_print(char* buf) {
     uint8_t* graphics_buffer = get_buffer();
     if (!graphics_buffer) {
         return;
@@ -317,42 +811,176 @@ void gouta(char* buf) {
         }
     }
 }
-uint8_t get_font_width(void) {
-    return font_width;
-}
-uint8_t get_font_height(void) {
-    return font_height;
-}
-uint8_t get_screen_bitness() {
-    return bitness;
+
+void common_backspace(void) {
+    char* graphics_buffer = get_buffer();
+    if (!graphics_buffer) return;
+    uint32_t width = get_screen_width();
+    uint32_t height = get_screen_height();
+    if (!is_buffer_text()) {
+     //   common_print_char(graphics_buffer, width, pos_x, pos_y, ' ');
+        pos_x--;
+        if (pos_x < 0) {
+            pos_x = width / font_width;
+            common_print_char(graphics_buffer, width, height, pos_x, pos_y, con_color, con_bgcolor, ' ');
+            --pos_y;
+            --pos_x;
+            if (pos_y < 0) {
+                pos_y = 0;
+            }
+        }
+        common_print_char(graphics_buffer, width, height, pos_x, pos_y, con_color, con_bgcolor, ' ');
+        return;
+    }
+    pos_x--;
+    if (pos_x < 0) {
+        pos_x = width - 2;
+        pos_y--;
+        if (pos_y < 0) {
+            pos_y = 0;
+        }
+    }
+    char* t_buf = graphics_buffer + width * 2 * pos_y + 2 * pos_x;
+    *t_buf++ = ' ';
+    *t_buf++ = con_bgcolor << 4 | con_color & 0xF;
 }
 
-void fgoutf(FIL *f, const char *__restrict str, ...) {
-    char buf[512];
-    va_list ap;
-    va_start(ap, str);
-    vsnprintf(buf, 512, str, ap); // TODO: optimise (skip)
-    va_end(ap);
-    if (!f) {
-        gouta(buf);
-    } else {
-        UINT bw;
-        f_write(f, buf, strlen(buf), &bw); // TODO: error handling
+void common_draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
+    char* graphics_buffer = get_buffer();
+    if (!graphics_buffer) return;
+    uint32_t width = get_screen_width();
+    uint32_t height = get_screen_height();
+    if (!is_buffer_text()) {
+        for (int xi = x; xi < width * 2; ++xi) {
+            if (!(*string)) break;
+            common_print_char(graphics_buffer, width, height, xi, y, color, bgcolor, *string++);
+        }
+        return;
+    }
+    uint8_t* t_buf = graphics_buffer + width * 2 * y + 2 * x;
+    uint8_t c = (bgcolor << 4) | (color & 0xF);
+    for (int xi = x; xi < width * 2; ++xi) {
+        if (!(*string)) break;
+        *t_buf++ = *string++;
+        *t_buf++ = c;
     }
 }
 
-void graphics_set_con_pos(int x, int y) {
-    pos_x = x;
-    pos_y = y;
+// TODO: Сделать настраиваемо
+const uint8_t textmode_palette[16] = {
+    200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215
+};
+
+void draw_label(color_schema_t* pcs, int left, int top, int width, char* txt, bool selected, bool highlighted) {
+    char line[width + 2];
+    bool fin = false;
+    for (int i = 0; i < width; ++i) {
+        if (!fin) {
+            if (!txt[i]) {
+                fin = true;
+                line[i] = ' ';
+            } else {
+                line[i] = txt[i];
+            }
+        } else {
+            line[i] = ' ';
+        }
+    }
+    line[width] = 0;
+    int fgc = selected ? pcs->FOREGROUND_SELECTED_COLOR : highlighted ? pcs->HIGHLIGHTED_FIELD_COLOR : pcs->FOREGROUND_FIELD_COLOR;
+    int bgc = selected ? pcs->BACKGROUND_SELECTED_COLOR : pcs->BACKGROUND_FIELD_COLOR;
+    draw_text(line, left, top, fgc, bgc);
 }
 
-void __putc(char c) {
-    cmd_ctx_t* ctx = get_cmd_ctx();
-    if (ctx && ctx->std_out) {
-        UINT bw;
-        f_write(ctx->std_out, &c, 1, &bw);
-    } else {
-        char t[2] = { c, 0 };
-        gouta(t);
+void draw_box(color_schema_t* pcs, int left, int top, int width, int height, const char* title, const lines_t* plines) {
+    draw_panel(pcs, left, top, width, height, title, 0);
+    int y = top + 1;
+    for (int i = y; y < top + height - 1; ++y) {
+        draw_label(pcs, left + 1, y, width - 2, "", false, false);
     }
+    for (int i = 0, y = top + 1 + plines->toff; i < plines->sz; ++i, ++y) {
+        const line_t * pl = plines->plns + i;
+        uint8_t off;
+        if (pl->off < 0) {
+            size_t len = strnlen(pl->txt, width);
+            off = width - 2 > len ? (width - len) >> 1 : 0;
+        } else {
+            off = pl->off;
+        }
+        draw_label(pcs, left + 1 + off, y, width - 2 - off, pl->txt, false, false);
+    }
+}
+
+void draw_panel(color_schema_t* pcs, int left, int top, int width, int height, char* title, char* bottom) {
+    char line[width + 2];
+    // top line
+    for(int i = 1; i < width - 1; ++i) {
+        line[i] = 0xCD; // ═
+    }
+    line[0]         = 0xC9; // ╔
+    line[width - 1] = 0xBB; // ╗
+    line[width]     = 0;
+    draw_text(line, left, top, pcs->FOREGROUND_FIELD_COLOR, pcs->BACKGROUND_FIELD_COLOR); 
+    if (title) {
+        int sl = strlen(title);
+        if (width - 4 < sl) {
+            title -= width + 4; // cat title
+            sl -= width + 4;
+        }
+        int title_left = left + (width - sl) / 2;
+        snprintf(line, width, " %s ", title);
+        draw_text(line, title_left, top, pcs->FOREGROUND_FIELD_COLOR, pcs->BACKGROUND_FIELD_COLOR);
+    }
+    // middle lines
+    memset(line, ' ', width);
+    line[0]         = 0xBA; // ║
+    line[width - 1] = 0xBA;
+    line[width]     = 0;
+    for (int y = top + 1; y < top + height - 1; ++y) {
+        draw_text(line, left, y, pcs->FOREGROUND_FIELD_COLOR, pcs->BACKGROUND_FIELD_COLOR);
+    }
+    // bottom line
+    for(int i = 1; i < width - 1; ++i) {
+        line[i] = 0xCD; // ═
+    }
+    line[0]         = 0xC8; // ╚
+    line[width - 1] = 0xBC; // ╝
+    line[width]     = 0;
+    draw_text(line, left, top + height - 1, pcs->FOREGROUND_FIELD_COLOR, pcs->BACKGROUND_FIELD_COLOR);
+    if (bottom) {
+        int sl = strlen(bottom);
+        if (width - 4 < sl) {
+            bottom -= width + 4; // cat bottom
+            sl -= width + 4;
+        } 
+        int bottom_left = (width - sl) / 2;
+        snprintf(line, width, " %s ", bottom);
+        draw_text(line, bottom_left, top + height - 1, pcs->FOREGROUND_FIELD_COLOR, pcs->BACKGROUND_FIELD_COLOR);
+    }
+}
+
+void draw_button(color_schema_t* pcs, int left, int top, int width, const char* txt, bool selected) {
+    int len = strlen(txt);
+    if (len > 39) return;
+    char tmp[40];
+    int start = (width - len) / 2;
+    for (int i = 0; i < start; ++i) {
+        tmp[i] = ' ';
+    }
+    bool fin = false;
+    int j = 0;
+    for (int i = start; i < width; ++i) {
+        if (!fin) {
+            if (!txt[j]) {
+                fin = true;
+                tmp[i] = ' ';
+            } else {
+                tmp[i] = txt[j++];
+            }
+        } else {
+            tmp[i] = ' ';
+        }
+    }
+    tmp[width] = 0;
+    draw_text(tmp, left, top, pcs->FOREGROUND_F_BTN_COLOR, selected ? pcs->BACKGROUND_SEL_BTN_COLOR : pcs->BACKGROUND_F_BTN_COLOR);
 }

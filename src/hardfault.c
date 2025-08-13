@@ -79,7 +79,6 @@ uint32_t get_cpu_ram_size(void) {
 #include <hardware/flash.h>
 #include <pico/multicore.h>
 
-uint32_t flash_size = 0;
 uint32_t get_cpu_flash_size(void) {
     uint8_t rx[4] = {0};
     get_cpu_flash_jedec_id(rx);

@@ -2,97 +2,74 @@
 #include <cstring>
 #include <pico.h>
 #include <hardware/vreg.h>
+#include <hardware/pwm.h>
 #include <hardware/clocks.h>
-#include <hardware/flash.h>
 #include <hardware/watchdog.h>
 #include <pico/bootrom.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
-#include "sys_table.h"
+
+#include "psram_spi.h"
 
 #include "graphics.h"
-#include "keyboard.h"
 
 extern "C" {
 #include "ps2.h"
-#include "usb.h"
-#include "ram_page.h"
-#include "hardfault.h"
-}
-
 #include "ff.h"
-#include "nespad.h"
-
-#include "app.h"
+#include "usb.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "../../api/m-os-api-c-list.h"
 #include "hooks.h"
-#include "sound.h"
-#include "psram_spi.h"
 
-const char _mc_con[] = ".mc.con";
-const char _cmd_history[] = ".cmd_history";
-const char _flash_me[] = ".flash_me";
-static const char SD[] = "SD";
-static const char CD[] = "CD"; // current directory 
-static const char BASE[] = "BASE"; 
-static const char MOS[] = "MOS2"; 
-extern "C" const char TEMP[] = "TEMP"; 
-static const char PATH[] = "PATH"; 
-static const char SWAP[] = "SWAP"; 
-static const char COMSPEC[] = "COMSPEC"; 
-static const char ctmp[] = "/tmp"; 
-static const char ccmd[] = "/mos2/cmd";
+#include "tests.h"
+#include "sys_table.h"
+#include "portable.h"
+
+#include "keyboard.h"
+#include "cmd.h"
+#include "hardfault.h"
+#include "hardware/exception.h"
+#include "ram_page.h"
+#include "overclock.h"
+#include "app.h"
+#include "sound.h"
+}
+
+#include "nespad.h"
+
+extern "C" uint32_t flash_size;;
 
 static FATFS fs;
-extern "C" FATFS* get_mount_fs() { return &fs; } // only one FS is supported foe now
-
+extern "C" FATFS* get_mount_fs() { // only one FS is supported for now
+    return &fs;
+}
 semaphore vga_start_semaphore;
-#define DISP_WIDTH (320)
-#define DISP_HEIGHT (240)
-
-uint16_t SCREEN[TEXTMODE_ROWS][TEXTMODE_COLS];
+static int drv = DEFAULT_VIDEO_DRIVER;
+extern "C" volatile bool reboot_is_requested;
 
 void __time_critical_func(render_core)() {
     multicore_lockout_victim_init();
-    graphics_init();
-
-    const auto buffer = (uint8_t *)SCREEN;
-
-    graphics_set_bgcolor(0x000000);
-    graphics_set_offset(0, 0);
-    graphics_set_mode(TEXTMODE_DEFAULT);
-    graphics_set_buffer(buffer, TEXTMODE_COLS, TEXTMODE_ROWS);
-    graphics_set_textbuffer(buffer);
-    clrScr(1);
-
+    graphics_init(drv);
+    // graphics_driver_t* gd = get_graphics_driver();
+    // install_graphics_driver(gd);
     sem_acquire_blocking(&vga_start_semaphore);
-    // 60 FPS loop
-#define frame_tick (16666)
-    uint64_t tick = time_us_64();
-#ifdef TFT
-    uint64_t last_renderer_tick = tick;
-#endif
-    uint64_t last_input_tick = tick;
-    while (true) {
-#ifdef TFT
-        if (tick >= last_renderer_tick + frame_tick) {
-            refresh_lcd();
-            last_renderer_tick = tick;
-        }
-#endif
-        // Every 5th frame
-        if (tick >= last_input_tick + frame_tick * 5) {
-            nespad_read();
-            last_input_tick = tick;
-        }
-        tick = time_us_64();
-
+    while(!reboot_is_requested) {
+        pcm_call();
         tight_loop_contents();
     }
-
+    watchdog_enable(1, true);
+    while(true) ;
     __unreachable();
+}
+
+inline static void tokenizeCfg(char* s, size_t sz) {
+    size_t i = 0;
+    for (; i < sz; ++i) {
+        if (s[i] == '=' || s[i] == '\n' || s[i] == '\r') {
+            s[i] = 0;
+        }
+    }
+    s[i] = 0;
 }
 
 void __always_inline run_application() {
@@ -111,21 +88,28 @@ void __always_inline run_application() {
     __unreachable();
 }
 
-const char* tmp = "Murmulator (RP2350) OS v." MOS_VERSION;
+static const char SD[] = "SD";
+static const char CD[] = "CD"; // current directory 
+static const char BASE[] = "BASE"; 
+static const char MOS[] = "MOS2"; 
+static const char TEMP[] = "TEMP"; 
+static const char PATH[] = "PATH"; 
+static const char SWAP[] = "SWAP"; 
+static const char COMSPEC[] = "COMSPEC"; 
+static const char ctmp[] = "/tmp"; 
+static const char ccmd[] = "/mos2/cmd";
 
-extern "C" void show_logo(bool with_top) {
-    uint32_t w = get_console_width();
-    uint32_t y = get_console_height() - 1;
-    uint32_t sz = strlen(tmp);
-    uint32_t sps = (w - sz) / 2;
-
-    for(uint32_t x = 0; x < w; ++x) {
-        if(with_top) draw_text(" ", x, 0, 13, 1);
-        draw_text(" ", x, y, 13, 1);
+static void __always_inline check_firmware() {
+    FIL f;
+    if(f_open(&f, FIRMWARE_MARKER_FN, FA_READ) == FR_OK) {
+        f_close(&f);
+        f_unmount(SD);
+        run_application();
     }
-    if(with_top) draw_text(tmp, sps, 0, 13, 1);
-    draw_text(tmp, sps, y, 13, 1);
-    graphics_set_con_color(7, 0); // TODO: config
+}
+
+inline static void unlink_firmware() {
+    f_unlink(FIRMWARE_MARKER_FN);
 }
 
 static cmd_ctx_t* set_default_vars() {
@@ -170,16 +154,6 @@ static char* open_config(UINT* pbr) {
     return buff;
 }
 
-inline static void tokenizeCfg(char* s, size_t sz) {
-    size_t i = 0;
-    for (; i < sz; ++i) {
-        if (s[i] == '=' || s[i] == '\n' || s[i] == '\r') {
-            s[i] = 0;
-        }
-    }
-    s[i] = 0;
-}
-
 static void load_config_sys() {
     cmd_ctx_t* ctx = set_default_vars();
     bool b_swap = false;
@@ -210,7 +184,7 @@ static void load_config_sys() {
             } else if (strcmp(t, "GMODE") == 0) { // TODO: FONT
                 t = next_token(t);
                 int mode = atoi(t);
-           ///     graphics_set_mode(mode);
+                graphics_set_mode(mode);
             } else if (strcmp(t, "DRIVER") == 0) {
                 t = next_token(t);
                 // TODO:
@@ -218,7 +192,7 @@ static void load_config_sys() {
                 t = next_token(t);
                 int cpu = atoi(t);
                 if (cpu > 123 && cpu < 450) {
-            ///        set_last_overclocking(cpu * 1000);
+                    set_last_overclocking(cpu * 1000);
                 }
             } else if (strcmp(t, BASE) == 0) {
                 t = next_token(t);
@@ -240,68 +214,300 @@ static void load_config_sys() {
     if (buff) vPortFree(buff);
     if (!b_temp) f_mkdir(ctmp);
     if (!b_base) f_mkdir(MOS);
-    /**
     if (!b_swap) {
         char* t1 = "/tmp/pagefile.sys 1M 64K 4K";
         char* t2 = (char*)pvPortMalloc(strlen(t1) + 1);
         strcpy(t2, t1);
         init_vram(t2);
         vPortFree(t2);
-    }*/
-  //  uint32_t overclocking = get_overclocking_khz();
-  //  set_sys_clock_khz(overclocking, true);
-  //  set_last_overclocking(overclocking);
+    }
+    uint32_t overclocking = get_overclocking_khz();
+    set_sys_clock_khz(overclocking, true);
+    set_last_overclocking(overclocking);
 }
 
-int __in_hfa() main() {
+const char* tmp = "Murmulator (RP2350) OS v." MOS_VERSION_STR;
+
+#ifdef DEBUG_VGA
+extern "C" char vga_dbg_msg[1024];
+#endif
+
+extern "C" void show_logo(bool with_top) {
+    uint32_t w = get_console_width();
+    uint32_t y = get_console_height() - 1;
+    uint32_t sz = strlen(tmp);
+    uint32_t sps = (w - sz) / 2;
+
+    for(uint32_t x = 0; x < w; ++x) {
+        if(with_top) draw_text(" ", x, 0, 13, 1);
+        draw_text(" ", x, y, 13, 1);
+    }
+    if(with_top) draw_text(tmp, sps, 0, 13, 1);
+    draw_text(tmp, sps, y, 13, 1);
+    graphics_set_con_color(7, 0); // TODO: config
+}
+
+static void startup_vga(void) {
+    sem_init(&vga_start_semaphore, 0, 1);
+    multicore_launch_core1(render_core);
+    sem_release(&vga_start_semaphore);
+    sleep_ms(300);
+    clrScr(0);
+}
+
+void info(bool with_sd) {
+    uint32_t ram32 = 520 << 10;// get_cpu_ram_size();
+    uint8_t rx[4];
+    get_cpu_flash_jedec_id(rx);
+    flash_size = (1 << rx[3]);
+    goutf("CPU %d MHz\n"
+          "SRAM %d KB\n"
+          "FLASH %d MB; JEDEC ID: %02X-%02X-%02X-%02X\n",
+          get_overclocking_khz() / 1000,
+          ram32 >> 10,
+          flash_size >> 20, rx[0], rx[1], rx[2], rx[3]
+    );
+    uint32_t psram32 = psram_size();
+    uint8_t rx8[8];
+    psram_id(rx8);
+    if (psram32) {
+        goutf("PSRAM %d MB; MF ID: %02x; KGD: %02x; EID: %02X%02X-%02X%02X-%02X%02X\n",
+              psram32 >> 20, rx8[0], rx8[1], rx8[2], rx8[3], rx8[4], rx8[5], rx8[6], rx8[7]
+        );
+    }
+    if (!with_sd) {
+        goutf("\n");
+        return;
+    }
+    FATFS* fs = get_mount_fs();
+    goutf("SDCARD %d FATs; %d free clusters (%d KB each)\n",
+          fs->n_fats, f_getfree32(fs), fs->csize >> 1
+    );
+    goutf("SWAP %d MB; RAM: %d KB; pages index: %d x %d KB\n",
+          swap_size() >> 20, swap_base_size() >> 10, swap_pages(), swap_page_size() >> 10
+    );
+    goutf("VRAM %d KB; video mode: %d x %d x %d bit\n"
+          "\n",
+          get_buffer_size() >> 10, get_screen_width(), get_screen_height(), get_console_bitness()
+    );
+}
+
+void usb_on_boot() {
+    usb_driver(true);
+   	vTaskStartScheduler();
+    for(;;) { vTaskDelay(10); }
+}
+
+void caseF10(void) {
+            if (FR_OK == f_mount(&fs, SD, 1)) {
+                FIL f;
+                link_firmware(&f, "unknown");
+            }
+            watchdog_enable(1, false);
+            while(1);
+}
+
+void caseF12(void) {
+            if (FR_OK == f_mount(&fs, SD, 1)) {
+                unlink_firmware();
+            }
+            reset_usb_boot(0, 0);
+            while(1);
+}
+
+void selectDRV1(void) {
+            switch(DEFAULT_VIDEO_DRIVER) {
+                case VGA_DRV:
+                    #ifdef HDMI
+                        drv = HDMI_DRV;
+                    #else
+                    #ifdef TV
+                        drv = RGB_DRV;
+                    #endif
+                    #endif
+                    break;
+                #ifdef HDMI
+                case HDMI_DRV:
+                    drv = VGA_DRV;
+                    break;
+                #endif
+                #ifdef TV
+                case RGB_DRV:
+                    drv = VGA_DRV;
+                    break;
+                #endif
+                #ifdef SOFTTV
+                case SOFTTV_DRV:
+                    drv = VGA_DRV;
+                    break;
+                #endif
+            }
+}
+
+void selectDRV2(void) {
+            switch(DEFAULT_VIDEO_DRIVER) {
+                case VGA_DRV:
+                    #ifdef HDMI
+                        drv = HDMI_DRV;
+                    #else
+                        #ifdef TV
+                            drv = RGB_DRV;
+                        #endif
+                    #endif
+                    break;
+                #ifdef HDMI
+                case HDMI_DRV:
+                    drv = VGA_DRV;
+                    break;
+                #endif
+                #ifdef TV
+                case RGB_DRV:
+                    #ifdef HDMI
+                        drv = HDMI_DRV;
+                    #else
+                        drv = VGA_DRV;
+                    #endif
+                    break;
+                #endif
+                #ifdef SOFTTV
+                case SOFTTV_DRV:
+                    drv = HDMI_DRV;
+                    break;
+                #endif
+            }
+}
+
+kbd_state_t* process_input_on_boot() {
+    kbd_state_t* ks = get_kbd_state();
+    for (int a = 0; a < 20; ++a) {
+        uint8_t sc = ks->input & 0xFF;
+        if ( sc == 1 /* Esc */) {
+            break;
+        }
+        if ( (nespad_state & DPAD_START) && (nespad_state & DPAD_SELECT) || (sc ==0x44) /*F10*/ ) {
+            caseF10();
+        }
+        // F12 or ENTER or START Boot to USB FIRMWARE UPDATE mode
+        if ((nespad_state & DPAD_START) || (sc == 0x58) /*F12*/ || (sc == 0x1C) /*ENTER*/) {
+            caseF12();
+        }
+        // F11 or SPACE or SELECT unlink prev uf2 firmware
+        if ((nespad_state & DPAD_SELECT) || (sc == 0x57) /*F11*/  || (sc == 0x39) /*SPACE*/) {
+            if (FR_OK == f_mount(&fs, SD, 1)) {
+                if (nespad_state & DPAD_B) {
+                    usb_on_boot();
+                }
+                unlink_firmware(); // return to M-OS
+                break;
+            }
+        } else if (sc == 0x47 /*HOME*/ && FR_OK == f_mount(&fs, SD, 1)) {
+            usb_on_boot();
+        }
+        // DPAD A/TAB start with HDMI, if default is VGA, and vice versa
+        if ((nespad_state & DPAD_A) || (sc == 0x0F) /*TAB*/) {
+            selectDRV1();
+            break;
+        }
+        // DPAD B start with VGA, if default is TV
+        if ((nespad_state & DPAD_B)) {
+            selectDRV2();
+            break;
+        }
+        sleep_ms(30);
+        nespad_read();
+    }
+    return ks;
+}
+
+char* mount_os() {
+    if (FR_OK != f_mount(&fs, SD, 1)) {
+        return "SD Card not inserted or SD Card error!\nPls. insert it and reboot...\n";
+    }
+    FILINFO fno;
+    if ((FR_OK != f_stat(ccmd, &fno)) || (fno.fattrib & AM_DIR)) {
+        return "/mos2/cmd file is not found!\nPls. copy MOS folder to your SDCARD...\n";
+    }
+    return 0;
+}
+
+void test_cycle(kbd_state_t* ks) {
+    while (true) {
+        nespad_read();
+        int y = graphics_con_y();
+        goutf("Scancodes tester: %Xh   \n", ks->input);
+        goutf("Joysticks' states: %02Xh %02Xh\n", nespad_state, nespad_state2);
+        sleep_ms(50);
+        graphics_set_con_pos(0, y);
+    }
+    __unreachable();
+}
+
+void __in_hfa() init(void) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    
+
     volatile uint32_t *qmi_m0_timing=(uint32_t *)0x400d000c;
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
     sleep_ms(33);
     *qmi_m0_timing = 0x60007204;
-    bool res = set_sys_clock_hz(configCPU_CLOCK_HZ, 0);
+    uint32_t overclocking = get_overclocking_khz();
+    if (! set_sys_clock_khz(overclocking, 0) ) {
+        overclocking = 125000;
+    }
     *qmi_m0_timing = 0x60007303;
+    set_last_overclocking(overclocking);
 
     keyboard_init();
-    //keyboard_send(0xFF);
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
+    nespad_read();
+    sleep_ms(50);
 
-    char* y = (char*)0x20000000 + (512 << 10) - 4;
-	bool magic = (y[0] == 0xFF && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
-    if (magic) {
-        *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
+
+#ifdef DEBUG_VGA
+    FIL f;
+    f_open(&f, "mos-vga.log", FA_OPEN_APPEND | FA_WRITE);
+    UINT wr;
+    f_write(&f, vga_dbg_msg, strlen(vga_dbg_msg), &wr);
+    f_close(&f);
+#endif
+    kbd_state_t* ks = process_input_on_boot();
+    // send kbd reset only after initial process passed
+    keyboard_send(0xFF);
+
+    char* err = mount_os();
+    if (!err) {
+        check_firmware();
+    } else {
+        startup_vga();
+        graphics_set_mode(graphics_get_default_mode());
+        graphics_set_con_pos(0, 1);
+        show_logo(true);
+        init_psram();
+        info(false);
+        graphics_set_con_color(12, 0);
+        gouta(err);
+        test_cycle(ks);
+        __unreachable();
     }
-    for (int i = 20; i--;) {
-        nespad_read();
-        sleep_ms(50);
 
-        // F12 Boot to USB FIRMWARE UPDATE mode
-        if (nespad_state & DPAD_START || getch_now() == 0x58) {
-            reset_usb_boot(0, 0);
-        }
-
-        // Any other key/button - run launcher
-//        if (magic || (nespad_state && !(nespad_state & DPAD_START)) || (input && input != 0x58)) {
-//        }
-    }
-
-//    run_application();
-    sem_init(&vga_start_semaphore, 0, 1);
-    multicore_launch_core1(render_core);
-    sem_release(&vga_start_semaphore);
-    sleep_ms(250);
+    startup_vga();
+    graphics_set_mode(graphics_get_default_mode());
+    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);
     load_config_sys();
     init_psram();
     show_logo(true);
-    uint8_t rx[4];
-    get_cpu_flash_jedec_id(rx);
-    flash_size = (1 << rx[3]);
+    graphics_set_con_pos(0, 1);
+    init_sound();
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
+}
+
+int main() {
+    init();
+    info(true);
 
     f_mount(&fs, SD, 1);
-    init_sound();
 
     xTaskCreate(vCmdTask, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
 
@@ -312,7 +518,7 @@ int __in_hfa() main() {
 	vTaskStartScheduler();
     // it should never return
     draw_text("vTaskStartScheduler failed", 0, 4, 13, 1);
+    while(sys_table_ptrs[0]); // to ensure linked (TODO: other way)
 
-    while(sys_table_ptrs[0]); // to ensure linked
     __unreachable();
 }

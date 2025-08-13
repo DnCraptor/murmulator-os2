@@ -26,7 +26,6 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
 #include "ffconf.h"		/* FatFs configuration options */
 
 #if FF_DEFINED != FFCONF_DEF
@@ -47,6 +46,8 @@ typedef unsigned __int64 QWORD;
 #elif (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) || defined(__cplusplus)	/* C99 or later */
 #define FF_INTDEF 2
 #include <stdint.h>
+#include <stdbool.h>
+
 typedef unsigned int	UINT;	/* int must be 16-bit or 32-bit */
 typedef unsigned char	BYTE;	/* char must be 8-bit */
 typedef uint16_t		WORD;	/* 16-bit unsigned integer */
@@ -176,7 +177,7 @@ typedef struct {
 	BYTE	win[FF_MAX_SS];	/* Disk access window for Directory, FAT (and file data at tiny cfg) */
 } FATFS;
 
-
+uint32_t f_getfree32(FATFS * fs);
 
 /* Object ID and allocation information (FFOBJID) */
 
@@ -337,8 +338,10 @@ int f_putc (TCHAR c, FIL* fp);										/* Put a character to the file */
 int f_puts (const TCHAR* str, FIL* cp);								/* Put a string to the file */
 int f_printf (FIL* fp, const TCHAR* str, ...);						/* Put a formatted string to the file */
 TCHAR* f_gets (TCHAR* buff, int len, FIL* fp);						/* Get a string from the file */
-
 bool f_eof(FIL* fp);
+int f_getc(FIL* fp);
+FRESULT f_open_pipe(FIL* to, FIL* from);
+
 #define f_error(fp) ((fp)->err)
 #define f_tell(fp) ((fp)->fptr)
 #define f_size(fp) ((fp)->obj.objsize)
@@ -416,8 +419,6 @@ int ff_del_syncobj (FF_SYNC_t sobj);	/* Delete a sync object */
 #define AM_DIR	0x10	/* Directory */
 #define AM_ARC	0x20	/* Archive */
 
-int f_getc(FIL* fp);
-FRESULT f_open_pipe(FIL* to, FIL* from);
 
 #ifdef __cplusplus
 }

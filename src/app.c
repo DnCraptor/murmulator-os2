@@ -1,315 +1,221 @@
-#include <pico.h>
-#include <pico/stdlib.h>
-#include <pico/bootrom.h>
+#include "app.h"
 #include <pico/platform.h>
 #include <hardware/flash.h>
-#include "app.h"
-#include "elf32.h"
+#include <pico/bootrom.h>
+#include <pico/stdlib.h>
+#include "ff.h"
+#include "graphics.h"
+#include "keyboard.h"
 #include "sys_table.h"
-#include "hardfault.h"
-
-volatile bool reboot_is_requested = false;
 
 extern const char TEMP[];
 const char _flash_me[] = ".flash_me";
-const char _cmd_history[] = ".cmd_history";
 
-#define M_OS_APP_TABLE_BASE ((size_t*)0x10001000ul) // TODO:
+#define M_OS_APP_TABLE_BASE ((size_t*)0x10000000ul)
 typedef int (*boota_ptr_t)( void *argv );
+#define OS_FLASH_SIZE (132 << 10) // 4k sys table + 64k LFA + 64k HFA
 
-static size_t TOTAL_HEAP_SIZE = configTOTAL_HEAP_SIZE;
-
-size_t get_heap_total() {
-    return TOTAL_HEAP_SIZE;
-}
-
-static cmd_ctx_t ctx = { 0 };
-cmd_ctx_t* get_cmd_startup_ctx() {
-    return &ctx;
-}
-
-char* copy_str(const char* s) {
-    char* res = (char*)pvPortMalloc(strlen(s) + 1);
-    strcpy(res, s);
-    return res;
-}
-
-char* get_ctx_var(cmd_ctx_t* ctx, const char* key) {
-    taskENTER_CRITICAL();
-    char* res = NULL;
-    for (size_t i = 0; i < ctx->vars_num; ++i) {
-        if (0 == strcmp(key, ctx->vars[i].key)) {
-            res = ctx->vars[i].value;
-            break;
-        }
-    }
-    taskEXIT_CRITICAL();
-    return res;
-}
-
-void set_ctx_var(cmd_ctx_t* ctx, const char* key, const char* val) {
-    for (size_t i = 0; i < ctx->vars_num; ++i) {
-        if (0 == strcmp(key, ctx->vars[i].key)) {
-            if( ctx->vars[i].value ) {
-                vPortFree(ctx->vars[i].value);
-            }
-            ctx->vars[i].value = copy_str(val);
-            return;
-        }
-    }
-    // not found
-    if (ctx->vars == NULL) {
-        // initial state
-        ctx->vars = (vars_t*)pvPortMalloc(sizeof(vars_t));
-    } else {
-        vars_t* old = ctx->vars;
-        ctx->vars = (vars_t*)pvPortMalloc( sizeof(vars_t) * (ctx->vars_num + 1) );
-        memcpy(ctx->vars, old, sizeof(vars_t) * ctx->vars_num);
-        vPortFree(old);
-    }
-    ctx->vars[ctx->vars_num].key = key; // const to be not reallocated
-    ctx->vars[ctx->vars_num].value = copy_str(val);
-    ctx->vars_num++;
-}
-
-char* next_token(char* t) {
-    char *t1 = t + strlen(t);
-    while(!*t1++);
-    return t1 - 1;
-}
-
-char* concat(const char* s1, const char* s2) {
-    size_t s = strlen(s1);
-    char* res = (char*)pvPortMalloc(s + strlen(s2) + 2);
-    strcpy(res, s1);
-    res[s] = '/';
-    strcpy(res + s + 1, s2);
-    return res;
-}
-
-char* concat2(const char* s1, size_t s, const char* s2) {
-    char* res = (char*)pvPortMalloc(s + strlen(s2) + 2);
-    strncpy(res, s1, s);
-    res[s] = '/';
-    strcpy(res + s + 1, s2);
-    return res;
-}
-
-static char* create_and_test(char* dir, char* cmd, FILINFO* pfileinfo) {
-    char* res;
-    if (dir) {
-        res = concat(dir, cmd);
-        if (f_stat(res, pfileinfo) == FR_OK && !(pfileinfo->fattrib & AM_DIR)) goto r1;
-        vPortFree(res);
-        res = 0;
-    }
-r1:
-    return res;
-}
-
-cmd_ctx_t* clone_ctx(cmd_ctx_t* src) {
-    cmd_ctx_t* res = (cmd_ctx_t*)pvPortMalloc(sizeof(cmd_ctx_t));
-    memcpy(res, src, sizeof(cmd_ctx_t));
-    if (src->argc && src->argv) {
-        res->argc = src->argc;
-        res->argv = (char**)pvPortMalloc(sizeof(char*) * res->argc);
-        for(int i = 0; i < src->argc; ++i) {
-            res->argv[i] = copy_str(src->argv[i]);
-        }
-    }
-    if (src->orig_cmd) {
-        res->orig_cmd = copy_str(src->orig_cmd);
-    }
-    // change owner
-    if (src->std_in) {
-        res->std_in = src->std_in;
-        src->std_in = 0;
-    }
-    if (src->std_out) {
-        res->std_out = src->std_out;
-        src->std_out = 0;
-    }
-    if (src->std_err) {
-        res->std_err = src->std_err;
-        src->std_err = 0;
-    }
-    if (src->vars_num && src->vars) {
-        res->vars = (vars_t*)pvPortMalloc( sizeof(vars_t) * src->vars_num );
-        res->vars_num = src->vars_num;
-        for (size_t i = 0; i < src->vars_num; ++i) {
-            if (src->vars[i].value) {
-                res->vars[i].value = copy_str(src->vars[i].value);
-            }
-            res->vars[i].key = src->vars[i].key; // const
-        }
-    }
-    res->pboot_ctx = src->pboot_ctx; src->pboot_ctx = 0;
-    res->prev = src->prev; src->prev = 0;
-    res->next = src->next; src->next = 0;
-    res->stage = src->stage;
-    res->ret_code = src->ret_code;
-    res->user_data = 0;
-    res->forse_flash = src->forse_flash;
-    return res;
-}
-
-void cleanup_ctx(cmd_ctx_t* src) {
-    // goutf("cleanup_ctx: [%p]\n", src);
-    if (src->argv) {
-        for(int i = 0; i < src->argc; ++i) {
-            vPortFree(src->argv[i]);
-        }
-        vPortFree(src->argv);
-    }
-    src->argv = 0;
-    src->argc = 0;
-    if (src->orig_cmd) {
-        vPortFree(src->orig_cmd);
-        src->orig_cmd = 0;
-    }
-    if (src->std_in) {
-        f_close(src->std_in);
-        vPortFree(src->std_in);
-        src->std_in = 0;
-    }
-    if (src->std_out) {
-        if (src->std_err == src->std_out) {
-            src->std_err = 0;
-        }
-        f_close(src->std_out);
-        vPortFree(src->std_out);
-        src->std_out = 0;
-    }
-    if (src->std_err) {
-        f_close(src->std_err);
-        vPortFree(src->std_err);
-        src->std_err = 0;
-    }
-    src->detached = false;
-    src->ret_code = 0;
-    src->prev = 0;
-    src->next = 0;
-    src->stage = INITIAL;
-    if (src->user_data) {
-        vPortFree(src->user_data);
-        src->user_data = 0;
-    }
-    src->forse_flash = false;
-    // gouta("cleanup_ctx <<\n");
-}
-void remove_ctx(cmd_ctx_t* src) {
-    if (!src) return;
-    // goutf("remove_ctx: [%p]\n", src);
-    if (src->argv) {
-        for(int i = 0; i < src->argc; ++i) {
-            vPortFree(src->argv[i]);
-        }
-        vPortFree(src->argv);
-    }
-    if (src->orig_cmd) {
-        vPortFree(src->orig_cmd);
-    }
-    if (src->std_in) { f_close(src->std_in); vPortFree(src->std_in); }
-    if (src->std_out && src->std_out != src->std_err) { f_close(src->std_out); vPortFree(src->std_out); }
-    if (src->std_err) { f_close(src->std_err); vPortFree(src->std_err); }
-    if (src->vars) {
-        for (size_t i = 0; i < src->vars_num; ++i) {
-            if (src->vars[i].value) {
-                vPortFree(src->vars[i].value);
-            }
-        }
-        vPortFree(src->vars);
-    }
-    cleanup_bootb_ctx(src);
-    src->next = 0; // each pipe should remove it by self
-    if (src->user_data) {
-        vPortFree(src->user_data);
-    }
-    vPortFree(src);
-    // gouta("remove_ctx <<\n");
-}
-
-bool exists(cmd_ctx_t* ctx) {
-    if (ctx->argc == 0) {
-        return false;
-    }
-    char* res = 0;
-    char * cmd = ctx->argv[0];
-    // goutf("[%p] cmd: `%s`\n", ctx, cmd);
-    FILINFO* pfileinfo = (FILINFO*)pvPortMalloc(sizeof(FILINFO));
-    bool r = (f_stat(cmd, pfileinfo) == FR_OK) && !(pfileinfo->fattrib & AM_DIR);
-    if (r) {
-        res = copy_str(cmd);
-        // goutf("res %s\n", res);
-        goto r1;
-    }
-    res = create_and_test( get_ctx_var(ctx, "BASE"), cmd, pfileinfo);
-    if (res) {
-        // goutf("B: %s\n", res);
-        goto r1;
-    }
-    res = create_and_test( get_ctx_var(ctx, "CD"), cmd, pfileinfo);
-    if (res) {
-        // goutf("C: %s\n", res);
-        goto r1;
-    }
-    const char* path = get_ctx_var(ctx, "PATH");
-    if (path) {
-        size_t sz = strlen(path);
-        char* e = path;
-        while(e++ <= path + sz) {
-            if (*e == ';' || *e == ':' || *e == ',' || *e == 0) {
-                res = concat2(path, e - path, cmd);
-                // goutf("try path %s\n", res);
-                r = (f_stat(res, pfileinfo) == FR_OK) && !(pfileinfo->fattrib & AM_DIR);
-                if (r) {
-                    goto r1;
-                }
-                vPortFree(res);
-                res = 0;
-                if(!*e) {
-                    goto r1;
-                }
-                path = e;
-                sz = strlen(path);
-            }
-        }
-    }
-r1:
-    vPortFree(pfileinfo);
-    if (res) {
-        // goutf("Found: %s\n", res);
-        if(ctx->orig_cmd) vPortFree(ctx->orig_cmd);
-        ctx->orig_cmd = res;
-        ctx->stage = FOUND;
-    }
-    if (ctx->next) {
-        if(!exists(ctx->next)) {
-            return false;
-        }
-    }
-    return res != 0;
-}
+volatile bool reboot_is_requested = false;
 
 typedef struct {
-    FIL *f2;
-    elf32_header *pehdr;
-    int symtab_off;
-    elf32_sym* psym;
-    char* pstrtab;
-    list_t* /*sect_entry_t*/ sections_lst;
-} load_sec_ctx;
+    // 32 byte header
+    uint32_t magicStart0;
+    uint32_t magicStart1;
+    uint32_t flags;
+    uint32_t targetAddr;
+    uint32_t payloadSize;
+    uint32_t blockNo;
+    uint32_t numBlocks;
+    uint32_t fileSize; // or familyID;
+    uint8_t data[476];
+    uint32_t magicEnd;
+} UF2_Block_t;
 
+uint32_t flash_size;
+
+static void debug_sections(sect_entry_t* sect_entries) {
+    if (sect_entries) {
+        for (uint16_t i = 0; sect_entries[i].del_addr != 0; ++i) {
+            goutf("sec #%d: [%p][%p] %d\n", i, sect_entries[i].del_addr, sect_entries[i].prg_addr, sect_entries[i].sec_num);
+        }
+    }
+}
+
+inline static uint32_t read_flash_block(FIL * f, uint8_t * buffer, uint32_t expected_flash_target_offset, UF2_Block_t* puf2, size_t* psz) {
+    *psz = 0;
+    UINT bytes_read = 0;
+    uint32_t data_sector_index = 0;
+    for(; data_sector_index < FLASH_SECTOR_SIZE; data_sector_index += 256) {
+        //fgoutf(get_stdout(), "Read block: %ph; ", f_tell(f));
+        f_read(f, puf2, sizeof(UF2_Block_t), &bytes_read);
+        *psz += bytes_read;
+        //fgoutf(get_stdout(), "(%d bytes) ", bytes_read);
+        if (!bytes_read) {
+            break;
+        }
+        if (expected_flash_target_offset != puf2->targetAddr - XIP_BASE) {
+            f_lseek(f, f_tell(f) - sizeof(UF2_Block_t)); // we will reread this block, it doesnt belong to this continues block
+            expected_flash_target_offset = puf2->targetAddr - XIP_BASE;
+            *psz -= bytes_read;
+            //fgoutf(get_stdout(), "Flash target offset: %ph\n", expected_flash_target_offset);
+            break;
+        }
+        //fgoutf(get_stdout(), "Flash target offset: %ph\n", expected_flash_target_offset);
+        memcpy(buffer + data_sector_index, puf2->data, 256);
+        expected_flash_target_offset += 256;
+    }
+    return expected_flash_target_offset;
+}
+
+// TODO: remove on exit from app (ctx_cleanup?)
+static size_t flash_addr = M_OS_APP_TABLE_BASE;
+static list_t* flash_list = NULL;
 static list_t* lst = NULL;
-
 typedef struct to_flash_rec {
     size_t offset;
     size_t size;
 } to_flash_rec_t;
 
-static size_t flash_addr = M_OS_APP_TABLE_BASE;
-static list_t* flash_list = NULL;
+size_t free_app_flash(void) {
+    return flash_size - (OS_FLASH_SIZE << 10) - (flash_addr - XIP_BASE);
+}
 
+void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offset) {
+    if (!flash_list) {
+        flash_list = new_list_v(0, 0, 0);
+    }
+    node_t* n = flash_list->first;
+    while (n) {
+        to_flash_rec_t* rec = (to_flash_rec_t*)n->data;
+        if (flash_target_offset >= rec->offset && flash_target_offset < rec->offset + FLASH_SECTOR_SIZE) {
+            fgoutf(get_stdout(),
+                "WARN: Attempt to use already allocated flash block: [%p]-[%p] (rejected)\n",
+                 flash_target_offset,
+                 flash_target_offset + FLASH_SECTOR_SIZE
+            );
+            return;
+        }
+        n = n->next;
+    }
+    to_flash_rec_t* rec = (to_flash_rec_t*)pvPortMalloc(sizeof(to_flash_rec_t));
+    rec->offset = flash_target_offset;
+    rec->size = FLASH_SECTOR_SIZE;
+    flash_addr = flash_target_offset + FLASH_SECTOR_SIZE + XIP_BASE;
+    list_push_back(flash_list, rec);
+    uint8_t *e = (uint8_t*)(XIP_BASE + flash_target_offset);
+    for (uint32_t i = 0; i < FLASH_SECTOR_SIZE; ++i) {
+        if (e[i] != buffer[i]) {
+            e = 0;
+            break;
+        }
+    }
+    if (e) { // the block is already eq.s to flash state
+        return;
+    }
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
+    multicore_lockout_start_blocking();
+    const uint32_t ints = save_and_disable_interrupts();
+    flash_range_erase(flash_target_offset, FLASH_SECTOR_SIZE);
+    flash_range_program(flash_target_offset, buffer, FLASH_SECTOR_SIZE);
+    restore_interrupts(ints);
+    multicore_lockout_end_blocking();
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
+}
+
+void link_firmware(FIL* pf, const char* pathname) {
+    f_open(pf, FIRMWARE_MARKER_FN, FA_CREATE_ALWAYS | FA_CREATE_NEW | FA_WRITE);
+    fgoutf(pf, "%s\n", pathname);
+    f_close(pf);
+}
+
+bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
+    FILINFO* pfi = (FILINFO*)pvPortMalloc(sizeof(FILINFO));
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (FR_OK != f_stat(pathname, pfi) || FR_OK != f_open(pf, pathname, FA_READ)) {
+        vPortFree(pf);
+        vPortFree(pfi);
+        return false;
+    }
+    if (flash_list) list_cleanup(flash_list);
+    uint32_t expected_to_write_size = pfi->fsize >> 1;
+    vPortFree(pfi);
+    UF2_Block_t* uf2 = (UF2_Block_t*)pvPortMalloc(sizeof(UF2_Block_t));
+    char* alloc = (char*)pvPortCalloc(1, FLASH_SECTOR_SIZE + 511);
+    char* buffer = (char*)((uint32_t)(alloc + 511) & 0xFFFFFE00); // align 512
+
+    uint32_t flash_target_offset = 0;
+    bool boot_replaced = false;
+    uint32_t already_written = 0;
+    while(true) {
+        size_t sz = 0;
+        uint32_t next_flash_target_offset = read_flash_block(pf, buffer, flash_target_offset, uf2, &sz);
+        if (next_flash_target_offset == flash_target_offset) {
+            break;
+        }
+        if (sz == 0) { // replace target
+            flash_target_offset = next_flash_target_offset; 
+            fgoutf(get_stdout(), "Replace targe offset: %ph\n", flash_target_offset);
+            continue;
+        }
+        //подмена загрузчика boot2 прошивки на записанный ранее
+        if (flash_target_offset == 0) {
+            boot_replaced = true;
+            memcpy(buffer, (uint8_t *)XIP_BASE, 256);
+            fgoutf(get_stdout(), "Replace loader @ offset 0\n");
+        }
+        already_written += FLASH_SECTOR_SIZE;
+        uint32_t pcts = already_written * 100 / expected_to_write_size;
+        if (pcts > 100) pcts = 100;
+        if (flash_target_offset == 0xFFFF00) {
+            fgoutf(get_stdout(), "Unexpected offset: %ph (%d%%). Breaking the process...\n", flash_target_offset, pcts);
+            break;
+        }
+        fgoutf(get_stdout(), "Erase and write to flash, offset: %ph (%d%%)\n", flash_target_offset, pcts);
+        flash_block(buffer, flash_target_offset);
+        flash_target_offset = next_flash_target_offset;
+    }
+    vPortFree(alloc);
+    f_close(pf);
+    if (boot_replaced) {
+        goutf("Write FIRMWARE MARKER '%s' to '%s'\n", pathname, FIRMWARE_MARKER_FN);
+        link_firmware(pf, pathname);
+        goutf("Reboot is required!\n");
+        reboot_is_requested = true;
+        while(true) ;
+    }
+    vPortFree(pf);
+    vPortFree(uf2);
+    return !boot_replaced;
+}
+
+bool load_firmware(char* pathname) {
+    if (flash_list) delete_list(flash_list);
+    FILINFO* pfileinfo = pvPortMalloc(sizeof(FILINFO));
+    f_stat(pathname, pfileinfo);
+    size_t sz = (size_t)((pfileinfo->fsize >> 1) & 0xFFFFFFFF);
+    size_t max = (flash_size - (128l << 10));
+    if (max < sz) { // TODO: free, ...
+        goutf("ERROR: Firmware too large: %dK (%dK max) Canceled!\n", (sz >> 10), (max >> 10));
+        vPortFree(pfileinfo);
+        return false;
+    }
+    vPortFree(pfileinfo);
+    goutf("Loading firmware: '%s'\n", pathname);
+    return load_firmware_sram(pathname);
+}
+
+void vAppTask(void *pv) {
+    int res = ((boota_ptr_t)M_OS_APP_TABLE_BASE[0])(pv); // TODO: 0 - 2nd page, what exactly page used by app?
+    // goutf("RET_CODE: %d\n", res);
+    vTaskDelete( NULL );
+    // TODO: ?? return res;
+}
+
+void run_app(char * name) {
+    xTaskCreate(vAppTask, name, 2048, NULL, configMAX_PRIORITIES - 1, NULL);
+}
+
+#include "elf32.h"
 // Декодирование и обновление инструкции BL для ссылки типа R_ARM_THM_PC22
 // Функция для разрешения ссылки типа R_ARM_THM_PC22
 void resolve_thm_pc22(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
@@ -359,23 +265,34 @@ static const char* st_predef(const char* v) {
     return v;
 }
 
-static const char* st_spec_sec(uint16_t st) {
-    if (st >= 0xff00 && st <= 0xff1f)
-        return "PROC";
-    switch (st)
-    {
-    case 0xffff:
-        return "HIRESERVE";
-    case 0xfff2:
-        return "COMMON";
-    case 0xfff1:
-        return "ABS";
-    case 0:
-        return "UNDEF";
-    default:
-        break;
+typedef struct {
+    FIL *f2;
+    elf32_header *pehdr;
+    int symtab_off;
+    elf32_sym* psym;
+    char* pstrtab;
+    list_t* /*sect_entry_t*/ sections_lst;
+} load_sec_ctx;
+
+static char* sec_prg_addr(load_sec_ctx* ctx, uint16_t sec_num) {
+    node_t* n = ctx->sections_lst->first;
+    while (n) {
+        sect_entry_t* se = (sect_entry_t*)n->data;
+        if (se->sec_num == sec_num) {
+            return se->prg_addr;
+        }
+        n = n->next;
     }
     return 0;
+}
+
+static void add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr, uint16_t num) {
+    sect_entry_t* se = (sect_entry_t*)pvPortMalloc(sizeof(sect_entry_t));
+    // goutf("sec: [%p]\n", se);
+    se->del_addr = del_addr;
+    se->prg_addr = prg_addr;
+    se->sec_num = num;
+    list_push_back(ctx->sections_lst, se);
 }
 
 inline static uint8_t* sec_align(uint32_t sz, uint8_t* *pdel_addr, uint8_t* *real_addr, uint32_t a, bool write_access) {
@@ -407,25 +324,130 @@ inline static uint8_t* sec_align(uint32_t sz, uint8_t* *pdel_addr, uint8_t* *rea
     return res;
 }
 
-static void add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr, uint16_t num) {
-    sect_entry_t* se = (sect_entry_t*)pvPortMalloc(sizeof(sect_entry_t));
-    // goutf("sec: [%p]\n", se);
-    se->del_addr = del_addr;
-    se->prg_addr = prg_addr;
-    se->sec_num = num;
-    list_push_back(ctx->sections_lst, se);
-}
-
-static char* sec_prg_addr(load_sec_ctx* ctx, uint16_t sec_num) {
-    node_t* n = ctx->sections_lst->first;
-    while (n) {
-        sect_entry_t* se = (sect_entry_t*)n->data;
-        if (se->sec_num == sec_num) {
-            return se->prg_addr;
-        }
-        n = n->next;
+static const char* st_spec_sec(uint16_t st) {
+    if (st >= 0xff00 && st <= 0xff1f)
+        return "PROC";
+    switch (st)
+    {
+    case 0xffff:
+        return "HIRESERVE";
+    case 0xfff2:
+        return "COMMON";
+    case 0xfff1:
+        return "ABS";
+    case 0:
+        return "UNDEF";
+    default:
+        break;
     }
     return 0;
+}
+
+static const char* s = "Unexpected ELF file";
+
+bool is_new_app(cmd_ctx_t* ctx) {
+    if (!ctx->orig_cmd) {
+        gouta("Unable to open file: NULL\n");
+        return false;
+    }
+    FIL* f = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (f_open(f, ctx->orig_cmd, FA_READ) != FR_OK) {
+        vPortFree(f);
+        goutf("Unable to open file: '%s'\n", ctx->orig_cmd);
+        return false;
+    }
+    struct elf32_header ehdr;
+    UINT rb;
+    if (f_read(f, &ehdr, sizeof(ehdr), &rb) != FR_OK) {
+        f_close(f);
+        vPortFree(f);
+        goutf("Unable to read an ELF file header: '%s'\n", ctx->orig_cmd);
+        return false;
+    }
+    f_close(f);
+    vPortFree(f);
+    if (ehdr.common.magic != ELF_MAGIC) {
+        goutf("It is not an ELF file: '%s'\n", ctx->orig_cmd);
+        return false;
+    }
+    if (ehdr.common.version != 1 || ehdr.common.version2 != 1) {
+        goutf("%s '%s' version: %d:%d\n", s, ctx->orig_cmd, ehdr.common.version, ehdr.common.version2);
+        return false;
+    }
+    if (ehdr.common.arch_class != 1 || ehdr.common.endianness != 1) {
+        goutf("%s '%s' class: %d; endian: %d\n", s, ctx->orig_cmd, ehdr.common.arch_class, ehdr.common.endianness);
+        return false;
+    }
+    if (ehdr.common.machine != EM_ARM) {
+        goutf("%s '%s' machine type: %d; expected: %d\n", s, ctx->orig_cmd, ehdr.common.machine, EM_ARM);
+        return false;
+    }
+    if (ehdr.common.abi != 0) {
+        goutf("%s '%s' ABI type: %d; expected: %d\n", s, ctx->orig_cmd, ehdr.common.abi, 0);
+        return false;
+    }
+    if (ehdr.flags & EF_ARM_ABI_FLOAT_HARD) {
+        goutf("%s '%s' EF_ARM_ABI_FLOAT_HARD: %04Xh\n", s, ctx->orig_cmd, ehdr.flags);
+        return false;
+    }
+    ctx->stage = VALID;
+    if (ctx->next) {
+        if (!is_new_app(ctx->next)) return false;
+    }
+    return true;
+}
+
+void cleanup_bootb_ctx(cmd_ctx_t* ctx) {
+    // goutf("cleanup_bootb_ctx [%p]\n", ctx);
+    bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
+    if (!bootb_ctx) return;
+    if (bootb_ctx->sections) {
+        if (flash_list) {
+            uint32_t min_addr = 0xFFFFFFFF;
+            uint32_t max_addr = 0;
+            node_t* n = bootb_ctx->sections->first;
+            while (n) {
+                sect_entry_t* se = (sect_entry_t*)n->data;
+                uint32_t prg_addr = se->prg_addr;
+                if (prg_addr <= 0x20000000) {
+                    if ( min_addr > prg_addr ) min_addr = prg_addr;
+                    if ( max_addr < prg_addr ) max_addr = prg_addr;
+                }
+                n = n->next;
+            }
+            flash_addr = M_OS_APP_TABLE_BASE;
+            // goutf("flash_addr [%p]\n", flash_addr);
+            node_t* fn = flash_list->first;
+            while (fn) {
+                uint32_t nn = fn->next;
+                to_flash_rec_t* fse = (to_flash_rec_t*)fn->data;
+                uint32_t faddr = fse->offset + XIP_BASE;
+                if (faddr >= min_addr && faddr <= max_addr) {
+                    // goutf("Free [%p]\n", faddr);
+                    list_erase_node(flash_list, fn);
+                }
+                else {
+                    faddr += fse->size;
+                    if (flash_addr < faddr) {
+                        flash_addr = faddr;
+                        // goutf("flash_addr [%p]\n", flash_addr);
+                    }
+                }
+                fn = nn;
+            }
+        }
+        delete_list(bootb_ctx->sections);
+        bootb_ctx->sections = 0;
+    }
+    vPortFree(bootb_ctx);
+    ctx->pboot_ctx = 0;
+    // gouta("cleanup_bootb_ctx <<\n");
+}
+
+bool run_new_app(cmd_ctx_t* ctx) {
+    // todo:
+    gouta("tba\n");
+    return false;
 }
 
 static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool try_to_use_flash) {
@@ -621,122 +643,6 @@ static uint32_t load_sec2mem_wrapper(load_sec_ctx* pctx, uint32_t req_idx, bool 
     }
 e3:
     return 0;
-}
-
-static void debug_sections(sect_entry_t* sect_entries) {
-    if (sect_entries) {
-        for (uint16_t i = 0; sect_entries[i].del_addr != 0; ++i) {
-            goutf("sec #%d: [%p][%p] %d\n", i, sect_entries[i].del_addr, sect_entries[i].prg_addr, sect_entries[i].sec_num);
-        }
-    }
-}
-
-inline static uint32_t read_flash_block(FIL * f, uint8_t * buffer, uint32_t expected_flash_target_offset, UF2_Block_t* puf2, size_t* psz) {
-    *psz = 0;
-    UINT bytes_read = 0;
-    uint32_t data_sector_index = 0;
-    for(; data_sector_index < FLASH_SECTOR_SIZE; data_sector_index += 256) {
-        //fgoutf(get_stdout(), "Read block: %ph; ", f_tell(f));
-        f_read(f, puf2, sizeof(UF2_Block_t), &bytes_read);
-        *psz += bytes_read;
-        //fgoutf(get_stdout(), "(%d bytes) ", bytes_read);
-        if (!bytes_read) {
-            break;
-        }
-        if (expected_flash_target_offset != puf2->targetAddr - XIP_BASE) {
-            f_lseek(f, f_tell(f) - sizeof(UF2_Block_t)); // we will reread this block, it doesnt belong to this continues block
-            expected_flash_target_offset = puf2->targetAddr - XIP_BASE;
-            *psz -= bytes_read;
-            //fgoutf(get_stdout(), "Flash target offset: %ph\n", expected_flash_target_offset);
-            break;
-        }
-        //fgoutf(get_stdout(), "Flash target offset: %ph\n", expected_flash_target_offset);
-        memcpy(buffer + data_sector_index, puf2->data, 256);
-        expected_flash_target_offset += 256;
-    }
-    return expected_flash_target_offset;
-}
-
-bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
-    FILINFO* pfi = (FILINFO*)pvPortMalloc(sizeof(FILINFO));
-    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
-    if (FR_OK != f_stat(pathname, pfi) || FR_OK != f_open(pf, pathname, FA_READ)) {
-        vPortFree(pf);
-        vPortFree(pfi);
-        return false;
-    }
-    if (flash_list) list_cleanup(flash_list);
-    uint32_t expected_to_write_size = pfi->fsize >> 1;
-    vPortFree(pfi);
-    UF2_Block_t* uf2 = (UF2_Block_t*)pvPortMalloc(sizeof(UF2_Block_t));
-    char* alloc = (char*)pvPortCalloc(1, FLASH_SECTOR_SIZE + 511);
-    char* buffer = (char*)((uint32_t)(alloc + 511) & 0xFFFFFE00); // align 512
-
-    uint32_t flash_target_offset = 0;
-    bool boot_replaced = false;
-    uint32_t already_written = 0;
-    while(true) {
-        size_t sz = 0;
-        uint32_t next_flash_target_offset = read_flash_block(pf, buffer, flash_target_offset, uf2, &sz);
-        if (next_flash_target_offset == flash_target_offset) {
-            break;
-        }
-        if (sz == 0) { // replace target
-            flash_target_offset = next_flash_target_offset; 
-            fgoutf(get_stdout(), "Replace targe offset: %ph\n", flash_target_offset);
-            continue;
-        }
-        //РїРѕРґРјРµРЅР° Р·Р°РіСЂСѓР·С‡РёРєР° boot2 РїСЂРѕС€РёРІРєРё РЅР° Р·Р°РїРёСЃР°РЅРЅС‹Р№ СЂР°РЅРµРµ
-        if (flash_target_offset == 0) {
-            boot_replaced = true;
-            memcpy(buffer, (uint8_t *)XIP_BASE, 256);
-            fgoutf(get_stdout(), "Replace loader @ offset 0\n");
-        }
-        already_written += FLASH_SECTOR_SIZE;
-        uint32_t pcts = already_written * 100 / expected_to_write_size;
-        if (pcts > 100) pcts = 100;
-        if (flash_target_offset == 0xFFFF00) {
-            fgoutf(get_stdout(), "Unexpected offset: %ph (%d%%). Breaking the process...\n", flash_target_offset, pcts);
-            break;
-        }
-        fgoutf(get_stdout(), "Erase and write to flash, offset: %ph (%d%%)\n", flash_target_offset, pcts);
-        flash_block(buffer, flash_target_offset);
-        flash_target_offset = next_flash_target_offset;
-    }
-    vPortFree(alloc);
-    f_close(pf);
-    if (boot_replaced) {
-        goutf("Write FIRMWARE MARKER '%s' to '%s'\n", pathname, FIRMWARE_MARKER_FN);
-        link_firmware(pf, pathname);
-        goutf("Reboot is required!\n");
-        reboot_is_requested = true;
-        while(true) ;
-    }
-    vPortFree(pf);
-    vPortFree(uf2);
-    return !boot_replaced;
-}
-
-void link_firmware(FIL* pf, const char* pathname) {
-    f_open(pf, FIRMWARE_MARKER_FN, FA_CREATE_ALWAYS | FA_CREATE_NEW | FA_WRITE);
-    fgoutf(pf, "%s\n", pathname);
-    f_close(pf);
-}
-
-bool load_firmware(char* pathname) {
-    if (flash_list) delete_list(flash_list);
-    FILINFO* pfileinfo = pvPortMalloc(sizeof(FILINFO));
-    f_stat(pathname, pfileinfo);
-    size_t sz = (size_t)((pfileinfo->fsize >> 1) & 0xFFFFFFFF);
-    size_t max = (flash_size - (128l << 10));
-    if (max < sz) { // TODO: free, ...
-        goutf("ERROR: Firmware too large: %dK (%dK max) Canceled!\n", (sz >> 10), (max >> 10));
-        vPortFree(pfileinfo);
-        return false;
-    }
-    vPortFree(pfileinfo);
-    goutf("Loading firmware: '%s'\n", pathname);
-    return load_firmware_sram(pathname);
 }
 
 bool __in_hfa() load_app(cmd_ctx_t* ctx) {
@@ -935,108 +841,10 @@ e1:
     return true;
 }
 
-static const char* s = "Unexpected ELF file";
-
-bool is_new_app(cmd_ctx_t* ctx) {
-    if (!ctx->orig_cmd) {
-        gouta("Unable to open file: NULL\n");
-        return false;
-    }
-    FIL* f = (FIL*)pvPortMalloc(sizeof(FIL));
-    if (f_open(f, ctx->orig_cmd, FA_READ) != FR_OK) {
-        vPortFree(f);
-        goutf("Unable to open file: '%s'\n", ctx->orig_cmd);
-        return false;
-    }
-    struct elf32_header ehdr;
-    UINT rb;
-    if (f_read(f, &ehdr, sizeof(ehdr), &rb) != FR_OK) {
-        f_close(f);
-        vPortFree(f);
-        goutf("Unable to read an ELF file header: '%s'\n", ctx->orig_cmd);
-        return false;
-    }
-    f_close(f);
-    vPortFree(f);
-    if (ehdr.common.magic != ELF_MAGIC) {
-        goutf("It is not an ELF file: '%s'\n", ctx->orig_cmd);
-        return false;
-    }
-    if (ehdr.common.version != 1 || ehdr.common.version2 != 1) {
-        goutf("%s '%s' version: %d:%d\n", s, ctx->orig_cmd, ehdr.common.version, ehdr.common.version2);
-        return false;
-    }
-    if (ehdr.common.arch_class != 1 || ehdr.common.endianness != 1) {
-        goutf("%s '%s' class: %d; endian: %d\n", s, ctx->orig_cmd, ehdr.common.arch_class, ehdr.common.endianness);
-        return false;
-    }
-    if (ehdr.common.machine != EM_ARM) {
-        goutf("%s '%s' machine type: %d; expected: %d\n", s, ctx->orig_cmd, ehdr.common.machine, EM_ARM);
-        return false;
-    }
-    if (ehdr.common.abi != 0) {
-        goutf("%s '%s' ABI type: %d; expected: %d\n", s, ctx->orig_cmd, ehdr.common.abi, 0);
-        return false;
-    }
-    if (ehdr.flags & EF_ARM_ABI_FLOAT_HARD) {
-        goutf("%s '%s' EF_ARM_ABI_FLOAT_HARD: %04Xh\n", s, ctx->orig_cmd, ehdr.flags);
-        return false;
-    }
-    ctx->stage = VALID;
-    if (ctx->next) {
-        if (!is_new_app(ctx->next)) return false;
-    }
-    return true;
-}
-
-void cleanup_bootb_ctx(cmd_ctx_t* ctx) {
-    // goutf("cleanup_bootb_ctx [%p]\n", ctx);
-    bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
-    if (!bootb_ctx) return;
-    if (bootb_ctx->sections) {
-        if (flash_list) {
-            uint32_t min_addr = 0xFFFFFFFF;
-            uint32_t max_addr = 0;
-            node_t* n = bootb_ctx->sections->first;
-            while (n) {
-                sect_entry_t* se = (sect_entry_t*)n->data;
-                uint32_t prg_addr = se->prg_addr;
-                if (prg_addr <= 0x20000000) {
-                    if ( min_addr > prg_addr ) min_addr = prg_addr;
-                    if ( max_addr < prg_addr ) max_addr = prg_addr;
-                }
-                n = n->next;
-            }
-            flash_addr = M_OS_APP_TABLE_BASE;
-            // goutf("flash_addr [%p]\n", flash_addr);
-            node_t* fn = flash_list->first;
-            while (fn) {
-                uint32_t nn = fn->next;
-                to_flash_rec_t* fse = (to_flash_rec_t*)fn->data;
-                uint32_t faddr = fse->offset + XIP_BASE;
-                if (faddr >= min_addr && faddr <= max_addr) {
-                    // goutf("Free [%p]\n", faddr);
-                    list_erase_node(flash_list, fn);
-                }
-                else {
-                    faddr += fse->size;
-                    if (flash_addr < faddr) {
-                        flash_addr = faddr;
-                        // goutf("flash_addr [%p]\n", flash_addr);
-                    }
-                }
-                fn = nn;
-            }
-        }
-        delete_list(bootb_ctx->sections);
-        bootb_ctx->sections = 0;
-    }
-    vPortFree(bootb_ctx);
-    ctx->pboot_ctx = 0;
-    // gouta("cleanup_bootb_ctx <<\n");
-}
-
 volatile bootb_ptr_t bootb_sync_signal = NULL;
+#if DEBUG_HEAP_SIZE
+void vShowAlloc( void );
+#endif
 
 static void exec_sync(cmd_ctx_t* ctx) {
     #if DEBUG_APP_LOAD
@@ -1146,11 +954,49 @@ void exec(cmd_ctx_t* ctx) {
     } while(ctx);
 }
 
+void mallocFailedHandler() {
+    gouta("WARN: malloc failed\n");
+    {
+        HeapStats_t stat;
+        vPortGetHeapStats(&stat);
+        goutf(
+            "Heap memory: %d (%dK)\n"
+            " available bytes total: %d (%dK)\n"
+            "         largets block: %d (%dK)\n",
+            configTOTAL_HEAP_SIZE, configTOTAL_HEAP_SIZE >> 10,
+            stat.xAvailableHeapSpaceInBytes, stat.xAvailableHeapSpaceInBytes >> 10,
+            stat.xSizeOfLargestFreeBlockInBytes, stat.xSizeOfLargestFreeBlockInBytes >> 10
+        );
+        goutf(
+            "        smallest block: %d (%dK)\n"
+            "           free blocks: %d\n"
+            "    min free remaining: %d (%dK)\n"
+            "           allocations: %d\n"
+            "                 frees: %d\n",
+            stat.xSizeOfSmallestFreeBlockInBytes, stat.xSizeOfSmallestFreeBlockInBytes >> 10,
+            stat.xNumberOfFreeBlocks,
+            stat.xMinimumEverFreeBytesRemaining, stat.xMinimumEverFreeBytesRemaining >> 10,
+            stat.xNumberOfSuccessfulAllocations, stat.xNumberOfSuccessfulFrees
+        );
+    }
+}
+
+void overflowHook( TaskHandle_t pxTask, char *pcTaskName ) {
+    goutf("WARN: stack overflow on task: '%s'\n", pcTaskName);
+}
+
 void vCmdTask(void *pv) {
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     cmd_ctx_t* ctx = get_cmd_startup_ctx();
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
     while(1) {
+#if DEBUG_HEAP_SIZE
+    {
+        vShowAlloc();
+        size_t free_sz = xPortGetFreeHeapSize();
+        goutf(" free_sz: %d (before)\n", free_sz);
+    }
+#endif
         if (!ctx->argc && !ctx->argv) {
             ctx->argc = 1;
             ctx->argv = (char**)pvPortMalloc(sizeof(char*));
@@ -1159,7 +1005,10 @@ void vCmdTask(void *pv) {
             if(ctx->orig_cmd) vPortFree(ctx->orig_cmd);
             ctx->orig_cmd = copy_str(comspec);
         }
+        // goutf("Lookup for: %s\n", ctx->orig_cmd);
+        // goutf("be [%p]\n", xPortGetFreeHeapSize());
         bool b_exists = exists(ctx);
+        // goutf("ae [%p]\n", xPortGetFreeHeapSize());
         if (b_exists) {
             size_t len = strlen(ctx->orig_cmd); // TODO: more than one?
             // goutf("Command found: %s\n", ctx->orig_cmd);
@@ -1211,353 +1060,6 @@ e:
     vTaskDelete( NULL );
 }
 
-void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offset) {
-    if (!flash_list) {
-        flash_list = new_list_v(0, 0, 0);
-    }
-    node_t* n = flash_list->first;
-    while (n) {
-        to_flash_rec_t* rec = (to_flash_rec_t*)n->data;
-        if (flash_target_offset >= rec->offset && flash_target_offset < rec->offset + FLASH_SECTOR_SIZE) {
-            fgoutf(get_stdout(),
-                "WARN: Attempt to use already allocated flash block: [%p]-[%p] (rejected)\n",
-                 flash_target_offset,
-                 flash_target_offset + FLASH_SECTOR_SIZE
-            );
-            return;
-        }
-        n = n->next;
-    }
-    to_flash_rec_t* rec = (to_flash_rec_t*)pvPortMalloc(sizeof(to_flash_rec_t));
-    rec->offset = flash_target_offset;
-    rec->size = FLASH_SECTOR_SIZE;
-    flash_addr = flash_target_offset + FLASH_SECTOR_SIZE + XIP_BASE;
-    list_push_back(flash_list, rec);
-    uint8_t *e = (uint8_t*)(XIP_BASE + flash_target_offset);
-    for (uint32_t i = 0; i < FLASH_SECTOR_SIZE; ++i) {
-        if (e[i] != buffer[i]) {
-            e = 0;
-            break;
-        }
-    }
-    if (e) { // the block is already eq.s to flash state
-        return;
-    }
-    gpio_put(PICO_DEFAULT_LED_PIN, true);
-    multicore_lockout_start_blocking();
-    const uint32_t ints = save_and_disable_interrupts();
-    flash_range_erase(flash_target_offset, FLASH_SECTOR_SIZE);
-    flash_range_program(flash_target_offset, buffer, FLASH_SECTOR_SIZE);
-    restore_interrupts(ints);
-    multicore_lockout_end_blocking();
-    gpio_put(PICO_DEFAULT_LED_PIN, false);
-}
-
-void vAppTask(void *pv) {
-    int res = ((boota_ptr_t)M_OS_APP_TABLE_BASE[0])(pv); // TODO: 0 - 2nd page, what exactly page used by app?
-    // goutf("RET_CODE: %d\n", res);
-    vTaskDelete( NULL );
-    // TODO: ?? return res;
-}
-
-void run_app(char * name) {
-    xTaskCreate(vAppTask, name, 2048, NULL, configMAX_PRIORITIES - 1, NULL);
-}
-
-
-void mallocFailedHandler() {
-    gouta("WARN: malloc failed\n");
-    {
-        HeapStats_t stat;
-        vPortGetHeapStats(&stat);
-        goutf(
-            "Heap memory: %d (%dK)\n"
-            " available bytes total: %d (%dK)\n"
-            "         largets block: %d (%dK)\n",
-            configTOTAL_HEAP_SIZE, configTOTAL_HEAP_SIZE >> 10,
-            stat.xAvailableHeapSpaceInBytes, stat.xAvailableHeapSpaceInBytes >> 10,
-            stat.xSizeOfLargestFreeBlockInBytes, stat.xSizeOfLargestFreeBlockInBytes >> 10
-        );
-        goutf(
-            "        smallest block: %d (%dK)\n"
-            "           free blocks: %d\n"
-            "    min free remaining: %d (%dK)\n"
-            "           allocations: %d\n"
-            "                 frees: %d\n",
-            stat.xSizeOfSmallestFreeBlockInBytes, stat.xSizeOfSmallestFreeBlockInBytes >> 10,
-            stat.xNumberOfFreeBlocks,
-            stat.xMinimumEverFreeBytesRemaining, stat.xMinimumEverFreeBytesRemaining >> 10,
-            stat.xNumberOfSuccessfulAllocations, stat.xNumberOfSuccessfulFrees
-        );
-    }
-}
-
-void overflowHook( TaskHandle_t pxTask, char *pcTaskName ) {
-    goutf("WARN: stack overflow on task: '%s'\n", pcTaskName);
-}
-
-cmd_ctx_t* get_cmd_ctx() {
-    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
-    return (cmd_ctx_t*) pvTaskGetThreadLocalStoragePointer(th, 0);
-}
-
-FIL* get_stdout() {
-    cmd_ctx_t* pctx = get_cmd_ctx();
-    return pctx ? pctx->std_out : ctx.std_out;
-}
-FIL* get_stderr() {
-    cmd_ctx_t* pctx = get_cmd_ctx();
-    return pctx ? pctx->std_err : ctx.std_err;
-}
-
-
-inline static size_t in_quotas(size_t i, string_t* pcmd, string_t* t) {
-    for (; i < pcmd->size; ++i) {
-        char c = pcmd->p[i];
-        if (c == '"') {
-            return i;
-        }
-        string_push_back_c(t, c);
-    }
-    return i;
-}
-
-inline static char replace_spaces0(char t) {
-    return (t == ' ') ? 0 : t;
-}
-
-inline static void tokenize_cmd(list_t* lst, string_t* pcmd, cmd_ctx_t* ctx) {
-    while (pcmd->size && pcmd->p[0] == ' ') { // remove trailing spaces
-        string_clip(pcmd, 0);
-    }
-    if (!pcmd->size) {
-        return 0;
-    }
-    bool in_space = false;
-    int inTokenN = 0;
-    string_t* t = new_string_v();
-    for (size_t i = 0; i < pcmd->size; ++i) {
-        char c = pcmd->p[i];
-        if (c == '"') {
-            if(t->size) {
-                list_push_back(lst, t);
-                t = new_string_v();
-            }
-            i = in_quotas(++i, pcmd, t);
-            in_space = false;
-            continue;
-        }
-        c = replace_spaces0(c);
-        if (in_space) {
-            if(c) { // token started
-                in_space = false;
-                list_push_back(lst, t);
-                t = new_string_v();
-            }
-        } else if(!c) { // not in space, after the token
-            in_space = true;
-        }
-        string_push_back_c(t, c);
-    }
-    if (t->size) list_push_back(lst, t);
-}
-
-
-inline static string_t* get_std_out1(bool* p_append, string_t* pcmd, size_t i0, size_t sz) {
-    string_t* std_out_file = new_string_v();
-    for (size_t i = i0; i < sz; ++i) {
-        char c = pcmd->p[i];
-        if (i == i0 && c == '>') {
-            *p_append = true;
-            continue;
-        }
-        if (c == '"') {
-            in_quotas(++i, pcmd, std_out_file);
-            break;
-        }
-        if (c != ' ') {
-            string_push_back_c(std_out_file, c);
-        }
-    }
-    return std_out_file;
-}
-
-inline static string_t* get_std_out0(bool* p_append, string_t* pcmd) {
-    bool in_quotas = false;
-    size_t sz = pcmd->size;
-    for (size_t i = 0; i < sz; ++i) {
-        char c = pcmd->p[i];
-        if (c == '"') {
-            in_quotas = !in_quotas;
-        }
-        if (!in_quotas && c == '>') {
-            string_t* t = get_std_out1(p_append, pcmd, i + 1, sz);
-            string_resize(pcmd, i); // use only left side of the string
-            return t;
-        }
-    }
-    return NULL;
-}
-
-inline static bool prepare_ctx(string_t* pcmd, cmd_ctx_t* ctx) {
-    bool in_quotas = false;
-    bool append = false;
-    string_t* std_out_file = get_std_out0(&append, pcmd);
-    if (std_out_file) {
-        ctx->std_out = (FIL*)pvPortCalloc(1, sizeof(FIL));
-        if (FR_OK != f_open(ctx->std_out, std_out_file->p, FA_WRITE | (append ? FA_OPEN_APPEND : FA_CREATE_ALWAYS))) {
-            printf("Unable to open file: '%s'\n", std_out_file->p);
-            delete_string(std_out_file);
-            return false;
-        }
-        delete_string(std_out_file);
-    }
-
-    list_t* lst = new_list_v(new_string_v, delete_string, NULL);
-    tokenize_cmd(lst, pcmd, ctx);
-    if (!lst->size) {
-        delete_list(lst);
-        return false;
-    }
-
-    ctx->argc = lst->size;
-    ctx->argv = (char**)pvPortCalloc(sizeof(char*), lst->size);
-    node_t* n = lst->first;
-    for(size_t i = 0; i < lst->size && n != NULL; ++i, n = n->next) {
-        ctx->argv[i] = copy_str(c_str(n->data));
-    }
-    delete_list(lst);
-    if (ctx->orig_cmd) vPortFree(ctx->orig_cmd);
-    ctx->orig_cmd = copy_str(ctx->argv[0]);
-    ctx->stage = PREPARED;
-    return true;
-}
-
-inline static cmd_ctx_t* new_ctx(cmd_ctx_t* src) {
-    cmd_ctx_t* res = (cmd_ctx_t*)pvPortCalloc(1, sizeof(cmd_ctx_t));
-    if (src->vars_num && src->vars) {
-        res->vars = (vars_t*)pvPortMalloc( sizeof(vars_t) * src->vars_num );
-        res->vars_num = src->vars_num;
-        for (size_t i = 0; i < src->vars_num; ++i) {
-            if (src->vars[i].value) {
-                res->vars[i].value = copy_str(src->vars[i].value);
-            }
-            res->vars[i].key = src->vars[i].key; // const
-        }
-    }
-    res->stage = src->stage;
-    return res;
-}
-
-inline static void cmd_write_history(cmd_ctx_t* ctx, string_t* s_cmd) {
-    char* tmp = get_ctx_var(ctx, TEMP);
-    if(!tmp) tmp = "";
-    size_t cdl = strlen(tmp);
-    char * cmd_history_file = concat(tmp, _cmd_history);
-    FIL* pfh = (FIL*)pvPortMalloc(sizeof(FIL));
-    f_open(pfh, cmd_history_file, FA_OPEN_ALWAYS | FA_WRITE | FA_OPEN_APPEND);
-    UINT br;
-    f_write(pfh, s_cmd->p, s_cmd->size, &br);
-    f_write(pfh, "\n", 1, &br);
-    f_close(pfh);
-    vPortFree(pfh);
-    vPortFree(cmd_history_file);
-}
-
-bool cmd_enter_helper(cmd_ctx_t* ctx, string_t* s_cmd) {
-    if (s_cmd->size) {
-        cmd_write_history(ctx, s_cmd);
-    } else {
-        goto r2;
-    }
-    bool exit = false;
-    bool in_qutas = false;
-    cmd_ctx_t* ctxi = ctx;
-    string_t* t = new_string_v();
-    for (size_t i = 0; i <= s_cmd->size; ++i) {
-        char c = s_cmd->p[i];
-        if (!c) {
-            exit = prepare_ctx(t, ctxi);
-            break;
-        }
-        if (c == '"') {
-            in_qutas = !in_qutas;
-        }
-        if (!in_qutas && c == '|') {
-            cmd_ctx_t* curr = ctxi;
-            cmd_ctx_t* next = new_ctx(ctxi);
-            exit = prepare_ctx(t, curr);
-            curr->std_out = (FIL*)pvPortCalloc(1, sizeof(FIL));
-            curr->std_err = curr->std_out;
-            next->std_in = (FIL*)pvPortCalloc(1, sizeof(FIL));
-            f_open_pipe(curr->std_out, next->std_in);
-            curr->detached = true;
-            next->prev = curr;
-            curr->next = next;
-            next->detached = false;
-            ctxi = next;
-            string_resize(t, 0);
-            continue;
-        }
-        if (!in_qutas && c == '&') {
-            exit = prepare_ctx(t, ctxi);
-            ctxi->detached = true;
-            string_resize(t, 0);
-            break;
-        }
-        string_push_back_c(t, c);
-    }
-    delete_string(t);
-    if (exit) { // prepared ctx
-        return true;
-    }
-    ctxi = ctx->next;
-    ctx->next = 0;
-    while(ctxi) { // remove pipe chain
-        cmd_ctx_t* next = ctxi->next;
-        remove_ctx(ctxi);
-        ctxi = next;
-    }
-    cleanup_ctx(ctx); // base ctx to be there
-r2:
-    return false;
-}
-
-int history_steps(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cmd) {
-    char* tmp = get_ctx_var(ctx, TEMP);
-    if(!tmp) tmp = "";
-    size_t cdl = strlen(tmp);
-    char * cmd_history_file = concat(tmp, _cmd_history);
-    FIL* pfh = (FIL*)pvPortMalloc(sizeof(FIL));
-    int idx = 0;
-    UINT br;
-    f_open(pfh, cmd_history_file, FA_READ);
-    char* b = (char*)pvPortMalloc(512);
-    while(f_read(pfh, b, 512, &br) == FR_OK && br) {
-        for(size_t i = 0; i < br; ++i) {
-            char t = b[i];
-            if(t == '\n') { // next line
-                if(cmd_history_idx == idx)
-                    break;
-                string_resize(s_cmd, 0);
-                idx++;
-            } else {
-                string_push_back_c(s_cmd, t);
-            }
-        }
-    }
-    vPortFree(b);
-    f_close(pfh);
-    vPortFree(pfh);
-    vPortFree(cmd_history_file);
-    return idx;
-}
-
-bool run_new_app(cmd_ctx_t* ctx) {
-    // todo:
-    gouta("[run_new_app] tba\n");
-    return false;
-}
 // support sygnal for current "sync_ctx" context only for now
 void app_signal(void) {
     if (bootb_sync_signal) bootb_sync_signal();
@@ -1591,91 +1093,4 @@ int kill(uint32_t task_number) {
 
 void __not_in_flash_func(reboot_me)(void) {
     reboot_is_requested = true;
-}
-
-inline static char* next_on(char* l, char *bi, bool in_quotas) {
-    char *b = bi;
-    while(*l && *b && *l == *b) {
-        if (*b == ' ' && !in_quotas) break;
-        l++;
-        b++;
-    }
-    if (*l == 0 && !in_quotas) {
-        char* bb = b;
-        while(*bb) {
-            if (*bb == ' ') {
-                return bi;
-            }
-            bb++;
-        }
-    }
-    return *l == 0 ? b : bi;
-}
-
-
-inline static void type_char(string_t* s_cmd, char c) {
-    __putc(c);
-    string_push_back_c(s_cmd, c);
-}
-
-void cmd_tab(cmd_ctx_t* ctx, string_t* s_cmd) {
-    char * p = s_cmd->p;
-    char * p2 = p;
-    bool in_quotas = false;
-    while (*p) {
-        char c = *p++;
-        if (c == '"') {
-            p2 = p;
-            in_quotas = true;
-            break;
-        }
-        if (c == ' ') {
-            p2 = p;
-        }
-    }
-    p = p2;
-    char * p3 = p2;
-    while (*p3) {
-        if (*p3++ == '/') {
-            p2 = p3;
-        }
-    }
-    string_t* s_b = NULL;
-    if (p != p2) {
-        s_b = new_string_cc(p);
-        string_resize(s_b, p2 - p);
-    } else {
-        s_b = new_string_v();
-    }
-    DIR* pdir = (DIR*)pvPortMalloc(sizeof(DIR));
-    FILINFO* pfileInfo = (FILINFO*)pvPortMalloc(sizeof(FILINFO));
-    //goutf("\nDIR: %s\n", p != p2 ? b : curr_dir);
-    if (FR_OK != f_opendir(pdir, p != p2 ? s_b->p : get_ctx_var(ctx, "CD"))) {
-        delete_string(s_b);
-        return;
-    }
-    int total_files = 0;
-    while (f_readdir(pdir, pfileInfo) == FR_OK && pfileInfo->fname[0] != '\0') {
-        p3 = next_on(p2, pfileInfo->fname, in_quotas);
-        if (p3 != pfileInfo->fname) {
-            string_replace_cs(s_b, p3);
-            total_files++;
-            break; // TODO: variants
-        }
-    }
-    if (total_files == 1) {
-        p3 = s_b->p;
-        while (*p3) {
-            type_char(s_cmd, *p3++);
-        }
-        if (in_quotas) {
-            type_char(s_cmd, '"');
-        }
-    } else {
-        blimp(10, 5);
-    }
-    delete_string(s_b);
-    f_closedir(pdir);
-    vPortFree(pfileInfo);
-    vPortFree(pdir);
 }

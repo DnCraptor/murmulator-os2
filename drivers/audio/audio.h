@@ -41,6 +41,7 @@ typedef struct i2s_config
     uint8_t  data_pin;
     uint8_t  clock_pin_base;
     PIO	     pio;
+    uint32_t program_offset;
     uint8_t  sm; 
     uint8_t  dma_channel;
     uint16_t dma_trans_count;
@@ -56,6 +57,7 @@ void i2s_dma_write(i2s_config_t *i2s_config,const int16_t *samples);
 void i2s_volume(i2s_config_t *i2s_config,uint8_t volume);
 void i2s_increase_volume(i2s_config_t *i2s_config);
 void i2s_decrease_volume(i2s_config_t *i2s_config);
+void i2s_deinit(i2s_config_t *i2s_config);
 
 #ifdef __cplusplus
 }

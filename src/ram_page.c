@@ -5,6 +5,7 @@
 #include <pico/stdlib.h>
 #include "graphics.h"
 #include <string.h>
+#include "sys_table.h"
 
 static FIL file;
 static uint32_t _swap_size = 0;
@@ -228,7 +229,7 @@ inline static uint8_t get_shift(char* s) {
     return 0;
 }
 
-uint32_t init_vram(char* cfg_in) { // "/mos/pagefile.sys 8M 128K 4K"
+uint32_t __in_hfa() init_vram(char* cfg_in) { // "/mos2/pagefile.sys 8M 128K 4K"
     size_t sz = strlen(cfg_in);
     if (!sz) {
         return 0;
