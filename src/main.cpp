@@ -72,8 +72,22 @@ inline static void tokenizeCfg(char* s, size_t sz) {
     s[i] = 0;
 }
 
-void __always_inline run_application() {
+static void __always_inline deinit(void) {
+    nespad_end(NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
+    keyboard_deinit();
+
+    gpio_deinit(PICO_DEFAULT_LED_PIN);
+    set_sys_clock_khz(125000, true);
+    vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
+    // enable voltage limit back
+    hw_clear_bits(&powman_hw->vreg_ctrl, POWMAN_VREG_CTRL_DISABLE_VOLTAGE_LIMIT_BITS);
+    volatile uint32_t *qmi_m0_timing = (uint32_t *)0x400d000c;
+    *qmi_m0_timing = 0x60007204;
     multicore_reset_core1();
+}
+
+void __not_in_flash_func() run_application() {
+    deinit();
 
     asm volatile (
         "mov r0, %[start]\n"
@@ -383,6 +397,7 @@ kbd_state_t* process_input_on_boot() {
     if (magic) {
         *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
     }
+    sleep_ms(50);
     kbd_state_t* ks = get_kbd_state();
     for (int a = 0; a < 20; ++a) {
         uint8_t sc = ks->input & 0xFF;
@@ -465,8 +480,6 @@ void __in_hfa() init(void) {
 
     keyboard_init();
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
-    nespad_read();
-    sleep_ms(50);
 
     gpio_put(PICO_DEFAULT_LED_PIN, true);
 

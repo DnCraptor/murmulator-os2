@@ -33,10 +33,10 @@ static uint8_t sm = -1;
 uint8_t nespad_state  = 0;  // Joystick 1
 uint8_t nespad_state2 = 0;  // Joystick 2
 
+static uint offset;
 bool nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,uint8_t latPin) {
-  if (pio_can_add_program(pio, &nespad_program) &&
-      ((sm = pio_claim_unused_sm(pio, true)) >= 0)) {
-    uint offset = pio_add_program(pio, &nespad_program);
+  if (pio_can_add_program(pio, &nespad_program) && ((sm = pio_claim_unused_sm(pio, true)) >= 0)) {
+    offset = pio_add_program(pio, &nespad_program);
     pio_sm_config c = nespad_program_get_default_config(offset);
 
     sm_config_set_sideset_pins(&c, clkPin);
@@ -70,7 +70,16 @@ bool nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,uint8_t latP
   return false;
 }
 
-
+void nespad_end(uint8_t clkPin, uint8_t dataPin, uint8_t latPin) {
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_unclaim(pio, sm);
+    pio_remove_program(pio, &nespad_program, offset);
+    gpio_deinit(clkPin);
+    gpio_deinit(dataPin);
+    gpio_deinit(dataPin + 1);
+    gpio_deinit(latPin);
+    sm = -1;
+}
 
 // nespad read. Ideally should be called ~100 uS after
 // nespad_read_start(), but can be sooner (will block until ready), or later
@@ -79,7 +88,6 @@ bool nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,uint8_t latP
 // 0x20=Down, 0x10=Up, 0x08=Start, 0x04=Select, 0x02=B, 0x01=A. Must first
 // call nespad_begin() once to set up PIO. Result will be 0 if PIO failed to
 // init (e.g. no free state machine).
-
 void nespad_read()
 {
   if (sm<0) return;

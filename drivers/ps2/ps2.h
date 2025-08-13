@@ -1,9 +1,8 @@
 #pragma once
 
-#include "strings.h"
-#include "stdio.h"
-
+#include <stdio.h>
 #include <stdint.h>
+#include <strings.h>
 #include <stdbool.h>
 
 #ifndef KBD_CLOCK_PIN
@@ -25,8 +24,7 @@ uint32_t ps2getcode(void);
 
 
 void keyboard_init(void);
-
-void Deinit_kbd(void);
+void keyboard_deinit(void);
 
 void keyboard_toggle_led(uint8_t led);
 
