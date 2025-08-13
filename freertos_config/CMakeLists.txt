@@ -6,7 +6,7 @@ target_include_directories(freertos_config SYSTEM
         ${CMAKE_CURRENT_SOURCE_DIR} # Папка, где лежит FreeRTOSConfig.h
 )
 
-target_compile_definitions(freertos_config
-    INTERFACE
+target_compile_definitions(freertos_config INTERFACE
         projCOVERAGE_TEST=0
+        configCPU_CLOCK_HZ=${CPU_MHZ}000000
 )

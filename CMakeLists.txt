@@ -31,17 +31,14 @@ option(HDMI "Enable HDMI display" OFF)
 option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 
-option(FLASH_SIZE "Target Flash Size" 16384)
 set(VGA ON)
+set(CPU_MHZ 378)
 
-if(NOT FLASH_SIZE)
 set(FLASH_SIZE 16384)
-endif ()
-
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.0.0")
+set(MOS_VERSION "2.0.2")
 endif ()
 
 SET(BUILD_NAME "m1p2-${PROJECT_NAME}")
@@ -151,7 +148,7 @@ endif ()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
         PICO_FLASH_SIZE_BYTES=16777216
-        MOS_VERSION="${MOS_VERSION}"
+        MOS_VERSION_STR="${MOS_VERSION}"
 
         # VGA 8 pins starts from pin:
         VGA_BASE_PIN=6
@@ -203,9 +200,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
         # do not touch last 512 bytes in RAM on launch app, say, no more RAM
         RESERVED_RAM=512
-        OVERCLOCKING=378
+        OVERCLOCKING=${CPU_MHZ}
         #DEBUG_APP_LOAD=1
-        MOS_VERSION_STR="2.0.2"
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})
@@ -242,6 +238,8 @@ ELSE()
     target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
     SET(BUILD_NAME "${BUILD_NAME}-VGA")
 ENDIF()
+
+SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
