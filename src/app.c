@@ -48,11 +48,13 @@ inline static uint32_t read_flash_block(FIL * f, uint8_t * buffer, uint32_t expe
     for(; data_sector_index < FLASH_SECTOR_SIZE; data_sector_index += 256) {
         //fgoutf(get_stdout(), "Read block: %ph; ", f_tell(f));
         f_read(f, puf2, sizeof(UF2_Block_t), &bytes_read);
+        if (!bytes_read) break;
+        if (puf2->targetAddr == XIP_BASE + 0xFFFF00) { // ignore such block
+            f_read(f, puf2, sizeof(UF2_Block_t), &bytes_read);
+            if (!bytes_read) break;
+        }
         *psz += bytes_read;
         //fgoutf(get_stdout(), "(%d bytes) ", bytes_read);
-        if (!bytes_read) {
-            break;
-        }
         if (expected_flash_target_offset != puf2->targetAddr - XIP_BASE) {
             f_lseek(f, f_tell(f) - sizeof(UF2_Block_t)); // we will reread this block, it doesnt belong to this continues block
             expected_flash_target_offset = puf2->targetAddr - XIP_BASE;

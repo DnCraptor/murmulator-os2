@@ -378,6 +378,11 @@ void selectDRV2(void) {
 }
 
 kbd_state_t* process_input_on_boot() {
+    char* y = (char*)0x20000000 + (512 << 10) - 4;
+	bool magic = (y[0] == 0xFF && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
+    if (magic) {
+        *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
+    }
     kbd_state_t* ks = get_kbd_state();
     for (int a = 0; a < 20; ++a) {
         uint8_t sc = ks->input & 0xFF;
@@ -392,7 +397,7 @@ kbd_state_t* process_input_on_boot() {
             caseF12();
         }
         // F11 or SPACE or SELECT unlink prev uf2 firmware
-        if ((nespad_state & DPAD_SELECT) || (sc == 0x57) /*F11*/  || (sc == 0x39) /*SPACE*/) {
+        if (magic || (nespad_state & DPAD_SELECT) || (sc == 0x57) /*F11*/  || (sc == 0x39) /*SPACE*/) {
             if (FR_OK == f_mount(&fs, SD, 1)) {
                 if (nespad_state & DPAD_B) {
                     usb_on_boot();
