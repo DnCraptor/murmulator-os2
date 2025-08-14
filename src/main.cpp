@@ -264,7 +264,187 @@ extern "C" void show_logo(bool with_top) {
     graphics_set_con_color(7, 0); // TODO: config
 }
 
-static void startup_vga(void) {
+
+// connection is possible 00->00 (external pull down)
+static int __in_hfa() test_0000_case(uint32_t pin0, uint32_t pin1, int res) {
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_OUT);
+    sleep_ms(33);
+    gpio_put(pin0, 1);
+
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_down(pin1); /// external pulled down (so, just to ensure)
+    sleep_ms(33);
+    if ( gpio_get(pin1) ) { // 1 -> 1, looks really connected
+        res |= (1 << 5) | 1;
+    }
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+    return res;
+}
+
+// connection is possible 01->01 (no external pull up/down)
+static int __in_hfa() test_0101_case(uint32_t pin0, uint32_t pin1, int res) {
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_OUT);
+    sleep_ms(33);
+    gpio_put(pin0, 1);
+
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_down(pin1);
+    sleep_ms(33);
+    if ( gpio_get(pin1) ) { // 1 -> 1, looks really connected
+        res |= (1 << 5) | 1;
+    }
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+    return res;
+}
+
+// connection is possible 11->11 (externally pulled up)
+static int __in_hfa() test_1111_case(uint32_t pin0, uint32_t pin1, int res) {
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_OUT);
+    sleep_ms(33);
+    gpio_put(pin0, 0);
+
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_up(pin1); /// external pulled up (so, just to ensure)
+    sleep_ms(33);
+    if ( !gpio_get(pin1) ) { // 0 -> 0, looks really connected
+        res |= 1;
+    }
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+    return res;
+}
+
+static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
+    int res = 0b000000;
+#if PICO_RP2350
+    /// do not try to test butter psram this way
+    if (pin0 == BUTTER_PSRAM_GPIO || pin1 == BUTTER_PSRAM_GPIO) return res;
+    if (pin0 == 23 || pin1 == 23) return res; // SMPS Power
+    if (pin0 == 24 || pin1 == 24) return res; // VBus sense
+    if (pin0 == 25 || pin1 == 25) return res; // LED
+#endif
+    // try pull down case (passive)
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_IN);
+    gpio_pull_down(pin0);
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_down(pin1);
+    sleep_ms(33);
+    int pin0vPD = gpio_get(pin0);
+    int pin1vPD = gpio_get(pin1);
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+    /// the same for pull_down state, try pull up case (passive)
+    gpio_init(pin0);
+    gpio_set_dir(pin0, GPIO_IN);
+    gpio_pull_up(pin0);
+    gpio_init(pin1);
+    gpio_set_dir(pin1, GPIO_IN);
+    gpio_pull_up(pin1);
+    sleep_ms(33);
+    int pin0vPU = gpio_get(pin0);
+    int pin1vPU = gpio_get(pin1);
+    gpio_deinit(pin0);
+    gpio_deinit(pin1);
+
+    res = (pin0vPD << 4) | (pin0vPU << 3) | (pin1vPD << 2) | (pin1vPU << 1);
+
+    if (pin0vPD == 1) {
+        if (pin0vPU == 1) { // pin0vPD == 1 && pin0vPU == 1
+            if (pin1vPD == 1) { // pin0vPD == 1 && pin0vPU == 1 && pin1vPD == 1
+                if (pin1vPU == 1) { // pin0vPD == 1 && pin0vPU == 1 && pin1vPD == 1 && pin1vPU == 1
+                    // connection is possible 11->11 (externally pulled up)
+                    return test_1111_case(pin0, pin1, res);
+                } else { // pin0vPD == 1 && pin0vPU == 1 && pin1vPD == 1 && pin1vPU == 0
+                    // connection is impossible
+                    return res;
+                }
+            } else { // pin0vPD == 1 && pin0vPU == 1 && pin1vPD == 0
+                if (pin1vPU == 1) { // pin0vPD == 1 && pin0vPU == 1 && pin1vPD == 0 && pin1vPU == 1
+                    // connection is impossible
+                    return res;
+                } else { // pin0vPD == 1 && pin0vPU == 1 && pin1vPD == 0 && pin1vPU == 0
+                    // connection is impossible
+                    return res;
+                }
+            }
+        } else {  // pin0vPD == 1 && pin0vPU == 0
+            if (pin1vPD == 1) { // pin0vPD == 1 && pin0vPU == 0 && pin1vPD == 1
+                if (pin1vPU == 1) { // pin0vPD == 1 && pin0vPU == 0 && pin1vPD == 1 && pin1vPU == 1
+                    // connection is impossible
+                    return res;
+                } else { // pin0vPD == 1 && pin0vPU == 0 && pin1vPD == 1 && pin1vPU == 0
+                    // connection is possible 10->10 (pulled up on down, and pulled down on up?)
+                    return res |= (1 << 5) | 1; /// NOT SURE IT IS POSSIBLE TO TEST SUCH CASE (TODO: think about real cases)
+                }
+            } else { // pin0vPD == 1 && pin0vPU == 0 && pin1vPD == 0
+                if (pin1vPU == 1) { // pin0vPD == 1 && pin0vPU == 0 && pin1vPD == 0 && pin1vPU == 1
+                    // connection is impossible
+                    return res;
+                } else { // pin0vPD == 1 && pin0vPU == 0 && pin1vPD == 0 && pin1vPU == 0
+                    // connection is impossible
+                    return res;
+                }
+            }
+        }
+    } else { // pin0vPD == 0
+        if (pin0vPU == 1) { // pin0vPD == 0 && pin0vPU == 1
+            if (pin1vPD == 1) { // pin0vPD == 0 && pin0vPU == 1 && pin1vPD == 1
+                if (pin1vPU == 1) { // pin0vPD == 0 && pin0vPU == 1 && pin1vPD == 1 && pin1vPU == 1
+                    // connection is impossible
+                    return res;
+                } else { // pin0vPD == 0 && pin0vPU == 1 && pin1vPD == 1 && pin1vPU == 0
+                    // connection is impossible
+                    return res;
+                }
+            } else { // pin0vPD == 0 && pin0vPU == 1 && pin1vPD == 0
+                if (pin1vPU == 1) { // pin0vPD == 0 && pin0vPU == 1 && pin1vPD == 0 && pin1vPU == 1
+                    // connection is possible 01->01 (no external pull up/down)
+                    return test_0101_case(pin0, pin1, res);
+                } else { // pin0vPD == 0 && pin0vPU == 1 && pin1vPD == 0 && pin1vPU == 0
+                    // connection is impossible
+                    return res;
+                }
+            }
+        } else {  // pin0vPD == 0 && pin0vPU == 0
+            if (pin1vPD == 1) { // pin0vPD == 0 && pin0vPU == 0 && pin1vPD == 1
+                if (pin1vPU == 1) { // pin0vPD == 0 && pin0vPU == 0 && pin1vPD == 1 && pin1vPU == 1
+                    // connection is impossible
+                    return res;
+                } else { // pin0vPD == 0 && pin0vPU == 0 && pin1vPD == 1 && pin1vPU == 0
+                    // connection is impossible
+                    return res;
+                }
+            } else { // pin0vPD == 0 && pin0vPU == 0 && pin1vPD == 0
+                if (pin1vPU == 1) { // pin0vPD == 0 && pin0vPU == 0 && pin1vPD == 0 && pin1vPU == 1
+                    // connection is impossible
+                    return res;
+                } else { // pin0vPD == 0 && pin0vPU == 0 && pin1vPD == 0 && pin1vPU == 0
+                    // connection is possible 00->00 (externally pulled down)
+                    return test_0000_case(pin0, pin1, res);
+                }
+            }
+        }
+    }
+    return res;
+}
+
+static void __in_hfa() startup_vga(void) {
+    uint8_t link = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
+    if (link == 0 || link == 0x1F) {
+        drv = VGA_DRV;
+    } else {
+        drv = HDMI_DRV;
+    }
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
@@ -485,7 +665,7 @@ void __in_hfa() init(void) {
 
 }
 
-static void vPostInit(void *pv) {
+static void __in_hfa() vPostInit(void *pv) {
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     kbd_state_t* ks = process_input_on_boot();
     // send kbd reset only after initial process passed

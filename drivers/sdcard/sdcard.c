@@ -13,6 +13,7 @@
 
 #include "ff.h"
 #include "diskio.h"
+#include "sys_table.h"
 
 
 /*--------------------------------------------------------------------------
@@ -345,7 +346,7 @@ BYTE send_cmd (		/* Return value: R1 resp (bit7==1:Failed to send) */
 /* Initialize disk drive                                                 */
 /*-----------------------------------------------------------------------*/
 
-DSTATUS disk_initialize (
+DSTATUS __in_hfa() disk_initialize (
 	BYTE drv		/* Physical drive number (0) */
 )
 {

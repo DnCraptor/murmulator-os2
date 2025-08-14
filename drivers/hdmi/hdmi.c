@@ -7,6 +7,7 @@
 #include "pico/time.h"
 #include "pico/multicore.h"
 #include "hardware/clocks.h"
+#include "sys_table.h"
 
 //PIO параметры
 static uint offs_prg0 = 0;
@@ -693,7 +694,7 @@ void hdmi_set_palette(uint8_t i, uint32_t color888) {
 };
 
 //выделение и настройка общих ресурсов - 4 DMA канала, PIO программ и 2 SM
-void hdmi_init() {
+void __in_hfa() hdmi_init() {
     //настройка PIO
     SM_video = pio_claim_unused_sm(PIO_VIDEO, true);
     SM_conv = pio_claim_unused_sm(PIO_VIDEO_ADDR, true);

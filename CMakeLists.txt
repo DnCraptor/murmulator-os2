@@ -24,14 +24,14 @@ pico_sdk_init()
 
 include(FreeRTOS_Kernel_import.cmake)
 
-option(VGA "Enable VGA" ON)
+option(VGA "Enable VGA" OFF)
 option(TFT "Enable TFT display" OFF)
 option(ILI9341 "Enable TFT ILI9341 display" OFF)
 option(HDMI "Enable HDMI display" OFF)
 option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 
-set(VGA ON)
+set(VGAHDMI ON)
 set(CPU_MHZ 378)
 
 set(FLASH_SIZE 16384)
@@ -118,6 +118,8 @@ if (HDMI)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=HDMI_DRV)
 elseif(VGA)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=VGA_DRV)
+elseif(VGAHDMI)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=VGA_DRV)
 else()
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=RGB_DRV)
 endif()
@@ -189,6 +191,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         PSRAM_PIN_MOSI=20
         PSRAM_PIN_MISO=21
 
+        BUTTER_PSRAM_GPIO=19
+
         WAV_IN_PIO=22
         #I2S_SOUND
         PWM_PIN0=26
@@ -233,10 +237,16 @@ ELSEIF(SOFTTV)
 	target_compile_definitions(${PROJECT_NAME} PRIVATE SOFTTV)
 	target_link_libraries(${PROJECT_NAME} PRIVATE tv-software)
 	SET(BUILD_NAME "${BUILD_NAME}-TV-SOFT")
-ELSE()
+ELSEIF (VGA)
     target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
     target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
     SET(BUILD_NAME "${BUILD_NAME}-VGA")
+ELSE()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HDMI)
+    target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
+    target_link_libraries(${PROJECT_NAME} PRIVATE hdmi)
+    SET(BUILD_NAME "${BUILD_NAME}-VGA-HDMI")
 ENDIF()
 
 SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz")
