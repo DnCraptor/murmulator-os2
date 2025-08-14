@@ -272,17 +272,17 @@ uint32_t ps2getcode() {
 
 void KeyboardHandler(void) {
     static uint8_t incoming = 0;
-    static uint32_t prev_ms = 0;
-    uint32_t now_ms;
+    static uint64_t prev_us = 0;
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
     uint8_t n, val;
 
     val = gpio_get(KBD_DATA_PIN);
-    now_ms = time_us_64();
-    if (now_ms - prev_ms > 250) {
+    uint64_t now_us = time_us_64();
+    if (now_us - prev_us > 250000) { // 250 ms
         bitcount = 0;
         incoming = 0;
     }
-    prev_ms = now_ms;
+    prev_us = now_us;
     n = bitcount - 1;
     if (n <= 7) {
         incoming |= (val << n);
@@ -297,9 +297,11 @@ void KeyboardHandler(void) {
         incoming = 0;
     }
     kbloop = 1;
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
 }
 
 void keyboard_init(void) {
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
     bitcount = 0;
     memset(ps2buffer, 0, KBD_BUFFER_SIZE);
 
@@ -314,27 +316,28 @@ void keyboard_init(void) {
 
     gpio_set_irq_enabled_with_callback(KBD_CLOCK_PIN, GPIO_IRQ_EDGE_FALL, true,
                                        (gpio_irq_callback_t)&KeyboardHandler); //
-
+/*
+    sleep_ms(33);
     // Blink all 3 leds
-    //ps2_send(0xFF); //Reset and start self-test
-    //sleep_ms(400); // Why so long?
+    keyboard_send(0xFF); //Reset and start self-test
+    sleep_ms(400); // Why so long?
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
 
-    //ps2_send(0xF2); // Get keyvoard id https://wiki.osdev.org/PS/2_Keyboard
-    //sleep_ms(250);
+    keyboard_send(0xF2); // Get keyvoard id https://wiki.osdev.org/PS/2_Keyboard
+    sleep_ms(250);
 
-    /*
-    ps2_send(0xED);
+    keyboard_send(0xED);
     sleep_ms(50);
-    ps2_send(2); // NUM
+    keyboard_send(2); // NUM
 
-    ps2_send(0xED);
+    keyboard_send(0xED);
     sleep_ms(50);
-    ps2_send(3); // SCROLL
+    keyboard_send(3); // SCROLL
+
+    keyboard_send(0xED);
+    sleep_ms(50);
+    keyboard_send(7);
 */
-    /*    ps2_send(0xED);
-        sleep_ms(50);
-        ps2_send(7);*/
-
     return;
 }
 

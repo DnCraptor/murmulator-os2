@@ -73,6 +73,7 @@ inline static void tokenizeCfg(char* s, size_t sz) {
 }
 
 static void __always_inline deinit(void) {
+    keyboard_send(0xFF);
     nespad_end(NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
     keyboard_deinit();
 
@@ -118,7 +119,9 @@ static void __always_inline check_firmware() {
     if(f_open(&f, FIRMWARE_MARKER_FN, FA_READ) == FR_OK) {
         f_close(&f);
         f_unmount(SD);
-        run_application();
+        char* y = (char*)0x20000000 + (512 << 10) - 4;
+	    y[0] = 0x37; y[1] = 0x0F; y[2] = 0xF0; y[3] = 0x17;
+        watchdog_enable(1, false);
     }
 }
 
@@ -265,7 +268,7 @@ static void startup_vga(void) {
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
-    sleep_ms(300);
+    vTaskDelay(300);
     clrScr(0);
 }
 
@@ -308,7 +311,6 @@ void info(bool with_sd) {
 
 void usb_on_boot() {
     usb_driver(true);
-   	vTaskStartScheduler();
     for(;;) { vTaskDelay(10); }
 }
 
@@ -393,11 +395,11 @@ void selectDRV2(void) {
 
 kbd_state_t* process_input_on_boot() {
     char* y = (char*)0x20000000 + (512 << 10) - 4;
-	bool magic = (y[0] == 0xFF && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
-    if (magic) {
+	bool magicUnlink = (y[0] == 0xFF && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
+    if (magicUnlink) {
         *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
     }
-    sleep_ms(50);
+    vTaskDelay(50);
     kbd_state_t* ks = get_kbd_state();
     for (int a = 0; a < 20; ++a) {
         uint8_t sc = ks->input & 0xFF;
@@ -412,7 +414,7 @@ kbd_state_t* process_input_on_boot() {
             caseF12();
         }
         // F11 or SPACE or SELECT unlink prev uf2 firmware
-        if (magic || (nespad_state & DPAD_SELECT) || (sc == 0x57) /*F11*/  || (sc == 0x39) /*SPACE*/) {
+        if (magicUnlink || (nespad_state & DPAD_SELECT) || (sc == 0x57) /*F11*/  || (sc == 0x39) /*SPACE*/) {
             if (FR_OK == f_mount(&fs, SD, 1)) {
                 if (nespad_state & DPAD_B) {
                     usb_on_boot();
@@ -433,7 +435,7 @@ kbd_state_t* process_input_on_boot() {
             selectDRV2();
             break;
         }
-        sleep_ms(30);
+        vTaskDelay(30);
         nespad_read();
     }
     return ks;
@@ -456,7 +458,7 @@ void test_cycle(kbd_state_t* ks) {
         int y = graphics_con_y();
         goutf("Scancodes tester: %Xh   \n", ks->input);
         goutf("Joysticks' states: %02Xh %02Xh\n", nespad_state, nespad_state2);
-        sleep_ms(50);
+        vTaskDelay(50);
         graphics_set_con_pos(0, y);
     }
     __unreachable();
@@ -481,15 +483,10 @@ void __in_hfa() init(void) {
     keyboard_init();
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
 
-    gpio_put(PICO_DEFAULT_LED_PIN, true);
+}
 
-#ifdef DEBUG_VGA
-    FIL f;
-    f_open(&f, "mos-vga.log", FA_OPEN_APPEND | FA_WRITE);
-    UINT wr;
-    f_write(&f, vga_dbg_msg, strlen(vga_dbg_msg), &wr);
-    f_close(&f);
-#endif
+static void vPostInit(void *pv) {
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
     kbd_state_t* ks = process_input_on_boot();
     // send kbd reset only after initial process passed
     keyboard_send(0xFF);
@@ -519,24 +516,30 @@ void __in_hfa() init(void) {
     graphics_set_con_pos(0, 1);
     init_sound();
     gpio_put(PICO_DEFAULT_LED_PIN, false);
-}
 
-int main() {
-    init();
     info(true);
 
     f_mount(&fs, SD, 1);
 
-    xTaskCreate(vCmdTask, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
-
     setApplicationMallocFailedHookPtr(mallocFailedHandler);
     setApplicationStackOverflowHookPtr(overflowHook);
 
-    /* Start the scheduler. */
-	vTaskStartScheduler();
-    // it should never return
-    draw_text("vTaskStartScheduler failed", 0, 4, 13, 1);
-    while(sys_table_ptrs[0]); // to ensure linked (TODO: other way)
+    vCmdTask(pv);
+//    xTaskCreate(vCmdTask, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
+//    vTaskDelete( NULL );
+}
 
+int main() {
+    char* y = (char*)0x20000000 + (512 << 10) - 4;
+	bool magicSkip = (y[0] == 0x37 && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
+    if (magicSkip) {
+        *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
+        run_application();
+    }
+    init();
+    xTaskCreate(vPostInit, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
+	vTaskStartScheduler(); // it should never return
+    draw_text("vTaskStartScheduler failed", 0, 4, 13, 1);
+    while(sys_table_ptrs[0]);
     __unreachable();
 }
