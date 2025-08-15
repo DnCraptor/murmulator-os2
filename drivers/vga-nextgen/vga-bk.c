@@ -541,7 +541,7 @@ int vga_get_mode(void) {
     return graphics_mode;
 }
 
-bool vga_set_mode(int mode) {
+bool __in_hfa() vga_set_mode(int mode) {
   //  if (_SM_VGA < 0) return false; // если  VGA не инициализирована -
     if (graphics_mode == mode) return true;
     vga_context_t* context = pvPortCalloc(1, sizeof(vga_context_t));
