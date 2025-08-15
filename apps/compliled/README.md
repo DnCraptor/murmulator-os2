@@ -2,14 +2,14 @@
 Murmulator OS v.2.0.6<br/>
 
 # Hardware needed
-Raspberry Pi Pico (RP2040)<br/>
-Sources are "in-progress" state and testing now only on Murmulator devboard with VGA/HDMI/TV(RGB) output.<br/>
+Raspberry Pi Pico 2 (RP2350)<br/>
+Sources are "in-progress" state and testing now only on Murmulator devboard with VGA/HDMI output.<br/>
 Simplest Murmulator schema is availabele there: https://github.com/AlexEkb4ever/MURMULATOR_classical_scheme<br/>
 ![Murmulator Schematics](https://github.com/javavi/pico-infonesPlus/blob/main/assets/Murmulator-1_BSchem.JPG)
 ![VGA OR hdmi](./assets/vga_hdmi.jpg)
 
 # This Archive
-Extract MOS folder to your SD-Card to /MOS folder.
+Extract MOS2 folder to your SD-Card to /MOS2 folder.
 
 # M-OS commands
 cls - clear screen<br/>
@@ -49,7 +49,8 @@ basic [file] - tiny basic interperator implementation (by Stefan Lenz, see https
 ps - list of "processes" (FreeRTOS tasks).<br/>
 kill [n] - send SIGKILL to a "process" (FreeRTOS task), [n] - task number returned by the `ps` utility.<br/>
 dhrystone [n] [kHz] - small performance test (see: https://github.com/DnCraptor/arm_benchmarks)<br/>
-whetstone [n] - MIPS (whetstone) performance test (see: https://github.com/DnCraptor/arm_benchmarks)<br/>
+whetstone [n] - MIPS (whetstone) double precision performance test (see: https://github.com/DnCraptor/arm_benchmarks)<br/>
+linpack [n] - Kflops single precision performance test (see: https://github.com/DnCraptor/arm_benchmarks)<br/>
 <br/>
 [cmd] &gt; [file] - output redirection to file<br/>
 [ENTER] - start command / flash and run .uf2 file in "demo" format (NESPAD [A] button in mc)<br/>
