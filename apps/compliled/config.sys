@@ -1,0 +1,9 @@
+COMSPEC=/mos2/mc
+CD=MOS2
+BASE=MOS2
+PATH=MOS2
+TEMP=tmp
+SWAP=/tmp/pagefile.sys 1M 2K 1K
+CPU=378
+GMODE=2
+
