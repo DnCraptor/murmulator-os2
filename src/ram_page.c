@@ -145,7 +145,7 @@ static uint16_t oldest_ram_page = 1;
 static uint16_t last_ram_page = 0;
 static uint32_t last_lba_page = 0;
 
-uint32_t get_ram_page_for(const uint32_t addr32) {
+static uint32_t get_ram_page_for(const uint32_t addr32) {
     const register uint32_t lba_page = (addr32 >> _swap_page_div) + 1; // page idx
     if (last_lba_page == lba_page) {
         return last_ram_page;
@@ -236,6 +236,7 @@ uint32_t __in_hfa() init_vram(char* cfg_in) { // "/mos2/pagefile.sys 8M 128K 4K"
     }
     char* cfg = copy_str(cfg_in);
     tokenize(cfg);
+    if (path) vPortFree(path);
     path = (char*)pvPortMalloc(sz + 1);
     strcpy(path, cfg);
     char* vszs = next_token(cfg);
@@ -281,11 +282,17 @@ uint32_t __in_hfa() init_vram(char* cfg_in) { // "/mos2/pagefile.sys 8M 128K 4K"
     memset(RAM, 0, _swap_base_size);
     memset(RAM_PAGES, 0, _swap_pages << 1);
 
-    FRESULT fresult = f_stat(path , &file);
     f_unlink(path); // ensure it is new file
-    FRESULT result = f_open(&file, path, FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
+    FRESULT result = f_open(&file, path, FA_WRITE | FA_CREATE_ALWAYS);
     if (result == FR_OK) {
-        result = f_lseek(&file, _swap_size);
+        result = f_lseek(&file, _swap_size - 1);
+        if (result != FR_OK) {
+            goutf("Unable to init %s\n", path);
+            _swap_size = 0;
+            goto e;
+        }
+        UINT bw;
+        result = f_write(&file, "", 1, &bw);
         if (result != FR_OK) {
             goutf("Unable to init %s\n", path);
             _swap_size = 0;
@@ -303,20 +310,22 @@ uint32_t __in_hfa() init_vram(char* cfg_in) { // "/mos2/pagefile.sys 8M 128K 4K"
         _swap_size = 0;
     }
 e:
-    vPortFree(path);
     vPortFree(cfg);
     return _swap_size;
 }
 
 FRESULT vram_seek(FIL* fp, uint32_t file_offset) {
-    FRESULT result = f_lseek(&file, file_offset);
+    FRESULT result = f_lseek(fp, file_offset);
     if (result != FR_OK) {
-        result = f_open(&file, path, FA_READ | FA_WRITE);
+        result = f_open(fp, path, FA_READ | FA_WRITE);
         if (result != FR_OK) {
             goutf("Unable to open file '%s': %s (%d)\n", path, FRESULT_str(result), result);
             return result;
         }
-        goutf("Failed to f_lseek: %s (%d)\n", FRESULT_str(result), result);
+        result = f_lseek(fp, file_offset);
+        if (result != FR_OK) {
+            goutf("Failed to f_lseek(%d): %s (%d)\n", file_offset, FRESULT_str(result), result);
+        }
     }
     return result;
 }
