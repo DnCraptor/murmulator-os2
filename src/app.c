@@ -249,6 +249,45 @@ void resolve_thm_pc22(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
     //goutf("%04X %04X -> %04X %04X [%p]\n" , instr0, instr, *(addr-1), *addr, addr - 1);
 }
 
+// Разрешение ссылки типа R_ARM_THM_JUMP24 (B.W в Thumb-2)
+void resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
+    uint16_t instr0 = *addr;
+    uint16_t instr1 = *(addr + 1);
+
+    // Декодирование текущего смещения
+    uint32_t S     = (instr0 >> 10) & 1;
+    uint32_t J1    = (instr1 >> 13) & 1;
+    uint32_t J2    = (instr1 >> 11) & 1;
+    uint32_t imm10 = instr0 & 0x03FF;
+    uint32_t imm11 = instr1 & 0x07FF;
+
+    uint32_t I1 = (~(J1 ^ S)) & 1;
+    uint32_t I2 = (~(J2 ^ S)) & 1;
+
+    uint32_t offset = (S << 24) | (I1 << 23) | (I2 << 22) |
+                      (imm10 << 12) | (imm11 << 1);
+    // Знаковое расширение
+    if (S) {
+        offset |= 0xFF000000;
+    }
+
+    // Вычисление нового смещения
+    int32_t rel = (int32_t)offset + (int32_t)sym_val - (int32_t)addr_ref;
+
+    S     = (rel >> 24) & 1;
+    I1    = (rel >> 23) & 1;
+    I2    = (rel >> 22) & 1;
+    imm10 = (rel >> 12) & 0x03FF;
+    imm11 = (rel >> 1) & 0x07FF;
+
+    J1 = (~(I1 ^ S)) & 1;
+    J2 = (~(I2 ^ S)) & 1;
+
+    // Обновление инструкции B.W
+    *addr++ = 0xF000 | (S << 10) | imm10;
+    *addr   = (0b11100 << 11) | (J1 << 13) | (J2 << 11) | imm11;
+}
+
 static const char* st_predef(const char* v) {
     if(strlen(v) == 2) {
         if (v[0] == '$' && v[1] == 't') {
@@ -548,6 +587,10 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                             case 10: //R_ARM_THM_PC22:
                                 resolve_thm_pc22(rel_addr_real, rel_addr_ref, A + S);
                                 break;
+                            case 30: // R_ARM_THM_JUMP24
+                                gouta("WARN: Untested REL type: R_ARM_THM_JUMP24\n");
+                                resolve_thm_jump24(rel_addr_real, rel_addr_ref, A + S);
+                                break;
                             default:
                                 goutf("Unsupported REL type: %d\n", rel_type);
                                 goto e1;
@@ -661,9 +704,11 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
     bool try_to_use_flash = ctx->forse_flash;
     if (!try_to_use_flash) {
         size_t free_sz = xPortGetFreeHeapSize();
-        if ((free_sz >> 1) <  f->obj.objsize) {
+        if (free_sz < (f->obj.objsize >> 1)) {
             try_to_use_flash = true;
             gouta("Attempt to use flash (by size)\n");
+            goutf("     free: %d\n", free_sz);
+            goutf(" required: %dK\n", (size_t)(f->obj.objsize >> 11));
         }
     } else {
         gouta("Attempt to use flash (Alt+Enter)\n");
@@ -761,7 +806,7 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
         while(n) {
             to_flash_rec_t* tf = (to_flash_rec_t*)n->data;
             if ( min_addr > tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10) ) min_addr = tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10);
-            if ( max_addr < tf->offset + XIP_BASE + tf->size ) max_addr = tf->offset + XIP_BASE + tf->size;
+            if ( max_addr < tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10) + tf->size ) max_addr = tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10) + tf->size;
             n = n->next;
         }
         delete_list(lst);

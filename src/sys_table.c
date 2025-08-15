@@ -346,6 +346,12 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // API v.25
     __clzsi2, // 258
     __aeabi_lmul, // 259
+    // API v.26
+    gpio_put, // 260
+    time, // 261
+    time_us_32, // 262
+    time_us_64, // 263
+    __aeabi_uldivmod, // 264
     // TODO:
     0
 };

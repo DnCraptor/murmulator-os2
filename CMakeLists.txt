@@ -199,7 +199,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         PWM_PIN1=27
         BEEPER_PIN=28
 
-        M_API_VERSION=25
+        M_API_VERSION=26
         MIN_API_VERSION=14
 
         # do not touch last 512 bytes in RAM on launch app, say, no more RAM

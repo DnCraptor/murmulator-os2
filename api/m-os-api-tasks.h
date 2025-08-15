@@ -232,8 +232,9 @@ typedef uint32_t         UBaseType_t;
  * \defgroup TaskHandle_t TaskHandle_t
  * \ingroup Tasks
  */
-typedef uint32_t TaskHandle_t;
-typedef const TaskHandle_t ConstTaskHandle_t;
+struct tskTaskControlBlock; /* The old naming convention is used to prevent breaking kernel aware debuggers. */
+typedef struct tskTaskControlBlock         * TaskHandle_t;
+typedef const struct tskTaskControlBlock   * ConstTaskHandle_t;
 
 /*
  * Defines the prototype to which the application task hook function must
