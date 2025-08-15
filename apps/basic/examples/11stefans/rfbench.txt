@@ -1,0 +1,65 @@
+Arduino MEGA (float): 
+Test1	97	1552
+Test2	345	5520
+Test3	718	11488
+Test4	729	11664
+Test5	848	13568
+Test6	3103	24320
+Test7	2530	40480
+Test8	159	2544
+
+Arduino UNO (int):
+Test1	61	976		
+Test2	242	3872	
+Test3	504	8064	
+Test4	493	7888	
+Test5	577	9232
+Test6	1009	16149	
+Test7	1777	28432
+
+ESP8266 (float):
+Test1	38
+Test2	161
+Test3	276
+Test4	282
+Test5	348
+Test6	620	
+Test7	1230
+Test8	75
+Creative 557
+
+ESP32 (float, with network):
+Test1	28
+Test2	119
+Test3	178
+Test4	180
+Test5	229
+Test6	420
+Test7	720
+Test8	30
+Creative	314
+
+ESP32 (float, without network):
+Test1	20
+Test2	84
+Test3	133
+Test4	133
+Test5	174
+Test6	317
+Test7	542
+Test8	23
+Creative	240
+
+DOSbox 3000 cycles
+Test1	220
+Test2	710 
+Test3	1320
+Test4	1370
+Test5	1590
+Test6	2960
+Test7	5100
+Test8	220
+Creative	2420
+
+
+
