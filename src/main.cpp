@@ -663,6 +663,7 @@ void __in_hfa() init(void) {
     keyboard_init();
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
 
+    init_psram();
 }
 
 static void __in_hfa() vPostInit(void *pv) {
@@ -679,7 +680,6 @@ static void __in_hfa() vPostInit(void *pv) {
         graphics_set_mode(graphics_get_default_mode());
         graphics_set_con_pos(0, 1);
         show_logo(true);
-        init_psram();
         info(false);
         graphics_set_con_color(12, 0);
         gouta(err);
@@ -689,9 +689,8 @@ static void __in_hfa() vPostInit(void *pv) {
 
     startup_vga();
     graphics_set_mode(graphics_get_default_mode());
-    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);
+///    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);
     load_config_sys();
-    init_psram();
     show_logo(true);
     graphics_set_con_pos(0, 1);
     init_sound();

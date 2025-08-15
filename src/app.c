@@ -549,7 +549,7 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                                 resolve_thm_pc22(rel_addr_real, rel_addr_ref, A + S);
                                 break;
                             default:
-                                goutf("Unsupportel REL type: %d\n", rel_type);
+                                goutf("Unsupported REL type: %d\n", rel_type);
                                 goto e1;
                         }
                         //goutf("= %ph\n", *rel_addr);
@@ -760,7 +760,7 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
         uint32_t max_addr = 0;
         while(n) {
             to_flash_rec_t* tf = (to_flash_rec_t*)n->data;
-            if ( min_addr > tf->offset + XIP_BASE ) min_addr = tf->offset + XIP_BASE;
+            if ( min_addr > tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10) ) min_addr = tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10);
             if ( max_addr < tf->offset + XIP_BASE + tf->size ) max_addr = tf->offset + XIP_BASE + tf->size;
             n = n->next;
         }
