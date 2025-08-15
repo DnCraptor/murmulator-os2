@@ -77,7 +77,7 @@
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
 #endif
 /// TODO: exact free size to be found
-#define configTOTAL_HEAP_SIZE                   ((136 + 256)*1024)
+#define configTOTAL_HEAP_SIZE                   ((220 + 256)*1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
