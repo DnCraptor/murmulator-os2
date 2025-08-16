@@ -72,37 +72,6 @@ inline static void tokenizeCfg(char* s, size_t sz) {
     s[i] = 0;
 }
 
-static void __always_inline deinit(void) {
-    keyboard_send(0xFF);
-    nespad_end(NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
-    keyboard_deinit();
-
-    gpio_deinit(PICO_DEFAULT_LED_PIN);
-    set_sys_clock_khz(125000, true);
-    vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
-    // enable voltage limit back
-    hw_clear_bits(&powman_hw->vreg_ctrl, POWMAN_VREG_CTRL_DISABLE_VOLTAGE_LIMIT_BITS);
-    volatile uint32_t *qmi_m0_timing = (uint32_t *)0x400d000c;
-    *qmi_m0_timing = 0x60007204;
-    multicore_reset_core1();
-}
-
-void __not_in_flash_func() run_application() {
-    deinit();
-
-    asm volatile (
-        "mov r0, %[start]\n"
-        "ldr r1, =%[vtable]\n"
-        "str r0, [r1]\n"
-        "ldmia r0, {r0, r1}\n"
-        "msr msp, r0\n"
-        "bx r1\n"
-        :: [start] "r" (XIP_BASE + (FIRMWARE_OFFSET << 10)), [vtable] "X" (PPB_BASE + M33_VTOR_OFFSET)
-    );
-
-    __unreachable();
-}
-
 static const char SD[] = "SD";
 static const char CD[] = "CD"; // current directory 
 static const char BASE[] = "BASE"; 
@@ -708,13 +677,27 @@ static void __in_hfa() vPostInit(void *pv) {
 //    vTaskDelete( NULL );
 }
 
-int main() {
+__attribute__((constructor))
+static void before_main(void) {
     char* y = (char*)0x20000000 + (512 << 10) - 4;
 	bool magicSkip = (y[0] == 0x37 && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
     if (magicSkip) {
         *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
-        run_application();
+        asm volatile (
+            "mov r0, %[start]\n"
+            "ldr r1, =%[vtable]\n"
+            "str r0, [r1]\n"
+            "ldmia r0, {r0, r1}\n"
+            "msr msp, r0\n"
+            "bx r1\n"
+                :: [start] "r" (XIP_BASE + (FIRMWARE_OFFSET << 10)), [vtable] "X" (PPB_BASE + M33_VTOR_OFFSET)
+        );
+
+        __unreachable();
     }
+}
+
+int main() {
     init();
     xTaskCreate(vPostInit, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
 	vTaskStartScheduler(); // it should never return
