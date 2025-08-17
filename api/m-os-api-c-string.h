@@ -1,6 +1,14 @@
 #ifndef M_API_C_STRING
 #define M_API_C_STRING
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+size_t strlen(const char * s);
+char* strncpy(char* t, const char * s, size_t sz);
+void* memcpy(void *__restrict dst, const void *__restrict src, size_t sz);
+
 typedef struct string {
     size_t size; // string size excluding end-0
     size_t alloc; // really allocated bytes
@@ -174,5 +182,9 @@ inline static const char* c_str(const string_t* s) {
 inline static size_t c_strlen(const string_t* s) {
     return s ? s->size : 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

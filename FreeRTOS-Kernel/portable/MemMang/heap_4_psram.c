@@ -38,7 +38,7 @@
 #include <string.h>
 #include <stdint.h>
 
-extern uint32_t butter_psram_size;
+uint32_t butter_psram_size = 0;
 /* Defining MPU_WRAPPERS_INCLUDED_FROM_API_FILE prevents task.h from redefining
  * all the API functions to use the MPU wrappers.  That should only be done when
  * task.h is included from an application file. */
@@ -87,15 +87,8 @@ extern uint32_t butter_psram_size;
 
 /*-----------------------------------------------------------*/
 
-/* Allocate the memory for the heap. */
-#if ( configAPPLICATION_ALLOCATED_HEAP == 1 )
-
-/* The application writer has already defined the array used for the RTOS
-* heap - probably so it can be placed in a special segment or address. */
-    extern uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
-#else
-    PRIVILEGED_DATA static uint8_t ucHeap[ configTOTAL_HEAP_SIZE ];
-#endif /* configAPPLICATION_ALLOCATED_HEAP */
+/* Allocated the memory for the heap. */
+static uint8_t* ucHeap = (uint8_t*)0x11000000;
 
 /* Define the linked list structure.  This is used to link free blocks in order
  * of their memory address. */
@@ -133,9 +126,10 @@ typedef struct A_BLOCK_LINK
 #endif /* configENABLE_HEAP_PROTECTOR */
 
 /* Assert that a heap block pointer is within the heap bounds. */
+/// TODO: dynamic
 #define heapVALIDATE_BLOCK_POINTER( pxBlock )                          \
     configASSERT( ( ( uint8_t * ) ( pxBlock ) >= &( ucHeap[ 0 ] ) ) && \
-                  ( ( uint8_t * ) ( pxBlock ) <= &( ucHeap[ configTOTAL_HEAP_SIZE - 1 ] ) ) )
+                  ( ( uint8_t * ) ( pxBlock ) <= &( ucHeap[ (16 << 20) - 1 ] ) ) )
 
 /*-----------------------------------------------------------*/
 
@@ -151,8 +145,7 @@ static void prvInsertBlockIntoFreeList( BlockLink_t * pxBlockToInsert ) PRIVILEG
  * Called automatically to setup the required heap structures the first time
  * pvPortMalloc() is called.
  */
-void prvHeapInitPsram( void );
-static void prvHeapInit( void ) PRIVILEGED_FUNCTION;
+void prvHeapInitPsram( void ) PRIVILEGED_FUNCTION;
 
 /*-----------------------------------------------------------*/
 
@@ -174,8 +167,7 @@ PRIVILEGED_DATA static size_t xNumberOfSuccessfulFrees = ( size_t ) 0U;
 /*-----------------------------------------------------------*/
 #define __in_hfa(group) __attribute__((section(".high_flash" group)))
 
-void * __in_hfa() pvPortMallocPsram( size_t xWantedSize );
-void * __in_hfa() pvPortMalloc( size_t xWantedSize )
+void * __in_hfa() pvPortMallocPsram( size_t xWantedSize )
 {
     BlockLink_t * pxBlock;
     BlockLink_t * pxPreviousBlock;
@@ -229,8 +221,7 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
          * initialisation to setup the list of free blocks. */
         if( pxEnd == NULL )
         {
-            prvHeapInit();
-            if (butter_psram_size) prvHeapInitPsram();
+            prvHeapInitPsram();
         }
         else
         {
@@ -338,8 +329,7 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
         ( void ) xAllocatedBlockSize;
     }
     ( void ) xTaskResumeAll();
-    if( pvReturn == NULL && butter_psram_size > 0 )
-        return pvPortMallocPsram(xWantedSize);
+
     #if ( configUSE_MALLOC_FAILED_HOOK == 1 )
     {
         if( pvReturn == NULL )
@@ -358,10 +348,8 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
 }
 /*-----------------------------------------------------------*/
 
-void __in_hfa() vPortFreePsram( void * pv );
-void __in_hfa() vPortFree( void * pv )
+void __in_hfa() vPortFreePsram( void * pv )
 {
-    if (pv >= 0x11000000) return vPortFreePsram(pv);
     uint8_t * puc = ( uint8_t * ) pv;
     BlockLink_t * pxLink;
 
@@ -418,51 +406,28 @@ void __in_hfa() vPortFree( void * pv )
     }
 }
 /*-----------------------------------------------------------*/
-size_t __in_hfa() xPortGetFreeHeapSizePsram( void );
-size_t __in_hfa() xPortGetFreeHeapSize( void )
+
+size_t __in_hfa() xPortGetFreeHeapSizePsram( void )
 {
-    if (butter_psram_size)
-        return xFreeBytesRemaining + xPortGetFreeHeapSizePsram();
+    // allocation, to ensure at least one
+    vPortFreePsram(pvPortMallocPsram(1));
     return xFreeBytesRemaining;
 }
 /*-----------------------------------------------------------*/
-size_t __in_hfa() xPortGetMinimumEverFreeHeapSizePsram( void );
-size_t __in_hfa() xPortGetMinimumEverFreeHeapSize( void )
+
+size_t __in_hfa() xPortGetMinimumEverFreeHeapSizePsram( void )
 {
-    return butter_psram_size ? xPortGetMinimumEverFreeHeapSizePsram() : xMinimumEverFreeBytesRemaining;
+    // allocation, to ensure at least one
+    vPortFreePsram(pvPortMallocPsram(1));
+    return xMinimumEverFreeBytesRemaining;
 }
 /*-----------------------------------------------------------*/
 
-void __in_hfa() vPortInitialiseBlocks( void )
-{
-    /* This just exists to keep the linker quiet. */
-}
-/*-----------------------------------------------------------*/
-
-void * __in_hfa() pvPortCalloc( size_t xNum,
-                     size_t xSize )
-{
-    void * pv = NULL;
-
-    if( heapMULTIPLY_WILL_OVERFLOW( xNum, xSize ) == 0 )
-    {
-        pv = pvPortMalloc( xNum * xSize );
-
-        if( pv != NULL )
-        {
-            ( void ) memset( pv, 0, xNum * xSize );
-        }
-    }
-
-    return pv;
-}
-/*-----------------------------------------------------------*/
-
-static void __in_hfa() prvHeapInit( void ) /* PRIVILEGED_FUNCTION */
+void __in_hfa() prvHeapInitPsram( void ) /* PRIVILEGED_FUNCTION */
 {
     BlockLink_t * pxFirstFreeBlock;
     portPOINTER_SIZE_TYPE uxStartAddress, uxEndAddress;
-    size_t xTotalHeapSize = configTOTAL_HEAP_SIZE;
+    size_t xTotalHeapSize = butter_psram_size;
 
     /* Ensure the heap starts on a correctly aligned boundary. */
     uxStartAddress = ( portPOINTER_SIZE_TYPE ) ucHeap;
@@ -573,27 +538,14 @@ static void __in_hfa() prvInsertBlockIntoFreeList( BlockLink_t * pxBlockToInsert
     }
 }
 /*-----------------------------------------------------------*/
-void __in_hfa() vPortGetHeapStatsPsram( HeapStats_t * pxHeapStats );
-void goutf(char*, ...);
-void __in_hfa() vPortGetHeapStats( HeapStats_t * pxHeapStats )
+
+void __in_hfa() vPortGetHeapStatsPsram( HeapStats_t * pxHeapStats )
 {
     BlockLink_t * pxBlock;
     size_t xBlocks = 0, xMaxSize = 0, xMinSize = portMAX_DELAY; /* portMAX_DELAY used as a portable way of getting the maximum value. */
-
-    vTaskSuspendAll();
+    // allocation, to ensure at least one
+    vPortFreePsram(pvPortMallocPsram(1));
     {
-        if (butter_psram_size) {
-            vPortGetHeapStatsPsram(pxHeapStats);
-        }
-        else {
-            pxHeapStats->xAvailableHeapSpaceInBytes = 0;
-            pxHeapStats->xSizeOfLargestFreeBlockInBytes = 0;
-            pxHeapStats->xSizeOfSmallestFreeBlockInBytes = portMAX_DELAY;
-            pxHeapStats->xNumberOfFreeBlocks = 0;
-            pxHeapStats->xMinimumEverFreeBytesRemaining = portMAX_DELAY;
-            pxHeapStats->xNumberOfSuccessfulAllocations = 0;
-            pxHeapStats->xNumberOfSuccessfulFrees = 0;
-        }
         pxBlock = heapPROTECT_BLOCK_POINTER( xStart.pxNextFreeBlock );
 
         /* pxBlock will be NULL if the heap has not been initialised.  The heap
@@ -622,19 +574,17 @@ void __in_hfa() vPortGetHeapStats( HeapStats_t * pxHeapStats )
             }
         }
     }
-    ( void ) xTaskResumeAll();
 
-    if (pxHeapStats->xSizeOfLargestFreeBlockInBytes < xMaxSize) pxHeapStats->xSizeOfLargestFreeBlockInBytes = xMaxSize;
-    if (pxHeapStats->xSizeOfSmallestFreeBlockInBytes > xMinSize) pxHeapStats->xSizeOfSmallestFreeBlockInBytes = xMinSize;
-    pxHeapStats->xNumberOfFreeBlocks += xBlocks;
+    pxHeapStats->xSizeOfLargestFreeBlockInBytes = xMaxSize;
+    pxHeapStats->xSizeOfSmallestFreeBlockInBytes = xMinSize;
+    pxHeapStats->xNumberOfFreeBlocks = xBlocks;
 
     taskENTER_CRITICAL();
     {
-        pxHeapStats->xAvailableHeapSpaceInBytes += xFreeBytesRemaining;
-        pxHeapStats->xNumberOfSuccessfulAllocations += xNumberOfSuccessfulAllocations;
-        pxHeapStats->xNumberOfSuccessfulFrees += xNumberOfSuccessfulFrees;
-        if (pxHeapStats->xMinimumEverFreeBytesRemaining > xMinimumEverFreeBytesRemaining)
-            pxHeapStats->xMinimumEverFreeBytesRemaining = xMinimumEverFreeBytesRemaining;
+        pxHeapStats->xAvailableHeapSpaceInBytes = xFreeBytesRemaining;
+        pxHeapStats->xNumberOfSuccessfulAllocations = xNumberOfSuccessfulAllocations;
+        pxHeapStats->xNumberOfSuccessfulFrees = xNumberOfSuccessfulFrees;
+        pxHeapStats->xMinimumEverFreeBytesRemaining = xMinimumEverFreeBytesRemaining;
     }
     taskEXIT_CRITICAL();
 }
@@ -645,10 +595,8 @@ void __in_hfa() vPortGetHeapStats( HeapStats_t * pxHeapStats )
  * This function must be called by the application before restarting the
  * scheduler.
  */
-void __in_hfa() vPortHeapResetStatePsram( void );
-void __in_hfa() vPortHeapResetState( void )
+void __in_hfa() vPortHeapResetStatePsram( void )
 {
-    vPortHeapResetStatePsram();
     pxEnd = NULL;
 
     xFreeBytesRemaining = ( size_t ) 0U;

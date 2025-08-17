@@ -39,6 +39,104 @@ extern "C" {
 
 extern "C" uint32_t flash_size;;
 
+#if BUTTER_PSRAM_GPIO
+#include <hardware/structs/qmi.h>
+#include <hardware/structs/xip.h>
+volatile uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
+extern "C" uint32_t butter_psram_size;
+void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
+    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
+
+    // Enable direct mode, PSRAM CS, clkdiv of 10.
+    qmi_hw->direct_csr = 10 << QMI_DIRECT_CSR_CLKDIV_LSB | \
+                               QMI_DIRECT_CSR_EN_BITS | \
+                               QMI_DIRECT_CSR_AUTO_CS1N_BITS;
+    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
+        ;
+
+    // Enable QPI mode on the PSRAM
+    const uint CMD_QPI_EN = 0x35;
+    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | CMD_QPI_EN;
+
+    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
+        ;
+
+    // Set PSRAM timing for APS6404
+    //
+    // Using an rxdelay equal to the divisor isn't enough when running the APS6404 close to 133MHz.
+    // So: don't allow running at divisor 1 above 100MHz (because delay of 2 would be too late),
+    // and add an extra 1 to the rxdelay if the divided clock is > 100MHz (i.e. sys clock > 200MHz).
+    const int max_psram_freq = 166000000;
+    const int clock_hz = clock_get_hz(clk_sys);
+    int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
+    if (divisor == 1 && clock_hz > 100000000) {
+        divisor = 2;
+    }
+    int rxdelay = divisor;
+    if (clock_hz / divisor > 100000000) {
+        rxdelay += 1;
+    }
+
+    // - Max select must be <= 8us.  The value is given in multiples of 64 system clocks.
+    // - Min deselect must be >= 18ns.  The value is given in system clock cycles - ceil(divisor / 2).
+    const int clock_period_fs = 1000000000000000ll / clock_hz;
+    const int max_select = (125 * 1000000) / clock_period_fs;  // 125 = 8000ns / 64
+    const int min_deselect = (18 * 1000000 + (clock_period_fs - 1)) / clock_period_fs - (divisor + 1) / 2;
+
+    qmi_hw->m[1].timing = 1 << QMI_M1_TIMING_COOLDOWN_LSB |
+                          QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB |
+                          max_select << QMI_M1_TIMING_MAX_SELECT_LSB |
+                          min_deselect << QMI_M1_TIMING_MIN_DESELECT_LSB |
+                          rxdelay << QMI_M1_TIMING_RXDELAY_LSB |
+                          divisor << QMI_M1_TIMING_CLKDIV_LSB;
+
+    // Set PSRAM commands and formats
+    qmi_hw->m[1].rfmt =
+        QMI_M0_RFMT_PREFIX_WIDTH_VALUE_Q << QMI_M0_RFMT_PREFIX_WIDTH_LSB |\
+        QMI_M0_RFMT_ADDR_WIDTH_VALUE_Q   << QMI_M0_RFMT_ADDR_WIDTH_LSB |\
+        QMI_M0_RFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M0_RFMT_SUFFIX_WIDTH_LSB |\
+        QMI_M0_RFMT_DUMMY_WIDTH_VALUE_Q  << QMI_M0_RFMT_DUMMY_WIDTH_LSB |\
+        QMI_M0_RFMT_DATA_WIDTH_VALUE_Q   << QMI_M0_RFMT_DATA_WIDTH_LSB |\
+        QMI_M0_RFMT_PREFIX_LEN_VALUE_8   << QMI_M0_RFMT_PREFIX_LEN_LSB |\
+        6                                << QMI_M0_RFMT_DUMMY_LEN_LSB;
+
+    qmi_hw->m[1].rcmd = 0xEB;
+
+    qmi_hw->m[1].wfmt =
+        QMI_M0_WFMT_PREFIX_WIDTH_VALUE_Q << QMI_M0_WFMT_PREFIX_WIDTH_LSB |\
+        QMI_M0_WFMT_ADDR_WIDTH_VALUE_Q   << QMI_M0_WFMT_ADDR_WIDTH_LSB |\
+        QMI_M0_WFMT_SUFFIX_WIDTH_VALUE_Q << QMI_M0_WFMT_SUFFIX_WIDTH_LSB |\
+        QMI_M0_WFMT_DUMMY_WIDTH_VALUE_Q  << QMI_M0_WFMT_DUMMY_WIDTH_LSB |\
+        QMI_M0_WFMT_DATA_WIDTH_VALUE_Q   << QMI_M0_WFMT_DATA_WIDTH_LSB |\
+        QMI_M0_WFMT_PREFIX_LEN_VALUE_8   << QMI_M0_WFMT_PREFIX_LEN_LSB;
+
+    qmi_hw->m[1].wcmd = 0x38;
+
+    // Disable direct mode
+    qmi_hw->direct_csr = 0;
+
+    // Enable writes to PSRAM
+    hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
+
+    // detect a chip size
+    PSRAM_DATA[(16 << 20) - 1] = 0;
+    PSRAM_DATA[(4 << 20) - 1] = 37;
+    if (PSRAM_DATA[(16 << 20) - 1] == 37) {
+        butter_psram_size =  4 << 20;
+        return;
+    }
+    PSRAM_DATA[(8 << 20) - 1] = 73;
+    if (PSRAM_DATA[(16 << 20) - 1] == 73) {
+        butter_psram_size =  8 << 20;
+        return;
+    }
+    PSRAM_DATA[(16 << 20) - 1] = 77;
+    if (PSRAM_DATA[(16 << 20) - 1] == 77) {
+        butter_psram_size = 16 << 20;
+    }
+}
+#endif
+
 static FATFS fs;
 extern "C" FATFS* get_mount_fs() { // only one FS is supported for now
     return &fs;
@@ -421,7 +519,7 @@ static void __in_hfa() startup_vga(void) {
     clrScr(0);
 }
 
-void info(bool with_sd) {
+void __in_hfa() info(bool with_sd) {
     uint32_t ram32 = 520 << 10;// get_cpu_ram_size();
     uint8_t rx[4];
     get_cpu_flash_jedec_id(rx);
@@ -441,6 +539,13 @@ void info(bool with_sd) {
               psram32 >> 20, rx8[0], rx8[1], rx8[2], rx8[3], rx8[4], rx8[5], rx8[6], rx8[7]
         );
     }
+    #if BUTTER_PSRAM_GPIO
+    if (butter_psram_size) {
+        goutf("Butter-PSRAM %d MB on GPIO%d\n",
+              butter_psram_size >> 20, BUTTER_PSRAM_GPIO
+        );
+    }
+    #endif
     if (!with_sd) {
         goutf("\n");
         return;
@@ -542,7 +647,7 @@ void selectDRV2(void) {
             }
 }
 
-kbd_state_t* process_input_on_boot() {
+kbd_state_t* __in_hfa() process_input_on_boot() {
     char* y = (char*)0x20000000 + (512 << 10) - 4;
 	bool magicUnlink = (y[0] == 0xFF && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
     if (magicUnlink) {
@@ -628,6 +733,9 @@ void __in_hfa() init(void) {
     }
     *qmi_m0_timing = 0x60007303;
     set_last_overclocking(overclocking);
+#if BUTTER_PSRAM_GPIO
+    psram_init(BUTTER_PSRAM_GPIO);
+#endif
 
     keyboard_init();
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);

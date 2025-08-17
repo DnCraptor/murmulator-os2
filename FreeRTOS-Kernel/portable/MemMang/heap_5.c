@@ -204,8 +204,9 @@ PRIVILEGED_DATA static size_t xNumberOfSuccessfulFrees = ( size_t ) 0U;
 #endif /* configENABLE_HEAP_PROTECTOR */
 
 /*-----------------------------------------------------------*/
+#define __in_hfa(group) __attribute__((section(".high_flash" group)))
 
-void * pvPortMalloc( size_t xWantedSize )
+void * __in_hfa() pvPortMalloc( size_t xWantedSize )
 {
     BlockLink_t * pxBlock;
     BlockLink_t * pxPreviousBlock;
@@ -379,7 +380,7 @@ void * pvPortMalloc( size_t xWantedSize )
 }
 /*-----------------------------------------------------------*/
 
-void vPortFree( void * pv )
+void __in_hfa() vPortFree( void * pv )
 {
     uint8_t * puc = ( uint8_t * ) pv;
     BlockLink_t * pxLink;
@@ -438,19 +439,19 @@ void vPortFree( void * pv )
 }
 /*-----------------------------------------------------------*/
 
-size_t xPortGetFreeHeapSize( void )
+size_t __in_hfa() xPortGetFreeHeapSize( void )
 {
     return xFreeBytesRemaining;
 }
 /*-----------------------------------------------------------*/
 
-size_t xPortGetMinimumEverFreeHeapSize( void )
+size_t __in_hfa() xPortGetMinimumEverFreeHeapSize( void )
 {
     return xMinimumEverFreeBytesRemaining;
 }
 /*-----------------------------------------------------------*/
 
-void * pvPortCalloc( size_t xNum,
+void * __in_hfa() pvPortCalloc( size_t xNum,
                      size_t xSize )
 {
     void * pv = NULL;
@@ -469,7 +470,7 @@ void * pvPortCalloc( size_t xNum,
 }
 /*-----------------------------------------------------------*/
 
-static void prvInsertBlockIntoFreeList( BlockLink_t * pxBlockToInsert ) /* PRIVILEGED_FUNCTION */
+static void __in_hfa() prvInsertBlockIntoFreeList( BlockLink_t * pxBlockToInsert ) /* PRIVILEGED_FUNCTION */
 {
     BlockLink_t * pxIterator;
     uint8_t * puc;
@@ -537,7 +538,7 @@ static void prvInsertBlockIntoFreeList( BlockLink_t * pxBlockToInsert ) /* PRIVI
 }
 /*-----------------------------------------------------------*/
 
-void vPortDefineHeapRegions( const HeapRegion_t * const pxHeapRegions ) /* PRIVILEGED_FUNCTION */
+void __in_hfa() vPortDefineHeapRegions( const HeapRegion_t * const pxHeapRegions ) /* PRIVILEGED_FUNCTION */
 {
     BlockLink_t * pxFirstFreeBlockInRegion = NULL;
     BlockLink_t * pxPreviousFreeBlock;
@@ -656,7 +657,7 @@ void vPortDefineHeapRegions( const HeapRegion_t * const pxHeapRegions ) /* PRIVI
 }
 /*-----------------------------------------------------------*/
 
-void vPortGetHeapStats( HeapStats_t * pxHeapStats )
+void __in_hfa() vPortGetHeapStats( HeapStats_t * pxHeapStats )
 {
     BlockLink_t * pxBlock;
     size_t xBlocks = 0, xMaxSize = 0, xMinSize = portMAX_DELAY; /* portMAX_DELAY used as a portable way of getting the maximum value. */
@@ -719,7 +720,7 @@ void vPortGetHeapStats( HeapStats_t * pxHeapStats )
  * This function must be called by the application before restarting the
  * scheduler.
  */
-void vPortHeapResetState( void )
+void __in_hfa() vPortHeapResetState( void )
 {
     pxEnd = NULL;
 

@@ -3,7 +3,7 @@
 #include <hardware/irq.h>
 #include <hardware/pio.h>
 #include <hardware/clocks.h>
-
+#include "sys_table.h"
 
 //  ----
 
@@ -46,7 +46,7 @@ void set_vga_clkdiv(uint32_t pixel_clock, uint32_t line_size) {
     dma_channel_set_trans_count(dma_chan, line_size >> 2, false);
 }
 
-void vga_init() {
+void __in_hfa() vga_init() {
     static uint32_t* initial_lines_pattern[4]; // TODO: remove W/A
     if (_SM_VGA != -1) return; // do not init it twice
     //инициализация PIO

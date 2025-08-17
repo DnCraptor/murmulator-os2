@@ -33,7 +33,7 @@ typedef struct {
 
 uint32_t flash_size;
 
-static void debug_sections(sect_entry_t* sect_entries) {
+static void __in_hfa() debug_sections(sect_entry_t* sect_entries) {
     if (sect_entries) {
         for (uint16_t i = 0; sect_entries[i].del_addr != 0; ++i) {
             goutf("sec #%d: [%p][%p] %d\n", i, sect_entries[i].del_addr, sect_entries[i].prg_addr, sect_entries[i].sec_num);
@@ -41,7 +41,7 @@ static void debug_sections(sect_entry_t* sect_entries) {
     }
 }
 
-inline static uint32_t read_flash_block(FIL * f, uint8_t * buffer, uint32_t expected_flash_target_offset, UF2_Block_t* puf2, size_t* psz) {
+inline static uint32_t __in_hfa() read_flash_block(FIL * f, uint8_t * buffer, uint32_t expected_flash_target_offset, UF2_Block_t* puf2, size_t* psz) {
     *psz = 0;
     UINT bytes_read = 0;
     uint32_t data_sector_index = 0;
@@ -78,7 +78,7 @@ typedef struct to_flash_rec {
     size_t size;
 } to_flash_rec_t;
 
-size_t free_app_flash(void) {
+size_t __in_hfa() free_app_flash(void) {
     return flash_size - (OS_FLASH_SIZE << 10) - (flash_addr - XIP_BASE);
 }
 
@@ -124,7 +124,7 @@ void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offse
     gpio_put(PICO_DEFAULT_LED_PIN, false);
 }
 
-void link_firmware(FIL* pf, const char* pathname) {
+void __in_hfa() link_firmware(FIL* pf, const char* pathname) {
     f_open(pf, FIRMWARE_MARKER_FN, FA_CREATE_ALWAYS | FA_CREATE_NEW | FA_WRITE);
     fgoutf(pf, "%s\n", pathname);
     f_close(pf);
@@ -184,7 +184,7 @@ err:
     return false;
 }
 
-bool load_firmware(char* pathname) {
+bool __in_hfa() load_firmware(char* pathname) {
     if (flash_list) delete_list(flash_list);
     FILINFO* pfileinfo = pvPortMalloc(sizeof(FILINFO));
     f_stat(pathname, pfileinfo);
@@ -200,21 +200,21 @@ bool load_firmware(char* pathname) {
     return load_firmware_sram(pathname);
 }
 
-void vAppTask(void *pv) {
+void __in_hfa() vAppTask(void *pv) {
     int res = ((boota_ptr_t)M_OS_APP_TABLE_BASE[0])(pv); // TODO: 0 - 2nd page, what exactly page used by app?
     // goutf("RET_CODE: %d\n", res);
     vTaskDelete( NULL );
     // TODO: ?? return res;
 }
 
-void run_app(char * name) {
+void __in_hfa() run_app(char * name) {
     xTaskCreate(vAppTask, name, 2048, NULL, configMAX_PRIORITIES - 1, NULL);
 }
 
 #include "elf32.h"
 // Декодирование и обновление инструкции BL для ссылки типа R_ARM_THM_PC22
 // Функция для разрешения ссылки типа R_ARM_THM_PC22
-void resolve_thm_pc22(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
+void __in_hfa() resolve_thm_pc22(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
     uint16_t instr0 = *addr;
     uint16_t instr = *(addr + 1);
     // Декодирование текущего смещения
@@ -250,7 +250,7 @@ void resolve_thm_pc22(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
 }
 
 // Разрешение ссылки типа R_ARM_THM_JUMP24 (B.W в Thumb-2)
-void resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
+void __in_hfa() resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
     uint16_t instr0 = *addr;
     uint16_t instr1 = *(addr + 1);
 
@@ -288,7 +288,7 @@ void resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
     *addr   = (0b11100 << 11) | (J1 << 13) | (J2 << 11) | imm11;
 }
 
-static const char* st_predef(const char* v) {
+static const char* __in_hfa() st_predef(const char* v) {
     if(strlen(v) == 2) {
         if (v[0] == '$' && v[1] == 't') {
             return "$t (Thumb)";
@@ -309,7 +309,7 @@ typedef struct {
     list_t* /*sect_entry_t*/ sections_lst;
 } load_sec_ctx;
 
-static char* sec_prg_addr(load_sec_ctx* ctx, uint16_t sec_num) {
+static char* __in_hfa() sec_prg_addr(load_sec_ctx* ctx, uint16_t sec_num) {
     node_t* n = ctx->sections_lst->first;
     while (n) {
         sect_entry_t* se = (sect_entry_t*)n->data;
@@ -321,7 +321,7 @@ static char* sec_prg_addr(load_sec_ctx* ctx, uint16_t sec_num) {
     return 0;
 }
 
-static void add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr, uint16_t num) {
+static void __in_hfa() add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr, uint16_t num) {
     sect_entry_t* se = (sect_entry_t*)pvPortMalloc(sizeof(sect_entry_t));
     // goutf("sec: [%p]\n", se);
     se->del_addr = del_addr;
@@ -330,7 +330,7 @@ static void add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr, uint16_t 
     list_push_back(ctx->sections_lst, se);
 }
 
-inline static uint8_t* sec_align(uint32_t sz, uint8_t* *pdel_addr, uint8_t* *real_addr, uint32_t a, bool write_access) {
+inline static uint8_t* __in_hfa() sec_align(uint32_t sz, uint8_t* *pdel_addr, uint8_t* *real_addr, uint32_t a, bool write_access) {
     uint8_t* res = (uint8_t*)pvPortMalloc(sz);
     if (a == 0 || a == 1) {
         *pdel_addr = res;
@@ -359,7 +359,7 @@ inline static uint8_t* sec_align(uint32_t sz, uint8_t* *pdel_addr, uint8_t* *rea
     return res;
 }
 
-static const char* st_spec_sec(uint16_t st) {
+static const char* __in_hfa() st_spec_sec(uint16_t st) {
     if (st >= 0xff00 && st <= 0xff1f)
         return "PROC";
     switch (st)
@@ -380,7 +380,7 @@ static const char* st_spec_sec(uint16_t st) {
 
 static const char* s = "Unexpected ELF file";
 
-bool is_new_app(cmd_ctx_t* ctx) {
+bool __in_hfa() is_new_app(cmd_ctx_t* ctx) {
     if (!ctx->orig_cmd) {
         gouta("Unable to open file: NULL\n");
         return false;
@@ -432,7 +432,7 @@ bool is_new_app(cmd_ctx_t* ctx) {
     return true;
 }
 
-void cleanup_bootb_ctx(cmd_ctx_t* ctx) {
+void __in_hfa() cleanup_bootb_ctx(cmd_ctx_t* ctx) {
     // goutf("cleanup_bootb_ctx [%p]\n", ctx);
     bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
     if (!bootb_ctx) return;
@@ -479,7 +479,7 @@ void cleanup_bootb_ctx(cmd_ctx_t* ctx) {
     // gouta("cleanup_bootb_ctx <<\n");
 }
 
-bool run_new_app(cmd_ctx_t* ctx) {
+bool __in_hfa() run_new_app(cmd_ctx_t* ctx) {
     // todo:
     gouta("tba\n");
     return false;
@@ -658,7 +658,7 @@ e2:
     return prg_addr;
 }
 
-static uint32_t load_sec2mem_wrapper(load_sec_ctx* pctx, uint32_t req_idx, bool try_to_use_flash) {
+static uint32_t __in_hfa() load_sec2mem_wrapper(load_sec_ctx* pctx, uint32_t req_idx, bool try_to_use_flash) {
     if (req_idx != 0xFFFFFFFF) {
         #if DEBUG_APP_LOAD
         goutf("Loading .symtab section #%d\n", req_idx);
@@ -887,7 +887,7 @@ volatile bootb_ptr_t bootb_sync_signal = NULL;
 void vShowAlloc( void );
 #endif
 
-static void exec_sync(cmd_ctx_t* ctx) {
+static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
     #if DEBUG_APP_LOAD
          goutf("orig_cmd: [%p] %s, pipe: [%p] ", ctx, ctx->orig_cmd, ctx->next);
          if (ctx->argc) {
@@ -946,7 +946,7 @@ static void exec_sync(cmd_ctx_t* ctx) {
     ctx->ret_code = res;
 }
 
-static void vAppDetachedTask(void *pv) {
+static void __in_hfa() vAppDetachedTask(void *pv) {
     cmd_ctx_t* ctx = (cmd_ctx_t*)pv;
     #if DEBUG_APP_LOAD
     goutf("vAppDetachedTask: %s [%p]\n", ctx->orig_cmd, ctx);
@@ -961,7 +961,7 @@ static void vAppDetachedTask(void *pv) {
     vTaskDelete( NULL );
 }
 
-void exec(cmd_ctx_t* ctx) {
+void __in_hfa() exec(cmd_ctx_t* ctx) {
     do {
         cmd_ctx_t* pipe_ctx = ctx->next;
         #if DEBUG_APP_LOAD
@@ -995,7 +995,7 @@ void exec(cmd_ctx_t* ctx) {
     } while(ctx);
 }
 
-void mallocFailedHandler() {
+void __in_hfa() mallocFailedHandler() {
     gouta("WARN: malloc failed\n");
     {
         HeapStats_t stat;
@@ -1022,11 +1022,11 @@ void mallocFailedHandler() {
     }
 }
 
-void overflowHook( TaskHandle_t pxTask, char *pcTaskName ) {
+void __in_hfa() overflowHook( TaskHandle_t pxTask, char *pcTaskName ) {
     goutf("WARN: stack overflow on task: '%s'\n", pcTaskName);
 }
 
-void vCmdTask(void *pv) {
+void __in_hfa() vCmdTask(void *pv) {
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     cmd_ctx_t* ctx = get_cmd_startup_ctx();
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
@@ -1102,11 +1102,11 @@ e:
 }
 
 // support sygnal for current "sync_ctx" context only for now
-void app_signal(void) {
+void __in_hfa() app_signal(void) {
     if (bootb_sync_signal) bootb_sync_signal();
 }
 
-int kill(uint32_t task_number) {
+int __in_hfa() kill(uint32_t task_number) {
     configRUN_TIME_COUNTER_TYPE ulTotalRunTime, ulStatsAsPercentage;
     volatile UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
     TaskStatus_t *pxTaskStatusArray = pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );

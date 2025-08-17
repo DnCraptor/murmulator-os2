@@ -2,6 +2,7 @@
 
 #define nespad_wrap_target 0
 #define nespad_wrap 6
+#define __in_hfa(group) __attribute__((section(".high_flash" group)))
 
 static const uint16_t nespad_program_instructions[] = {
     //     .wrap_target
@@ -34,7 +35,7 @@ uint8_t nespad_state  = 0;  // Joystick 1
 uint8_t nespad_state2 = 0;  // Joystick 2
 
 static uint offset;
-bool nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,uint8_t latPin) {
+bool __in_hfa() nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,uint8_t latPin) {
   if (pio_can_add_program(pio, &nespad_program) && ((sm = pio_claim_unused_sm(pio, true)) >= 0)) {
     offset = pio_add_program(pio, &nespad_program);
     pio_sm_config c = nespad_program_get_default_config(offset);
@@ -70,7 +71,7 @@ bool nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,uint8_t latP
   return false;
 }
 
-void nespad_end(uint8_t clkPin, uint8_t dataPin, uint8_t latPin) {
+void __in_hfa() nespad_end(uint8_t clkPin, uint8_t dataPin, uint8_t latPin) {
     pio_sm_set_enabled(pio, sm, false);
     pio_sm_unclaim(pio, sm);
     pio_remove_program(pio, &nespad_program, offset);
@@ -88,7 +89,7 @@ void nespad_end(uint8_t clkPin, uint8_t dataPin, uint8_t latPin) {
 // 0x20=Down, 0x10=Up, 0x08=Start, 0x04=Select, 0x02=B, 0x01=A. Must first
 // call nespad_begin() once to set up PIO. Result will be 0 if PIO failed to
 // init (e.g. no free state machine).
-void nespad_read()
+void __in_hfa() nespad_read()
 {
   if (sm<0) return;
   if (pio_sm_is_rx_fifo_empty(pio, sm)) return;
@@ -131,7 +132,7 @@ void nespad_read()
   nespad_state2 = temp16 >> 8;          // 00000000.87654321 Joy2
 }
 
-extern "C" void nespad_stat(uint8_t* pad1, uint8_t* pad2) {
+extern "C" void __in_hfa() nespad_stat(uint8_t* pad1, uint8_t* pad2) {
     nespad_read();
     *pad1 = nespad_state;
     *pad2 = nespad_state2;

@@ -31,6 +31,7 @@
  * all the API functions to use the MPU wrappers. That should only be done when
  * task.h is included from an application file. */
 #define MPU_WRAPPERS_INCLUDED_FROM_API_FILE
+#define __in_hfa(group) __attribute__((section(".high_flash" group)))
 
 /* Scheduler includes. */
 #include "FreeRTOS.h"
@@ -1912,7 +1913,7 @@ void vPortSVCHandler_C( uint32_t * pulCallerStackAddress ) /* PRIVILEGED_FUNCTIO
     }
 
 #else /* if ( configNUMBER_OF_CORES != 1 ) */
-    BaseType_t xPortStartScheduler( void ) /* PRIVILEGED_FUNCTION */
+    BaseType_t __in_hfa() xPortStartScheduler( void ) /* PRIVILEGED_FUNCTION */
     {
         /* An application can install FreeRTOS interrupt handlers in one of the
          * following ways:

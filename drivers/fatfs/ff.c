@@ -617,7 +617,7 @@ static const BYTE DbcTbl[] = MKCVTBL(TBL_DC, FF_CODE_PAGE);
 /* Load/Store multi-byte word in the FAT structure                       */
 /*-----------------------------------------------------------------------*/
 
-static WORD ld_word (const BYTE* ptr)	/*	 Load a 2-byte little-endian word */
+static WORD __in_hfa() ld_word (const BYTE* ptr)	/*	 Load a 2-byte little-endian word */
 {
 	WORD rv;
 
@@ -626,7 +626,7 @@ static WORD ld_word (const BYTE* ptr)	/*	 Load a 2-byte little-endian word */
 	return rv;
 }
 
-static DWORD ld_dword (const BYTE* ptr)	/* Load a 4-byte little-endian word */
+static DWORD __in_hfa() ld_dword (const BYTE* ptr)	/* Load a 4-byte little-endian word */
 {
 	DWORD rv;
 
@@ -638,7 +638,7 @@ static DWORD ld_dword (const BYTE* ptr)	/* Load a 4-byte little-endian word */
 }
 
 #if FF_FS_EXFAT
-static QWORD ld_qword (const BYTE* ptr)	/* Load an 8-byte little-endian word */
+static QWORD __in_hfa() ld_qword (const BYTE* ptr)	/* Load an 8-byte little-endian word */
 {
 	QWORD rv;
 
@@ -655,13 +655,13 @@ static QWORD ld_qword (const BYTE* ptr)	/* Load an 8-byte little-endian word */
 #endif
 
 #if !FF_FS_READONLY
-static void st_word (BYTE* ptr, WORD val)	/* Store a 2-byte word in little-endian */
+static void __in_hfa() st_word (BYTE* ptr, WORD val)	/* Store a 2-byte word in little-endian */
 {
 	*ptr++ = (BYTE)val; val >>= 8;
 	*ptr++ = (BYTE)val;
 }
 
-static void st_dword (BYTE* ptr, DWORD val)	/* Store a 4-byte word in little-endian */
+static void __in_hfa() st_dword (BYTE* ptr, DWORD val)	/* Store a 4-byte word in little-endian */
 {
 	*ptr++ = (BYTE)val; val >>= 8;
 	*ptr++ = (BYTE)val; val >>= 8;
@@ -670,7 +670,7 @@ static void st_dword (BYTE* ptr, DWORD val)	/* Store a 4-byte word in little-end
 }
 
 #if FF_FS_EXFAT
-static void st_qword (BYTE* ptr, QWORD val)	/* Store an 8-byte word in little-endian */
+static void __in_hfa() st_qword (BYTE* ptr, QWORD val)	/* Store an 8-byte word in little-endian */
 {
 	*ptr++ = (BYTE)val; val >>= 8;
 	*ptr++ = (BYTE)val; val >>= 8;
@@ -691,7 +691,7 @@ static void st_qword (BYTE* ptr, QWORD val)	/* Store an 8-byte word in little-en
 /*-----------------------------------------------------------------------*/
 
 /* Test if the byte is DBC 1st byte */
-static int dbc_1st (BYTE c)
+static int __in_hfa() dbc_1st (BYTE c)
 {
 #if FF_CODE_PAGE == 0		/* Variable code page */
 	if (DbcTbl && c >= DbcTbl[0]) {
@@ -711,7 +711,7 @@ static int dbc_1st (BYTE c)
 
 
 /* Test if the byte is DBC 2nd byte */
-static int dbc_2nd (BYTE c)
+static int __in_hfa() dbc_2nd (BYTE c)
 {
 #if FF_CODE_PAGE == 0		/* Variable code page */
 	if (DbcTbl && c >= DbcTbl[4]) {
@@ -735,7 +735,7 @@ static int dbc_2nd (BYTE c)
 #if FF_USE_LFN
 
 /* Get a Unicode code point from the TCHAR string in defined API encodeing */
-static DWORD tchar2uni (	/* Returns a character in UTF-16 encoding (>=0x10000 on surrogate pair, 0xFFFFFFFF on decode error) */
+static DWORD __in_hfa() tchar2uni (	/* Returns a character in UTF-16 encoding (>=0x10000 on surrogate pair, 0xFFFFFFFF on decode error) */
 	const TCHAR** str		/* Pointer to pointer to TCHAR string in configured encoding */
 )
 {
@@ -804,7 +804,7 @@ static DWORD tchar2uni (	/* Returns a character in UTF-16 encoding (>=0x10000 on
 
 
 /* Store a Unicode char in defined API encoding */
-static UINT put_utf (	/* Returns number of encoding units written (0:buffer overflow or wrong encoding) */
+static UINT __in_hfa() put_utf (	/* Returns number of encoding units written (0:buffer overflow or wrong encoding) */
 	DWORD chr,	/* UTF-16 encoded character (Surrogate pair if >=0x10000) */
 	TCHAR* buf,	/* Output buffer */
 	UINT szb	/* Size of the buffer */
@@ -1028,7 +1028,7 @@ static void clear_lock (	/* Clear lock entries of the volume */
 /* Move/Flush disk access window in the filesystem object                */
 /*-----------------------------------------------------------------------*/
 #if !FF_FS_READONLY
-static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
+static FRESULT __in_hfa() sync_window (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs			/* Filesystem object */
 )
 {
@@ -1050,7 +1050,7 @@ static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
 #endif
 
 
-static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
+static FRESULT __in_hfa() move_window (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs,		/* Filesystem object */
 	LBA_t sect		/* Sector LBA to make appearance in the fs->win[] */
 )
@@ -1081,7 +1081,7 @@ static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
 /* Synchronize filesystem and data on the storage                        */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
+static FRESULT __in_hfa() sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs		/* Filesystem object */
 )
 {
@@ -1117,7 +1117,7 @@ static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
 /* Get physical sector number from cluster number                        */
 /*-----------------------------------------------------------------------*/
 
-static LBA_t clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
+static LBA_t __in_hfa() clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
 	FATFS* fs,		/* Filesystem object */
 	DWORD clst		/* Cluster# to be converted */
 )
@@ -1131,7 +1131,7 @@ static LBA_t clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
 /* FAT access - Read value of an FAT entry                               */
 /*-----------------------------------------------------------------------*/
 
-static DWORD get_fat (		/* 0xFFFFFFFF:Disk error, 1:Internal error, 2..0x7FFFFFFF:Cluster status */
+static DWORD __in_hfa() get_fat (		/* 0xFFFFFFFF:Disk error, 1:Internal error, 2..0x7FFFFFFF:Cluster status */
 	FFOBJID* obj,	/* Corresponding object */
 	DWORD clst		/* Cluster number to get the value */
 )
@@ -1209,7 +1209,7 @@ static DWORD get_fat (		/* 0xFFFFFFFF:Disk error, 1:Internal error, 2..0x7FFFFFF
 /* FAT access - Change value of an FAT entry                             */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT put_fat (	/* FR_OK(0):succeeded, !=0:error */
+static FRESULT __in_hfa() put_fat (	/* FR_OK(0):succeeded, !=0:error */
 	FATFS* fs,		/* Corresponding filesystem object */
 	DWORD clst,		/* FAT index number (cluster number) to be changed */
 	DWORD val		/* New value to be set to the entry */
@@ -1274,7 +1274,7 @@ static FRESULT put_fat (	/* FR_OK(0):succeeded, !=0:error */
 /* Find a contiguous free cluster block */
 /*--------------------------------------*/
 
-static DWORD find_bitmap (	/* 0:Not found, 2..:Cluster block found, 0xFFFFFFFF:Disk error */
+static DWORD __in_hfa() find_bitmap (	/* 0:Not found, 2..:Cluster block found, 0xFFFFFFFF:Disk error */
 	FATFS* fs,	/* Filesystem object */
 	DWORD clst,	/* Cluster number to scan from */
 	DWORD ncl	/* Number of contiguous clusters to find (1..) */
@@ -1314,7 +1314,7 @@ static DWORD find_bitmap (	/* 0:Not found, 2..:Cluster block found, 0xFFFFFFFF:D
 /* Set/Clear a block of allocation bitmap */
 /*----------------------------------------*/
 
-static FRESULT change_bitmap (
+static FRESULT __in_hfa() change_bitmap (
 	FATFS* fs,	/* Filesystem object */
 	DWORD clst,	/* Cluster number to change from */
 	DWORD ncl,	/* Number of clusters to be changed */
@@ -1350,7 +1350,7 @@ static FRESULT change_bitmap (
 /* Fill the first fragment of the FAT chain    */
 /*---------------------------------------------*/
 
-static FRESULT fill_first_frag (
+static FRESULT __in_hfa() fill_first_frag (
 	FFOBJID* obj	/* Pointer to the corresponding object */
 )
 {
@@ -1373,7 +1373,7 @@ static FRESULT fill_first_frag (
 /* Fill the last fragment of the FAT chain     */
 /*---------------------------------------------*/
 
-static FRESULT fill_last_frag (
+static FRESULT __in_hfa() fill_last_frag (
 	FFOBJID* obj,	/* Pointer to the corresponding object */
 	DWORD lcl,		/* Last cluster of the fragment */
 	DWORD term		/* Value to set the last FAT entry */
@@ -1399,7 +1399,7 @@ static FRESULT fill_last_frag (
 /* FAT handling - Remove a cluster chain                                 */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT remove_chain (	/* FR_OK(0):succeeded, !=0:error */
+static FRESULT __in_hfa() remove_chain (	/* FR_OK(0):succeeded, !=0:error */
 	FFOBJID* obj,		/* Corresponding object */
 	DWORD clst,			/* Cluster to remove a chain from */
 	DWORD pclst			/* Previous cluster of clst (0 if entire chain) */
@@ -1597,7 +1597,7 @@ static DWORD __in_hfa() create_chain (	/* 0:No free cluster, 1:Internal error, 0
 /* FAT handling - Convert offset into cluster with link map table        */
 /*-----------------------------------------------------------------------*/
 
-static DWORD clmt_clust (	/* <2:Error, >=2:Cluster number */
+static DWORD __in_hfa() clmt_clust (	/* <2:Error, >=2:Cluster number */
 	FIL* fp,		/* Pointer to the file object */
 	FSIZE_t ofs		/* File offset to be converted to cluster# */
 )
@@ -1627,7 +1627,7 @@ static DWORD clmt_clust (	/* <2:Error, >=2:Cluster number */
 /*-----------------------------------------------------------------------*/
 
 #if !FF_FS_READONLY
-static FRESULT dir_clear (	/* Returns FR_OK or FR_DISK_ERR */
+static FRESULT __in_hfa() dir_clear (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS *fs,		/* Filesystem object */
 	DWORD clst		/* Directory table to clear */
 )
@@ -1666,7 +1666,7 @@ static FRESULT dir_clear (	/* Returns FR_OK or FR_DISK_ERR */
 /* Directory handling - Set directory index                              */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT dir_sdi (	/* FR_OK(0):succeeded, !=0:error */
+static FRESULT __in_hfa() dir_sdi (	/* FR_OK(0):succeeded, !=0:error */
 	DIR* dp,		/* Pointer to directory object */
 	DWORD ofs		/* Offset of directory table */
 )
@@ -1714,7 +1714,7 @@ static FRESULT dir_sdi (	/* FR_OK(0):succeeded, !=0:error */
 /* Directory handling - Move directory table index next                  */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT dir_next (	/* FR_OK(0):succeeded, FR_NO_FILE:End of table, FR_DENIED:Could not stretch */
+static FRESULT __in_hfa() dir_next (	/* FR_OK(0):succeeded, FR_NO_FILE:End of table, FR_DENIED:Could not stretch */
 	DIR* dp,				/* Pointer to the directory object */
 	int stretch				/* 0: Do not stretch table, 1: Stretch table if needed */
 )
@@ -1775,7 +1775,7 @@ static FRESULT dir_next (	/* FR_OK(0):succeeded, FR_NO_FILE:End of table, FR_DEN
 /* Directory handling - Reserve a block of directory entries             */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT dir_alloc (	/* FR_OK(0):succeeded, !=0:error */
+static FRESULT __in_hfa() dir_alloc (	/* FR_OK(0):succeeded, !=0:error */
 	DIR* dp,				/* Pointer to the directory object */
 	UINT n_ent				/* Number of contiguous entries to allocate */
 )
@@ -1817,7 +1817,7 @@ static FRESULT dir_alloc (	/* FR_OK(0):succeeded, !=0:error */
 /* FAT: Directory handling - Load/Store start cluster number             */
 /*-----------------------------------------------------------------------*/
 
-static DWORD ld_clust (	/* Returns the top cluster value of the SFN entry */
+static DWORD __in_hfa() ld_clust (	/* Returns the top cluster value of the SFN entry */
 	FATFS* fs,			/* Pointer to the fs object */
 	const BYTE* dir		/* Pointer to the key entry */
 )
@@ -1834,7 +1834,7 @@ static DWORD ld_clust (	/* Returns the top cluster value of the SFN entry */
 
 
 #if !FF_FS_READONLY
-static void st_clust (
+static void __in_hfa() st_clust (
 	FATFS* fs,	/* Pointer to the fs object */
 	BYTE* dir,	/* Pointer to the key entry */
 	DWORD cl	/* Value to be set */
@@ -1854,7 +1854,7 @@ static void st_clust (
 /* FAT-LFN: Compare a part of file name with an LFN entry */
 /*--------------------------------------------------------*/
 
-static int cmp_lfn (		/* 1:matched, 0:not matched */
+static int __in_hfa() cmp_lfn (		/* 1:matched, 0:not matched */
 	const WCHAR* lfnbuf,	/* Pointer to the LFN working buffer to be compared */
 	BYTE* dir				/* Pointer to the directory entry containing the part of LFN */
 )
@@ -1890,7 +1890,7 @@ static int cmp_lfn (		/* 1:matched, 0:not matched */
 /* FAT-LFN: Pick a part of file name from an LFN entry */
 /*-----------------------------------------------------*/
 
-static int pick_lfn (	/* 1:succeeded, 0:buffer overflow or invalid LFN entry */
+static int __in_hfa() pick_lfn (	/* 1:succeeded, 0:buffer overflow or invalid LFN entry */
 	WCHAR* lfnbuf,		/* Pointer to the LFN working buffer */
 	BYTE* dir			/* Pointer to the LFN entry */
 )
@@ -1928,7 +1928,7 @@ static int pick_lfn (	/* 1:succeeded, 0:buffer overflow or invalid LFN entry */
 /* FAT-LFN: Create an entry of LFN entries */
 /*-----------------------------------------*/
 
-static void put_lfn (
+static void __in_hfa() put_lfn (
 	const WCHAR* lfn,	/* Pointer to the LFN */
 	BYTE* dir,			/* Pointer to the LFN entry to be created */
 	BYTE ord,			/* LFN order (1-20) */
@@ -1965,7 +1965,7 @@ static void put_lfn (
 /* FAT-LFN: Create a Numbered SFN                                        */
 /*-----------------------------------------------------------------------*/
 
-static void gen_numname (
+static void __in_hfa() gen_numname (
 	BYTE* dst,			/* Pointer to the buffer to store numbered SFN */
 	const BYTE* src,	/* Pointer to SFN in directory form */
 	const WCHAR* lfn,	/* Pointer to LFN */
@@ -2022,7 +2022,7 @@ static void gen_numname (
 /* FAT-LFN: Calculate checksum of an SFN entry                           */
 /*-----------------------------------------------------------------------*/
 
-static BYTE sum_sfn (
+static BYTE __in_hfa() sum_sfn (
 	const BYTE* dir		/* Pointer to the SFN entry */
 )
 {
@@ -2044,7 +2044,7 @@ static BYTE sum_sfn (
 /* exFAT: Checksum                                                       */
 /*-----------------------------------------------------------------------*/
 
-static WORD xdir_sum (	/* Get checksum of the directoly entry block */
+static WORD __in_hfa() xdir_sum (	/* Get checksum of the directoly entry block */
 	const BYTE* dir		/* Directory entry block to be calculated */
 )
 {
@@ -2065,7 +2065,7 @@ static WORD xdir_sum (	/* Get checksum of the directoly entry block */
 
 
 
-static WORD xname_sum (	/* Get check sum (to be used as hash) of the file name */
+static WORD __in_hfa() xname_sum (	/* Get check sum (to be used as hash) of the file name */
 	const WCHAR* name	/* File name to be calculated */
 )
 {
@@ -2099,7 +2099,7 @@ static DWORD xsum32 (	/* Returns 32-bit checksum */
 /* exFAT: Get a directry entry block */
 /*-----------------------------------*/
 
-static FRESULT load_xdir (	/* FR_INT_ERR: invalid entry block */
+static FRESULT __in_hfa() load_xdir (	/* FR_INT_ERR: invalid entry block */
 	DIR* dp					/* Reading direcotry object pointing top of the entry block to load */
 )
 {
@@ -2150,7 +2150,7 @@ static FRESULT load_xdir (	/* FR_INT_ERR: invalid entry block */
 /* exFAT: Initialize object allocation info with loaded entry block */
 /*------------------------------------------------------------------*/
 
-static void init_alloc_info (
+static void __in_hfa() init_alloc_info (
 	FATFS* fs,		/* Filesystem object */
 	FFOBJID* obj	/* Object allocation information to be initialized */
 )
@@ -2168,7 +2168,7 @@ static void init_alloc_info (
 /* exFAT: Load the object's directory entry block */
 /*------------------------------------------------*/
 
-static FRESULT load_obj_xdir (
+static FRESULT __in_hfa() load_obj_xdir (
 	DIR* dp,			/* Blank directory object to be used to access containing direcotry */
 	const FFOBJID* obj	/* Object with its containing directory information */
 )
@@ -2197,7 +2197,7 @@ static FRESULT load_obj_xdir (
 /* exFAT: Store the directory entry block */
 /*----------------------------------------*/
 
-static FRESULT store_xdir (
+static FRESULT __in_hfa() store_xdir (
 	DIR* dp				/* Pointer to the direcotry object */
 )
 {
@@ -2229,7 +2229,7 @@ static FRESULT store_xdir (
 /* exFAT: Create a new directory enrty block */
 /*-------------------------------------------*/
 
-static void create_xdir (
+static void __in_hfa() create_xdir (
 	BYTE* dirb,			/* Pointer to the direcotry entry block buffer */
 	const WCHAR* lfn	/* Pointer to the object name */
 )
@@ -2275,7 +2275,7 @@ static void create_xdir (
 #define DIR_READ_FILE(dp) dir_read(dp, 0)
 #define DIR_READ_LABEL(dp) dir_read(dp, 1)
 
-static FRESULT dir_read (
+static FRESULT __in_hfa() dir_read (
 	DIR* dp,		/* Pointer to the directory object */
 	int vol			/* Filtered by 0:file/directory or 1:volume label */
 )
@@ -2540,7 +2540,7 @@ static FRESULT __in_hfa() dir_register (	/* FR_OK:succeeded, FR_DENIED:no free e
 /* Remove an object from the directory                                   */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT dir_remove (	/* FR_OK:Succeeded, FR_DISK_ERR:A disk error */
+static FRESULT __in_hfa() dir_remove (	/* FR_OK:Succeeded, FR_DISK_ERR:A disk error */
 	DIR* dp					/* Directory object pointing the entry to be removed */
 )
 {
@@ -2801,7 +2801,7 @@ static int pattern_match (	/* 0:mismatched, 1:matched */
 /* Pick a top segment and create the object name in directory form       */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not create */
+static FRESULT __in_hfa() create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not create */
 	DIR* dp,					/* Pointer to the directory object */
 	const TCHAR** path			/* Pointer to pointer to the segment in the path string */
 )
@@ -3090,7 +3090,7 @@ static FRESULT __in_hfa() follow_path (	/* FR_OK(0): successful, !=0: error code
 /* Get logical drive number from path name                               */
 /*-----------------------------------------------------------------------*/
 
-static int get_ldnumber (	/* Returns logical drive number (-1:invalid drive number or null pointer) */
+static int __in_hfa() get_ldnumber (	/* Returns logical drive number (-1:invalid drive number or null pointer) */
 	const TCHAR** path		/* Pointer to pointer to the path name */
 )
 {
@@ -3238,7 +3238,7 @@ static DWORD make_rand (
 
 /* Check what the sector is */
 
-static UINT check_fs (	/* 0:FAT/FAT32 VBR, 1:exFAT VBR, 2:Not FAT and valid BS, 3:Not FAT and invalid BS, 4:Disk error */
+static UINT __in_hfa() check_fs (	/* 0:FAT/FAT32 VBR, 1:exFAT VBR, 2:Not FAT and valid BS, 3:Not FAT and invalid BS, 4:Disk error */
 	FATFS* fs,			/* Filesystem object */
 	LBA_t sect			/* Sector to load and check if it is an FAT-VBR or not */
 )
@@ -3278,7 +3278,7 @@ static UINT check_fs (	/* 0:FAT/FAT32 VBR, 1:exFAT VBR, 2:Not FAT and valid BS, 
 /* Find an FAT volume */
 /* (It supports only generic partitioning rules, MBR, GPT and SFD) */
 
-static UINT find_volume (	/* Returns BS status found in the hosting drive */
+static UINT __in_hfa() find_volume (	/* Returns BS status found in the hosting drive */
 	FATFS* fs,		/* Filesystem object */
 	UINT part		/* Partition to fined = 0:auto, 1..:forced */
 )
@@ -3561,7 +3561,7 @@ static FRESULT __in_hfa() mount_volume (	/* FR_OK(0): successful, !=0: an error 
 /* Check if the file/directory object is valid or not                    */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
+static FRESULT __in_hfa() validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
 	FFOBJID* obj,			/* Pointer to the FFOBJID, the 1st member in the FIL/DIR object, to check validity */
 	FATFS** rfs				/* Pointer to pointer to the owner filesystem object to return */
 )
@@ -7063,7 +7063,7 @@ int f_printf (
 #endif /* FF_USE_STRFUNC */
 
 
-uint32_t f_getfree32(FATFS * fs) {
+uint32_t __in_hfa() f_getfree32(FATFS * fs) {
 	DWORD nfree, clst, stat;
 	LBA_t sect;
 	UINT i;
@@ -7162,12 +7162,12 @@ FRESULT f_setcp (
 }
 #endif	/* FF_CODE_PAGE == 0 */
 
-bool f_eof(FIL* fp) {
+bool __in_hfa() f_eof(FIL* fp) {
 	// if (fp->chained && fp->chained->obj.fs) return false;
 	return ((int)((fp)->fptr == (fp)->obj.objsize));
 }
 
-FRESULT f_open_pipe(FIL* to, FIL* from) {
+FRESULT __in_hfa() f_open_pipe(FIL* to, FIL* from) {
     from->chained = to;
     to->chained = from;
 	QueueHandle_t q = xQueueCreate(512, sizeof(char));

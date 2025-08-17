@@ -30,7 +30,10 @@ option(ILI9341 "Enable TFT ILI9341 display" OFF)
 option(HDMI "Enable HDMI display" OFF)
 option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
+option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
+set(BUTTER_PSRAM_GPIO 19)
+#set(HID ON)
 set(VGAHDMI ON)
 set(CPU_MHZ 378)
 
@@ -38,7 +41,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.0.7")
+set(MOS_VERSION "2.0.8")
 endif ()
 
 SET(BUILD_NAME "m1p2-${PROJECT_NAME}")
@@ -55,7 +58,15 @@ add_subdirectory(freertos_config)
 add_subdirectory(FreeRTOS-Kernel)
 
 add_subdirectory(drivers/audio)
-add_subdirectory(drivers/ps2)
+if (HID)
+    add_subdirectory(drivers/ps2kbd)
+    # INCLUDE FILES THAT SHOULD BE COMPILED:
+    file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c")
+else ()
+    add_subdirectory(drivers/ps2)
+    # INCLUDE FILES THAT SHOULD BE COMPILED:
+    file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c" "drivers/usb/*.c")
+endif()
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
 add_subdirectory(drivers/nespad)
@@ -68,8 +79,6 @@ add_subdirectory(drivers/tv)
 add_subdirectory(drivers/tv-software)
 add_subdirectory(drivers/graphics)
 
-# INCLUDE FILES THAT SHOULD BE COMPILED:
-file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c" "drivers/usb/*.c")
 
 message(STATUS "Add source files:")
 foreach (SRC_FILE IN LISTS SRC)
@@ -86,14 +95,13 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 configure_file(memmap.ld.in memmap.ld @ONLY)
 pico_set_linker_script(${PROJECT_NAME} ${CMAKE_CURRENT_BINARY_DIR}/memmap.ld)
 
-pico_set_program_name(${PROJECT_NAME} "Murmulator OS 2.0.0")
-pico_set_program_version(${PROJECT_NAME} "test")
+pico_set_program_name(${PROJECT_NAME} "Murmulator OS ${MOS_VERSION}")
+pico_set_program_version(${PROJECT_NAME} MOS_VERSION)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
         FreeRTOS-Kernel
         FreeRTOS-Kernel-Heap4
 
-        ps2
         psram
         audio
         sdcard
@@ -111,8 +119,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         hardware_flash
 
         tinyusb_board
-        tinyusb_device
 )
+if (HID)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HID=1)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ps2kbd tinyusb_host)
+else ()
+    target_link_libraries(${PROJECT_NAME} PRIVATE ps2 tinyusb_device)
+endif()
 
 if (HDMI)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DEFAULT_VIDEO_DRIVER=HDMI_DRV)
@@ -147,6 +160,10 @@ target_compile_options(${PROJECT_NAME} PUBLIC
         -w
 )
 endif ()
+
+if(BUTTER_PSRAM_GPIO)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE BUTTER_PSRAM_GPIO=${BUTTER_PSRAM_GPIO})
+endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
         PICO_FLASH_SIZE_BYTES=16777216
@@ -190,8 +207,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         PSRAM_PIN_SCK=19
         PSRAM_PIN_MOSI=20
         PSRAM_PIN_MISO=21
-
-        BUTTER_PSRAM_GPIO=19
 
         WAV_IN_PIO=22
         #I2S_SOUND
@@ -249,7 +264,15 @@ ELSE()
     SET(BUILD_NAME "${BUILD_NAME}-VGA-HDMI")
 ENDIF()
 
-SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz")
+if (HID)
+    SET(BUILD_NAME "${BUILD_NAME}-HID-${MOS_VERSION}-${CPU_MHZ}MHz")
+else()
+    SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz")
+endif()
+
+if (BUTTER_PSRAM_GPIO)
+    SET(BUILD_NAME "${BUILD_NAME}-GP${BUTTER_PSRAM_GPIO}")
+endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 

@@ -65,7 +65,10 @@ target_sources(FreeRTOS-Kernel-Heap3 INTERFACE ${FREERTOS_KERNEL_PATH}/portable/
 target_link_libraries(FreeRTOS-Kernel-Heap3 INTERFACE FreeRTOS-Kernel)
 
 add_library(FreeRTOS-Kernel-Heap4 INTERFACE)
-target_sources(FreeRTOS-Kernel-Heap4 INTERFACE ${FREERTOS_KERNEL_PATH}/portable/MemMang/heap_4.c)
+target_sources(FreeRTOS-Kernel-Heap4 INTERFACE
+        ${FREERTOS_KERNEL_PATH}/portable/MemMang/heap_4.c
+        ${FREERTOS_KERNEL_PATH}/portable/MemMang/heap_4_psram.c
+)
 target_link_libraries(FreeRTOS-Kernel-Heap4 INTERFACE FreeRTOS-Kernel)
 
 add_library(FreeRTOS-Kernel-Heap5 INTERFACE)

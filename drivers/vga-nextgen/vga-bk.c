@@ -915,7 +915,7 @@ void vga_set_bgcolor(const uint32_t color888) {
                   ((c_lo << 8 | c_hi) & 0x3f3f | palette16_mask);
 }
 
-void vga_driver_init(void) {
+void __in_hfa() vga_driver_init(void) {
     set_vga_dma_handler_impl(dma_handler_VGA_impl);
     vga_set_bgcolor(0x000000);
     init_palette();

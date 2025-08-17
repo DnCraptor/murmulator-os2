@@ -1,11 +1,12 @@
 #include "psram_spi.h"
+#include "sys_table.h"
 
 static psram_spi_inst_t psram_spi;
 
 #define ITE_PSRAM (1ul << 20)
 #define MAX_PSRAM (512ul << 20)
 
-static uint32_t _psram_size() {
+static uint32_t __in_hfa() _psram_size() {
 #ifdef PSRAM    
     int32_t res = 0;
     for (res = ITE_PSRAM; res < MAX_PSRAM; res += ITE_PSRAM) {
@@ -157,7 +158,7 @@ static inline void pio_qspi_psram_cs_init(PIO pio, uint sm, uint prog_offs, uint
     pio_sm_set_enabled(pio, sm, true);
 }
 
-psram_spi_inst_t psram_spi_init_clkdiv(PIO pio, int sm, float clkdiv, bool fudge) {
+psram_spi_inst_t __in_hfa() psram_spi_init_clkdiv(PIO pio, int sm, float clkdiv, bool fudge) {
     psram_spi_inst_t spi;
     spi.pio = pio;
     spi.offset = pio_add_program(spi.pio, fudge ? &spi_psram_fudge_program : &spi_psram_program);

@@ -503,12 +503,12 @@ inline static void vPortFree(void * pv) {
     ((vPortFree_ptr_t)_sys_table_ptrs[33])(pv);
 }
 
-inline static void vTaskSuspendAll( void ) {
+inline static void __in_hfa() vTaskSuspendAll( void ) {
     typedef void (*v_ptr_t)( void  );
     ((v_ptr_t)_sys_table_ptrs[_vTaskSuspendAllPtrIdx])();
 }
 
-inline static BaseType_t xTaskResumeAll( void ) {
+inline static BaseType_t __in_hfa() xTaskResumeAll( void ) {
     typedef BaseType_t (*v_ptr_t)( void  );
     return ((v_ptr_t)_sys_table_ptrs[_xTaskResumeAllPtrIdx])();
 }
@@ -519,7 +519,7 @@ inline static UBaseType_t uxTaskGetNumberOfTasks( void ) {
 }
 
 inline static
-UBaseType_t uxTaskGetSystemState( TaskStatus_t * const pxTaskStatusArray,
+UBaseType_t __in_hfa() uxTaskGetSystemState( TaskStatus_t * const pxTaskStatusArray,
                                   const UBaseType_t uxArraySize,
                                   configRUN_TIME_COUNTER_TYPE * const pulTotalRunTime
 ) {

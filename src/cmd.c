@@ -7,10 +7,10 @@ const char _mc_con[] = ".mc.con";
 const char _cmd_history[] = ".cmd_history";
 
 static cmd_ctx_t ctx = { 0 };
-static size_t TOTAL_HEAP_SIZE = configTOTAL_HEAP_SIZE;
 
+extern uint32_t butter_psram_size;
 size_t __in_hfa() get_heap_total() {
-    return TOTAL_HEAP_SIZE;
+    return configTOTAL_HEAP_SIZE + butter_psram_size;
 }
 char* __in_hfa() copy_str(const char* s) {
     char* res = (char*)pvPortMalloc(strlen(s) + 1);

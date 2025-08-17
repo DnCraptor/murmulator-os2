@@ -185,38 +185,38 @@ const static graphics_driver_t internal_stv_driver = {
 
 static volatile graphics_driver_t* __scratch_y("_driver_bss") graphics_driver = 0;
 
-int graphics_get_default_mode(void) {
+int __in_hfa() graphics_get_default_mode(void) {
     if (graphics_driver != 0  && graphics_driver->get_default_mode) {
         return graphics_driver->get_default_mode();
     }
     return 0;
 }
 
-uint8_t* graphics_get_font_table(void) {
+uint8_t* __in_hfa() graphics_get_font_table(void) {
     if (graphics_driver != 0  && graphics_driver->get_font_table) {
         return graphics_driver->get_font_table();
     }
     return 0;
 }
-uint8_t graphics_get_font_width(void) {
+uint8_t __in_hfa() graphics_get_font_width(void) {
     if (graphics_driver != 0  && graphics_driver->get_font_width) {
         return graphics_driver->get_font_width();
     }
     return 0;
 }
-uint8_t graphics_get_font_height(void) {
+uint8_t __in_hfa() graphics_get_font_height(void) {
     if (graphics_driver != 0  && graphics_driver->get_font_height) {
         return graphics_driver->get_font_height();
     }
     return 0;
 }
-bool graphics_set_font(uint8_t w, uint8_t h) {
+bool __in_hfa() graphics_set_font(uint8_t w, uint8_t h) {
     if (graphics_driver != 0  && graphics_driver->set_font) {
         return graphics_driver->set_font(w, h);
     }
     return false;
 }
-bool graphics_set_ext_font(uint8_t* t, uint8_t w, uint8_t h) {
+bool __in_hfa() graphics_set_ext_font(uint8_t* t, uint8_t w, uint8_t h) {
     if (graphics_driver != 0  && graphics_driver->set_ext_font) {
         return graphics_driver->set_ext_font(t, w, h);
     }
@@ -224,7 +224,7 @@ bool graphics_set_ext_font(uint8_t* t, uint8_t w, uint8_t h) {
 }
 
 
-void graphics_init(int drv_type) {
+void __in_hfa() graphics_init(int drv_type) {
     if (graphics_driver == 0) {
         switch(drv_type) {
 #ifdef HDMI
@@ -275,68 +275,68 @@ void graphics_init(int drv_type) {
     }
 }
 
-void set_cursor_color(uint8_t color) {
+void __in_hfa() set_cursor_color(uint8_t color) {
     if(graphics_driver && graphics_driver->set_cursor_color) {
         return graphics_driver->set_cursor_color(color);
     }
 }
 
-bool is_buffer_text(void) { // TODO: separate calls by supported or not
+bool __in_hfa() is_buffer_text(void) { // TODO: separate calls by supported or not
     if(graphics_driver && graphics_driver->is_text) {
         return graphics_driver->is_text();
     }
     return true;
 }
 
-uint32_t get_console_width() {
+uint32_t __in_hfa() get_console_width() {
     if(graphics_driver && graphics_driver->console_width) {
         return graphics_driver->console_width();
     }
     return 0;
 }
-uint32_t get_console_height() {
+uint32_t __in_hfa() get_console_height() {
     if(graphics_driver && graphics_driver->console_height) {
         return graphics_driver->console_height();
     }
     return 0;
 }
-uint32_t get_screen_width() {
+uint32_t __in_hfa() get_screen_width() {
     if(graphics_driver && graphics_driver->screen_width) {
         return graphics_driver->screen_width();
     }
     return 0;
 }
-uint32_t get_screen_height() {
+uint32_t __in_hfa() get_screen_height() {
     if(graphics_driver && graphics_driver->screen_height) {
         return graphics_driver->screen_height();
     }
     return 0;
 }
-uint8_t* get_buffer() {
+uint8_t* __in_hfa() get_buffer() {
     if(graphics_driver && graphics_driver->buffer) {
         return graphics_driver->buffer();
     }
     return 0;
 }
-void graphics_set_buffer(uint8_t* buffer) {
+void __in_hfa() graphics_set_buffer(uint8_t* buffer) {
     if(graphics_driver && graphics_driver->set_buffer) {
         graphics_driver->set_buffer(buffer);
     }
 }
 
-void clrScr(const uint8_t color) {
+void __in_hfa() clrScr(const uint8_t color) {
     if(graphics_driver && graphics_driver->cls) {
         graphics_driver->cls(color);
     }
 }
 
-void draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
+void __in_hfa() draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
     if(graphics_driver && graphics_driver->draw_text) {
         graphics_driver->draw_text(string, x, y, color, bgcolor);
     }
 }
 
-void draw_window(const char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+void __in_hfa() draw_window(const char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
     char line[width + 1];
     memset(line, 0, sizeof line);
     width--;
@@ -358,7 +358,7 @@ void draw_window(const char* title, uint32_t x, uint32_t y, uint32_t width, uint
     draw_text(line, x + (width - strlen(line)) / 2, y, 14, 3);
 }
 
-void __putc(char c) {
+void __in_hfa() __putc(char c) {
     cmd_ctx_t* ctx = get_cmd_ctx();
     if (ctx && ctx->std_out) {
         UINT bw;
@@ -369,7 +369,7 @@ void __putc(char c) {
     }
 }
 
-void goutf(const char *__restrict str, ...) {
+void __in_hfa() goutf(const char *__restrict str, ...) {
     FIL* f = get_stdout();
     va_list ap;
 //#if DEBUG_HEAP_SIZE
@@ -391,7 +391,7 @@ void goutf(const char *__restrict str, ...) {
 //#endif
 }
 
-void fgoutf(FIL *f, const char *__restrict str, ...) {
+void __in_hfa() fgoutf(FIL *f, const char *__restrict str, ...) {
 //    char* buf = (char*)pvPortMalloc(512);
     char buf[512];
     va_list ap;
@@ -407,12 +407,12 @@ void fgoutf(FIL *f, const char *__restrict str, ...) {
 //    vPortFree(buf);
 }
 
-graphics_driver_t* get_graphics_driver() {
+graphics_driver_t* __in_hfa() get_graphics_driver() {
     DBG_PRINT("get_graphics_driver %ph\n", graphics_driver);
     return graphics_driver;
 }
 
-void install_graphics_driver(graphics_driver_t* gd) {
+void __in_hfa() install_graphics_driver(graphics_driver_t* gd) {
     DBG_PRINT("install_graphics_driver %ph\n", gd);
     if (graphics_driver) {
         DBG_PRINT("install_graphics_driver: to cleanup %ph\n", graphics_driver);
@@ -424,102 +424,102 @@ void install_graphics_driver(graphics_driver_t* gd) {
     DBG_PRINT("install_graphics_driver exit\n");
 }
 
-bool graphics_set_mode(int mode) {
+bool __in_hfa() graphics_set_mode(int mode) {
     if(graphics_driver && graphics_driver->set_mode) {
         return graphics_driver->set_mode(mode);
     }
     return false;
 }
-bool graphics_is_mode_text(int mode) {
+bool __in_hfa() graphics_is_mode_text(int mode) {
     if(graphics_driver && graphics_driver->is_mode_text) {
         return graphics_driver->is_mode_text(mode);
     }
     return false;
 }
 
-int graphics_get_mode(void) {
+int __in_hfa() graphics_get_mode(void) {
     if(graphics_driver && graphics_driver->get_mode) {
         return graphics_driver->get_mode();
     }
     return 0;
 }
 
-void cleanup_graphics(void) {
+void __in_hfa() cleanup_graphics(void) {
     if(graphics_driver && graphics_driver->cleanup) {
         graphics_driver->cleanup();
     }
 }
 
-uint8_t get_console_bitness() {
+uint8_t __in_hfa() get_console_bitness() {
     if(graphics_driver && graphics_driver->console_bitness) {
         return graphics_driver->console_bitness();
     }
     return 0;
 }
 
-uint8_t get_screen_bitness() {
+uint8_t __in_hfa() get_screen_bitness() {
     if(graphics_driver && graphics_driver->screen_bitness) {
         return graphics_driver->screen_bitness();
     }
     return 0;
 }
 
-void graphics_set_offset(const int x, const int y) {
+void __in_hfa() graphics_set_offset(const int x, const int y) {
     if(graphics_driver && graphics_driver->set_offsets) {
         graphics_driver->set_offsets(x, y);
     }
 }
 
-void graphics_set_bgcolor(const uint32_t color888) {
+void __in_hfa() graphics_set_bgcolor(const uint32_t color888) {
     if(graphics_driver && graphics_driver->set_bgcolor) {
         graphics_driver->set_bgcolor(color888);
     }
 }
-void graphics_lock_buffer(bool b) {
+void __in_hfa() graphics_lock_buffer(bool b) {
     if(graphics_driver && graphics_driver->lock_buffer) {
         graphics_driver->lock_buffer(b);
     }
 }
 
-size_t get_buffer_size() {
+size_t __in_hfa() get_buffer_size() {
     if(graphics_driver && graphics_driver->allocated) {
         return graphics_driver->allocated();
     }
     return 0;
 }
 
-void graphics_set_con_pos(int x, int y) {
+void __in_hfa() graphics_set_con_pos(int x, int y) {
     if(graphics_driver && graphics_driver->set_con_pos) {
         graphics_driver->set_con_pos(x, y);
     }
 }
 
-int graphics_con_x(void) {
+int __in_hfa() graphics_con_x(void) {
     if(graphics_driver && graphics_driver->pos_x) {
         return graphics_driver->pos_x();
     }
     return 0;
 }
-int graphics_con_y(void) {
+int __in_hfa() graphics_con_y(void) {
     if(graphics_driver && graphics_driver->pos_y) {
         return graphics_driver->pos_y();
     }
     return 0;
 }
 
-void graphics_set_con_color(uint8_t color, uint8_t bgcolor) {
+void __in_hfa() graphics_set_con_color(uint8_t color, uint8_t bgcolor) {
     if(graphics_driver && graphics_driver->set_con_color) {
         graphics_driver->set_con_color(color, bgcolor);
     }
 }
 
-void gouta(char* buf) {
+void __in_hfa() gouta(char* buf) {
     if(graphics_driver && graphics_driver->print) {
         graphics_driver->print(buf);
     }
 }
 
-void gbackspace() {
+void __in_hfa() gbackspace() {
     if(graphics_driver && graphics_driver->backspace) {
         graphics_driver->backspace();
     }
@@ -537,11 +537,11 @@ volatile uint8_t __scratch_y("_driver_text") font_width = 8;
 volatile uint8_t __scratch_y("_driver_text") font_height = 16;
 volatile uint8_t* __scratch_y("_driver_text") font_table = font_8x16;
 
-uint8_t* common_get_font_table(void) {
+uint8_t* __in_hfa() common_get_font_table(void) {
     return font_table;
 }
 
-bool common_set_ext_font(uint8_t* table, uint8_t width, uint8_t height) {
+bool __in_hfa() common_set_ext_font(uint8_t* table, uint8_t width, uint8_t height) {
     if (font_height == 8  || font_height == 6) { // unsupported for now heights
         return false;
     }
@@ -551,7 +551,7 @@ bool common_set_ext_font(uint8_t* table, uint8_t width, uint8_t height) {
     return true;
 }
 
-bool common_set_font(uint8_t width, uint8_t height) {
+bool __in_hfa() common_set_font(uint8_t width, uint8_t height) {
     if (width == 8 && height == 16) {
         font_width = width;
         font_height = height;
@@ -566,31 +566,31 @@ bool common_set_font(uint8_t width, uint8_t height) {
     }
     return false;
 }
-uint8_t common_get_font_width(void) {
+uint8_t __in_hfa() common_get_font_width(void) {
     return font_width;
 }
-uint8_t common_get_font_height(void) {
+uint8_t __in_hfa() common_get_font_height(void) {
     return font_height;
 }
 
-void common_set_con_pos(int x, int y) {
+void __in_hfa() common_set_con_pos(int x, int y) {
     pos_x = x;
     pos_y = y;
 }
 
-int common_con_x(void) {
+int __in_hfa() common_con_x(void) {
     return pos_x;
 }
-int common_con_y(void) {
+int __in_hfa() common_con_y(void) {
     return pos_y;
 }
 
-void common_set_con_color(uint8_t color, uint8_t bgcolor) {
+void __in_hfa() common_set_con_color(uint8_t color, uint8_t bgcolor) {
     con_color = color;
     con_bgcolor = bgcolor;
 }
 
-static char* common_rollup(char* b, char* t_buf, uint32_t width, uint32_t height) {
+static char* __in_hfa() common_rollup(char* b, char* t_buf, uint32_t width, uint32_t height) {
     if (pos_y >= height - 1) {
         memmove(b, b + width * 2, width * (height - 2) * 2);
         t_buf = b + width * (height - 2) * 2;
@@ -747,7 +747,7 @@ static void __in_hfa() common_print_char(uint8_t* graphics_buffer, uint32_t widt
     }
 }
 
-static void graphics_rollup(uint8_t* graphics_buffer, uint32_t width) {
+static void __in_hfa() graphics_rollup(uint8_t* graphics_buffer, uint32_t width) {
     uint32_t height = get_screen_height();
     uint8_t bit = get_screen_bitness();
     uint32_t h = height / font_height;
@@ -759,7 +759,7 @@ static void graphics_rollup(uint8_t* graphics_buffer, uint32_t width) {
     }
 }
 
-void common_print(char* buf) {
+void __in_hfa() common_print(char* buf) {
     uint8_t* graphics_buffer = get_buffer();
     if (!graphics_buffer) {
         return;
@@ -812,7 +812,7 @@ void common_print(char* buf) {
     }
 }
 
-void common_backspace(void) {
+void __in_hfa() common_backspace(void) {
     char* graphics_buffer = get_buffer();
     if (!graphics_buffer) return;
     uint32_t width = get_screen_width();
@@ -845,7 +845,7 @@ void common_backspace(void) {
     *t_buf++ = con_bgcolor << 4 | con_color & 0xF;
 }
 
-void common_draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
+void __in_hfa() common_draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
     char* graphics_buffer = get_buffer();
     if (!graphics_buffer) return;
     uint32_t width = get_screen_width();
@@ -871,7 +871,7 @@ const uint8_t textmode_palette[16] = {
     200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215
 };
 
-void draw_label(color_schema_t* pcs, int left, int top, int width, char* txt, bool selected, bool highlighted) {
+void __in_hfa() draw_label(color_schema_t* pcs, int left, int top, int width, char* txt, bool selected, bool highlighted) {
     char line[width + 2];
     bool fin = false;
     for (int i = 0; i < width; ++i) {
@@ -892,7 +892,7 @@ void draw_label(color_schema_t* pcs, int left, int top, int width, char* txt, bo
     draw_text(line, left, top, fgc, bgc);
 }
 
-void draw_box(color_schema_t* pcs, int left, int top, int width, int height, const char* title, const lines_t* plines) {
+void __in_hfa() draw_box(color_schema_t* pcs, int left, int top, int width, int height, const char* title, const lines_t* plines) {
     draw_panel(pcs, left, top, width, height, title, 0);
     int y = top + 1;
     for (int i = y; y < top + height - 1; ++y) {
@@ -911,7 +911,7 @@ void draw_box(color_schema_t* pcs, int left, int top, int width, int height, con
     }
 }
 
-void draw_panel(color_schema_t* pcs, int left, int top, int width, int height, char* title, char* bottom) {
+void __in_hfa() draw_panel(color_schema_t* pcs, int left, int top, int width, int height, char* title, char* bottom) {
     char line[width + 2];
     // top line
     for(int i = 1; i < width - 1; ++i) {
@@ -959,7 +959,7 @@ void draw_panel(color_schema_t* pcs, int left, int top, int width, int height, c
     }
 }
 
-void draw_button(color_schema_t* pcs, int left, int top, int width, const char* txt, bool selected) {
+void __in_hfa() draw_button(color_schema_t* pcs, int left, int top, int width, const char* txt, bool selected) {
     int len = strlen(txt);
     if (len > 39) return;
     char tmp[40];

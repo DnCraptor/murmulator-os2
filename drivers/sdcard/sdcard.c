@@ -15,7 +15,6 @@
 #include "diskio.h"
 #include "sys_table.h"
 
-
 /*--------------------------------------------------------------------------
 
    Module Private Functions
@@ -550,7 +549,7 @@ DRESULT disk_write (
 /* Miscellaneous drive controls other than data read/write               */
 /*-----------------------------------------------------------------------*/
 
-DRESULT disk_ioctl (
+DRESULT __in_hfa() disk_ioctl (
 	BYTE drv,		/* Physical drive number (0) */
 	BYTE cmd,		/* Control command code */
 	void *buff		/* Pointer to the conrtol data */

@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define __in_hfa(group) __attribute__((section(".high_flash" group)))
 /* Defining MPU_WRAPPERS_INCLUDED_FROM_API_FILE prevents task.h from redefining
  * all the API functions to use the MPU wrappers.  That should only be done when
  * task.h is included from an application file. */
@@ -1717,7 +1718,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
     }
 /*-----------------------------------------------------------*/
 
-    BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
+    BaseType_t __in_hfa() xTaskCreate( TaskFunction_t pxTaskCode,
                             const char * const pcName,
                             const configSTACK_DEPTH_TYPE uxStackDepth,
                             void * const pvParameters,
@@ -3812,7 +3813,7 @@ void vTaskEndScheduler( void )
 }
 /*----------------------------------------------------------*/
 
-void vTaskSuspendAll( void )
+void __in_hfa() vTaskSuspendAll( void )
 {
     traceENTER_vTaskSuspendAll();
 
@@ -3957,7 +3958,7 @@ void vTaskSuspendAll( void )
 #endif /* configUSE_TICKLESS_IDLE */
 /*----------------------------------------------------------*/
 
-BaseType_t xTaskResumeAll( void )
+BaseType_t __in_hfa() xTaskResumeAll( void )
 {
     TCB_t * pxTCB = NULL;
     BaseType_t xAlreadyYielded = pdFALSE;
@@ -4671,7 +4672,7 @@ BaseType_t xTaskCatchUpTicks( TickType_t xTicksToCatchUp )
 #endif /* INCLUDE_xTaskAbortDelay */
 /*----------------------------------------------------------*/
 
-BaseType_t xTaskIncrementTick( void )
+BaseType_t __in_hfa() xTaskIncrementTick( void )
 {
     TCB_t * pxTCB;
     TickType_t xItemValue;
@@ -5940,7 +5941,7 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
 
 #if ( configNUM_THREAD_LOCAL_STORAGE_POINTERS != 0 )
 
-    void vTaskSetThreadLocalStoragePointer( TaskHandle_t xTaskToSet,
+    void __in_hfa() vTaskSetThreadLocalStoragePointer( TaskHandle_t xTaskToSet,
                                             BaseType_t xIndex,
                                             void * pvValue )
     {
@@ -6481,7 +6482,7 @@ static void prvResetNextTaskUnblockTime( void )
 #if ( ( INCLUDE_xTaskGetCurrentTaskHandle == 1 ) || ( configUSE_MUTEXES == 1 ) ) || ( configNUMBER_OF_CORES > 1 )
 
     #if ( configNUMBER_OF_CORES == 1 )
-        TaskHandle_t xTaskGetCurrentTaskHandle( void )
+        TaskHandle_t __in_hfa() xTaskGetCurrentTaskHandle( void )
         {
             TaskHandle_t xReturn;
 
