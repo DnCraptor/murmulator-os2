@@ -408,7 +408,9 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
     int res = 0b000000;
 #if PICO_RP2350
     /// do not try to test butter psram this way
+#if BUTTER_PSRAM_GPIO
     if (pin0 == BUTTER_PSRAM_GPIO || pin1 == BUTTER_PSRAM_GPIO) return res;
+#endif
     if (pin0 == 23 || pin1 == 23) return res; // SMPS Power
     if (pin0 == 24 || pin1 == 24) return res; // VBus sense
     if (pin0 == 25 || pin1 == 25) return res; // LED
@@ -528,8 +530,6 @@ static void __in_hfa() startup_vga(void) {
     } else {
         drv = HDMI_DRV;
     }
-    #else
-        drv = VGA_DRV;
     #endif
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
@@ -551,12 +551,14 @@ void __in_hfa() info(bool with_sd) {
           flash_size >> 20, rx[0], rx[1], rx[2], rx[3]
     );
     uint32_t psram32 = psram_size();
-    uint8_t rx8[8];
-    psram_id(rx8);
     if (psram32) {
-        goutf("PSRAM %d MB; MF ID: %02x; KGD: %02x; EID: %02X%02X-%02X%02X-%02X%02X\n",
-              psram32 >> 20, rx8[0], rx8[1], rx8[2], rx8[3], rx8[4], rx8[5], rx8[6], rx8[7]
-        );
+        uint8_t rx8[8];
+        psram_id(rx8);
+        if (psram32) {
+            goutf("PSRAM %d MB; MF ID: %02x; KGD: %02x; EID: %02X%02X-%02X%02X-%02X%02X\n",
+                  psram32 >> 20, rx8[0], rx8[1], rx8[2], rx8[3], rx8[4], rx8[5], rx8[6], rx8[7]
+            );
+        }
     }
     #if BUTTER_PSRAM_GPIO
     if (butter_psram_size) {
@@ -758,8 +760,13 @@ void __in_hfa() init(void) {
 
     keyboard_init();
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
-
+#ifndef BUTTER_PSRAM_GPIO
     init_psram();
+#else
+    #if BUTTER_PSRAM_GPIO == 47
+        init_psram();
+    #endif
+#endif
 }
 
 static void __in_hfa() vPostInit(void *pv) {
@@ -793,8 +800,6 @@ static void __in_hfa() vPostInit(void *pv) {
     gpio_put(PICO_DEFAULT_LED_PIN, false);
 
     info(true);
-
-    f_mount(&fs, SD, 1);
 
     setApplicationMallocFailedHookPtr(mallocFailedHandler);
     setApplicationStackOverflowHookPtr(overflowHook);

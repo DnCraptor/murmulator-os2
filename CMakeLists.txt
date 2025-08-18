@@ -32,12 +32,13 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
-#set(MURM20 ON)
-set(BUTTER_PSRAM_GPIO 19)
+set(MURM20 ON)
+set(BUTTER_PSRAM_GPIO 47)
 
 #set(HID ON)
 #set(VGA ON)
 set(VGAHDMI ON)
+#set(CPU_MHZ 366)
 set(CPU_MHZ 378)
 
 set(FLASH_SIZE 16384)
@@ -174,6 +175,7 @@ endif()
 
 if (MURM20)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
+        PSRAM_NO_FUGE=1
         MURM2=1
         PICO_FLASH_SIZE_BYTES=16777216
         MOS_VERSION_STR="${MOS_VERSION}"
@@ -208,7 +210,7 @@ if (MURM20)
         NES_GPIO_LAT=21
         NES_GPIO_DATA=26
 
-        PSRAM
+#        PSRAM
         # PSRAM_MUTEX=1
         PSRAM_SPINLOCK=1
         PSRAM_ASYNC=1

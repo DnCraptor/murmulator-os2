@@ -22,8 +22,10 @@
  * IN THE SOFTWARE.
  */
 
-#define PWM_PIN0 (AUDIO_PWM_PIN&0xfe)
+#ifndef PWM_PIN1
+#define PWM_PIN0 (AUDIO_PWM_PIN & 0xfe)
 #define PWM_PIN1 (PWM_PIN0+1)
+#endif
 
 #include "audio.h"
 
@@ -34,7 +36,6 @@
 
 /**
  * return the default i2s context used to store information about the setup
- */
 i2s_config_t i2s_get_default_config(void) {
     const i2s_config_t i2s_config = {
 		.sample_freq = 44100, 
@@ -50,6 +51,7 @@ i2s_config_t i2s_get_default_config(void) {
 	};
     return i2s_config;
 }
+ */
 
 void i2s_deinit(i2s_config_t *i2s_config) {
     dma_channel_abort(i2s_config->dma_channel);

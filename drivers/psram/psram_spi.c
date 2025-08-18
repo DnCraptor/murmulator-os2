@@ -22,8 +22,20 @@ static uint32_t __in_hfa() _psram_size() {
 #endif
 }
 
-uint32_t psram_size() {
+#ifndef BUTTER_PSRAM_GPIO
+    #ifdef PSRAM
     static int32_t _res = -1;
+    #else
+    static int32_t _res = 0;
+    #endif
+#else
+    #if BUTTER_PSRAM_GPIO == 47
+    static int32_t _res = -1;
+    #else
+    static int32_t _res = 0;
+    #endif
+#endif
+uint32_t psram_size() {
     int32_t res = 0;
     if (_res != -1) {
         return _res;
@@ -33,11 +45,13 @@ uint32_t psram_size() {
 }
 
 uint32_t init_psram() {
+#ifdef PSRAM
     psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, false);
 #ifndef PSRAM_NO_FUGE
     if ( !_psram_size() ) {
         psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, true);
     }
+#endif
 #endif
     return psram_size();
 }
