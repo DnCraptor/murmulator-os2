@@ -42,8 +42,37 @@ extern "C" uint32_t flash_size;;
 #if BUTTER_PSRAM_GPIO
 #include <hardware/structs/qmi.h>
 #include <hardware/structs/xip.h>
-volatile uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
 extern "C" uint32_t butter_psram_size;
+#define MB16 (16ul << 20)
+#define MB8 (8ul << 20)
+#define MB4 (4ul << 20)
+#define MB1 (1ul << 20)
+volatile uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
+inline static uint32_t __not_in_flash_func(_butter_psram_size)() {
+    for(register int i = MB16 - MB1; i < MB16; ++i)
+        PSRAM_DATA[i] = i & 0xFF;
+    register uint32_t res = 0;
+    for(register int i = MB4 - MB1; i < MB4; ++i) {
+        if (PSRAM_DATA[i] != (i & 0xFF)) {
+            for(register int i = MB8 - MB1; i < MB8; ++i) {
+                if (PSRAM_DATA[i] != (i & 0xFF)) {
+                    for(register int i = MB16 - MB1; i < MB16; ++i) {
+                        if (PSRAM_DATA[i] != (i & 0xFF)) {
+                            goto e0;
+                        }
+                    }
+                    res = MB16;
+                    goto e0;
+                }
+            }
+            res = MB8;
+            goto e0;
+        }
+    }
+    res = MB4;
+e0:
+    return res;
+}
 void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
 
@@ -119,21 +148,7 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
 
     // detect a chip size
-    PSRAM_DATA[(16 << 20) - 1] = 0;
-    PSRAM_DATA[(4 << 20) - 1] = 37;
-    if (PSRAM_DATA[(16 << 20) - 1] == 37) {
-        butter_psram_size =  4 << 20;
-        return;
-    }
-    PSRAM_DATA[(8 << 20) - 1] = 73;
-    if (PSRAM_DATA[(16 << 20) - 1] == 73) {
-        butter_psram_size =  8 << 20;
-        return;
-    }
-    PSRAM_DATA[(16 << 20) - 1] = 77;
-    if (PSRAM_DATA[(16 << 20) - 1] == 77) {
-        butter_psram_size = 16 << 20;
-    }
+    butter_psram_size = 8 << 20; /// _butter_psram_size();
 }
 #endif
 
@@ -506,12 +521,16 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
 }
 
 static void __in_hfa() startup_vga(void) {
+    #ifdef HDMI_DRV
     uint8_t link = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
     if (link == 0 || link == 0x1F) {
         drv = VGA_DRV;
     } else {
         drv = HDMI_DRV;
     }
+    #else
+        drv = VGA_DRV;
+    #endif
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);

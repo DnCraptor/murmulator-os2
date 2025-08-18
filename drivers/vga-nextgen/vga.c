@@ -8,7 +8,7 @@
 //  ----
 
 #define PIO_VGA (pio0)
-#define beginVGA_PIN (6)
+#define beginVGA_PIN (VGA_BASE_PIN)
 #define VGA_DMA_IRQ (DMA_IRQ_0)
 
 static int _SM_VGA = -1;

@@ -32,8 +32,11 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
+#set(MURM20 ON)
 set(BUTTER_PSRAM_GPIO 19)
+
 #set(HID ON)
+#set(VGA ON)
 set(VGAHDMI ON)
 set(CPU_MHZ 378)
 
@@ -41,10 +44,14 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.0.8")
+set(MOS_VERSION "2.0.9")
 endif ()
 
-SET(BUILD_NAME "m1p2-${PROJECT_NAME}")
+if(MURM20)
+    SET(BUILD_NAME "m2p2-${PROJECT_NAME}")
+else()
+    SET(BUILD_NAME "m1p2-${PROJECT_NAME}")
+endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -165,7 +172,69 @@ if(BUTTER_PSRAM_GPIO)
     target_compile_definitions(${PROJECT_NAME} PRIVATE BUTTER_PSRAM_GPIO=${BUTTER_PSRAM_GPIO})
 endif()
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE
+if (MURM20)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        MURM2=1
+        PICO_FLASH_SIZE_BYTES=16777216
+        MOS_VERSION_STR="${MOS_VERSION}"
+
+        # VGA 8 pins starts from pin:
+        VGA_BASE_PIN=12
+
+        # HDMI 8 pins starts from pin:
+        HDMI_BASE_PIN=12
+
+        # TFT
+        TFT_CS_PIN=12
+        TFT_RST_PIN=14
+        TFT_LED_PIN=15
+        TFT_DC_PIN=16
+        TFT_DATA_PIN=18
+        TFT_CLK_PIN=19
+
+        # SDCARD
+        SDCARD_PIN_SPI0_CS=5
+        SDCARD_PIN_SPI0_SCK=6
+        SDCARD_PIN_SPI0_MOSI=7
+        SDCARD_PIN_SPI0_MISO=4
+
+        # PS2 keyboard
+        KBD_CLOCK_PIN=2
+        KBD_DATA_PIN=3
+
+        # NES Gamepad
+        USE_NESPAD
+        NES_GPIO_CLK=20
+        NES_GPIO_LAT=21
+        NES_GPIO_DATA=26
+
+        PSRAM
+        # PSRAM_MUTEX=1
+        PSRAM_SPINLOCK=1
+        PSRAM_ASYNC=1
+
+        PSRAM_PIN_CS=18
+        PSRAM_PIN_SCK=19
+        PSRAM_PIN_MOSI=20
+        PSRAM_PIN_MISO=21
+
+        WAV_IN_PIO=22
+        
+        #I2S_SOUND
+        PWM_PIN0=10
+        PWM_PIN1=11
+        BEEPER_PIN=9
+
+        M_API_VERSION=26
+        MIN_API_VERSION=14
+
+        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
+        RESERVED_RAM=512
+        OVERCLOCKING=${CPU_MHZ}
+        #DEBUG_APP_LOAD=1
+    )
+else ()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
         PICO_FLASH_SIZE_BYTES=16777216
         MOS_VERSION_STR="${MOS_VERSION}"
 
@@ -221,7 +290,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         RESERVED_RAM=512
         OVERCLOCKING=${CPU_MHZ}
         #DEBUG_APP_LOAD=1
-)
+    )
+endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})
 target_compile_definitions(${PROJECT_NAME} PRIVATE FIRMWARE_OFFSET=${FIRMWARE_OFFSET})
