@@ -22,6 +22,9 @@
 
 #include "font6x8.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #ifndef TFT_RST_PIN
 #define TFT_RST_PIN 8
 #endif
@@ -95,16 +98,18 @@ static uint st7789_chan;
 
 uint16_t palette[256];
 
-uint8_t* text_buffer = NULL;
-static uint8_t* graphics_buffer = NULL;
+static volatile uint8_t* graphics_buffer = NULL;
 
-static uint graphics_buffer_width = 0;
-static uint graphics_buffer_height = 0;
-static int graphics_buffer_shift_x = 0;
-static int graphics_buffer_shift_y = 0;
+static volatile uint graphics_buffer_width = TEXTMODE_COLS;
+static volatile uint graphics_buffer_height = TEXTMODE_ROWS;
+static volatile int graphics_buffer_shift_x = 0;
+static volatile int graphics_buffer_shift_y = 0;
 
-enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
+static volatile enum graphics_mode_t graphics_mode = TEXTMODE_DEFAULT;
 extern volatile uint8_t _cursor_color;
+extern volatile uint8_t font_width;
+extern volatile uint8_t font_height;
+extern volatile uint8_t* font_table;
 
 static const uint8_t init_seq[] = {
     1, 20, 0x01, // Software reset
@@ -166,7 +171,7 @@ static inline void lcd_init(const uint8_t* init_seq) {
     const uint8_t* cmd = init_seq;
     while (*cmd) {
         lcd_write_cmd(cmd + 2, *cmd);
-        vTaskDelay(*(cmd + 1) * 5);
+        sleep_ms(*(cmd + 1) * 5);
         cmd += *cmd + 2;
     }
 }
@@ -213,6 +218,7 @@ void tft_driver_init() {
     static bool protect = false; // avoid to call it twice
     if (protect) return;
     protect = true;
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
     const uint offset = pio_add_program(pio, &st7789_lcd_program);
     sm = pio_claim_unused_sm(pio, true);
     st7789_lcd_program_init(pio, sm, offset, TFT_DATA_PIN, TFT_CLK_PIN, SERIAL_CLK_DIV);
@@ -231,30 +237,28 @@ void tft_driver_init() {
     lcd_init(init_seq);
     gpio_put(TFT_LED_PIN, 1);
 
+    font_width = 6;
+    font_height = 8;
+    font_table = font_6x8;
+
     for (int i = 0; i < sizeof palette; i++) {
         tft_graphics_set_palette(i, 0x0000);
     }
-    clrScr(0);
+    tft_clr_scr(0);
 
     create_dma_channel();
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
 }
 
-void tft_graphics_set_mode(const enum graphics_mode_t mode) {
-    if (mode != GRAPHICSMODE_DEFAULT && mode != TEXTMODE_DEFAULT) return;
+void tft_graphics_set_mode(enum graphics_mode_t mode) {
+    if (mode != GRAPHICSMODE_DEFAULT && mode != TEXTMODE_DEFAULT) mode = TEXTMODE_DEFAULT;
     graphics_mode = -1;
-    vTaskDelay(16);
-    clrScr(0);
+    sleep_ms(16);
+    tft_clr_scr(0);
     graphics_mode = mode;
-}
-
-void tft_graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
-    graphics_buffer = buffer;
-    graphics_buffer_width = width;
-    graphics_buffer_height = height;
-}
-
-void tft_graphics_set_textbuffer(uint8_t* buffer) {
-    text_buffer = buffer;
+    if (graphics_buffer) vPortFree(graphics_buffer);
+    graphics_buffer = pvPortMalloc(tft_buffer_size());
+    tft_clr_scr(0);
 }
 
 void tft_graphics_set_offset(const int x, const int y) {
@@ -283,8 +287,15 @@ void st7789_dma_pixels(const uint16_t* pixels, const uint num_pixels) {
     dma_channel_hw_addr(st7789_chan)->ctrl_trig = ctrl | DMA_CH0_CTRL_TRIG_INCR_READ_BITS;
 }
 
-void __attribute__((section(".time_critical"))) refresh_lcd() {
-    switch (graphics_mode) {
+void __attribute__((section(".time_critical"))) tft_refresh(void* pv) {
+    bool req = true;
+    while (1) {
+        vTaskDelay(20);
+        if (!graphics_buffer) {
+            continue;
+        }
+        gpio_put(PICO_DEFAULT_LED_PIN, req); req = !req;
+        switch (graphics_mode) {
         case TEXTMODE_DEFAULT:
             lcd_set_window(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
             start_pixels();
@@ -294,9 +305,9 @@ void __attribute__((section(".time_critical"))) refresh_lcd() {
 
                 for (int x = 0; x < TEXTMODE_COLS; x++) {
                     const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
-                    const uint8_t c = text_buffer[offset];
-                    const uint8_t colorIndex = text_buffer[offset + 1];
-                    const uint8_t glyph_row = font_6x8[c * 8 + y % 8];
+                    const uint8_t c = graphics_buffer[offset];
+                    const uint8_t colorIndex = graphics_buffer[offset + 1];
+                    const uint8_t glyph_row = font_table[c * 8 + y % 8];
 
                     for (uint8_t bit = 0; bit < 6; bit++) {
                         st7789_lcd_put_pixel(pio, sm, textmode_palette[(c && CHECK_BIT(glyph_row, bit))
@@ -321,8 +332,8 @@ void __attribute__((section(".time_critical"))) refresh_lcd() {
 
             stop_pixels();
         }
+        }
     }
-
     // st7789_lcd_wait_idle(pio, sm);
 }
 
@@ -332,9 +343,6 @@ uint32_t tft_get_console_width() {
 uint32_t tft_get_console_height() {
     return TEXTMODE_ROWS;
 }
-uint8_t* tft_get_buffer() {
-    return text_buffer;
-}
 
 bool tft_is_mode_text(int mode) {
     return mode < GRAPHICSMODE_DEFAULT;
@@ -343,9 +351,6 @@ bool tft_is_mode_text(int mode) {
 bool tft_is_text_mode() {
     return tft_is_mode_text(graphics_mode);
 }
-
-extern volatile uint8_t font_width;
-extern volatile uint8_t font_height;
 
 uint32_t tft_console_width(void) {
     if (graphics_mode == GRAPHICSMODE_DEFAULT) {

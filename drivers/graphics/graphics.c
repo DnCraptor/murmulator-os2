@@ -83,9 +83,9 @@ const static graphics_driver_t internal_tft_driver = {
     set_tft_buffer,
     tft_clr_scr,
     common_draw_text,
-    get_hdmi_buffer_bitness,
-    get_hdmi_buffer_bitness,
-    hdmi_set_offset, // set_offsets TODO
+    get_tft_buffer_bitness,
+    get_tft_buffer_bitness,
+    tft_graphics_set_offset,
     tft_set_bgcolor,
     tft_buffer_size,
     common_set_con_pos,
@@ -300,11 +300,6 @@ void __in_hfa() graphics_init(int drv_type) {
     }
     DBG_PRINT("graphics_init %ph exit\n", graphics_driver);
     switch(drv_type) {
-#ifdef TFT
-        case TFT_DRV:
-            tft_driver_init();
-            break;
-#endif
 #ifdef HDMI
         case HDMI_DRV:
             hdmi_init();

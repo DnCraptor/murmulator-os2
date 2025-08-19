@@ -173,10 +173,6 @@ void __time_critical_func(render_core)() {
     sem_acquire_blocking(&vga_start_semaphore);
     while(!reboot_is_requested) {
         pcm_call();
-#if TFT
-        if (drv == TFT_DRV)
-            refresh_lcd();
-#endif
         tight_loop_contents();
     }
     watchdog_enable(1, true);
@@ -551,7 +547,6 @@ static void __in_hfa() startup_vga(void) {
         }
         #endif
     }
-
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
@@ -787,7 +782,6 @@ void __in_hfa() init(void) {
 #if BUTTER_PSRAM_GPIO
     psram_init(BUTTER_PSRAM_GPIO);
 #endif
-
     keyboard_init();
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
 #ifndef BUTTER_PSRAM_GPIO
@@ -819,6 +813,10 @@ static void __in_hfa() vPostInit(void *pv) {
         test_cycle(ks);
         __unreachable();
     }
+#if TFT
+    if (drv == TFT_DRV)
+        xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 2, NULL);
+#endif
 
     startup_vga();
     graphics_set_mode(graphics_get_default_mode());
