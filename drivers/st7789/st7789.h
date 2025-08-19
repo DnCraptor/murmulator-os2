@@ -1,61 +1,33 @@
 #pragma once
 
-
-#ifndef TFT_RST_PIN
-#define TFT_RST_PIN 8
+#ifdef __cplusplus
+extern "C" {
 #endif
 
+#include "gmodes.h"
+#include <stdbool.h>
+#include <stdint.h>
 
-#ifndef TFT_CS_PIN
-#define TFT_CS_PIN 6
-#endif
-
-
-#ifndef TFT_LED_PIN
-#define TFT_LED_PIN 9
-#endif
-
-
-#ifndef TFT_CLK_PIN
-#define TFT_CLK_PIN 13
-#endif 
-
-#ifndef TFT_DATA_PIN
-#define TFT_DATA_PIN 12
-#endif
-
-#ifndef TFT_DC_PIN
-#define TFT_DC_PIN 10
-#endif
-
-#define TEXTMODE_COLS 53
-#define TEXTMODE_ROWS 30
-
-#define RGB888(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
-static const uint16_t textmode_palette[16] = {
-    //R, G, B
-    RGB888(0x00,0x00, 0x00), //black
-    RGB888(0x00,0x00, 0xC4), //blue
-    RGB888(0x00,0xC4, 0x00), //green
-    RGB888(0x00,0xC4, 0xC4), //cyan
-    RGB888(0xC4,0x00, 0x00), //red
-    RGB888(0xC4,0x00, 0xC4), //magenta
-    RGB888(0xC4,0x7E, 0x00), //brown
-    RGB888(0xC4,0xC4, 0xC4), //light gray
-    RGB888(0x4E,0x4E, 0x4E), //dark gray
-    RGB888(0x4E,0x4E, 0xDC), //light blue
-    RGB888(0x4E,0xDC, 0x4E), //light green
-    RGB888(0x4E,0xF3, 0xF3), //light cyan
-    RGB888(0xDC,0x4E, 0x4E), //light red
-    RGB888(0xF3,0x4E, 0xF3), //light magenta
-    RGB888(0xF3,0xF3, 0x4E), //yellow
-    RGB888(0xFF,0xFF, 0xFF), //white
-};
-
-inline static void graphics_set_bgcolor(uint32_t color888) {
-    // dummy
-}
-inline static void graphics_set_flashmode(bool flash_line, bool flash_frame) {
-    // dummy
-}
+void tft_driver_init();
 void refresh_lcd();
+void tft_graphics_set_mode(const enum graphics_mode_t mode);
+bool tft_is_mode_text(int mode);
+bool tft_is_text_mode();
+uint32_t tft_console_width(void);
+uint32_t tft_console_height(void);
+uint32_t tft_screen_width(void);
+uint32_t tft_screen_height(void);
+uint8_t* get_tft_buffer(void);
+void set_tft_buffer(uint8_t* b);
+uint8_t get_tft_buffer_bitness(void);
+size_t tft_buffer_size();
+void tft_lock_buffer(bool b);
+void tft_clr_scr(const uint8_t color);
+void tft_set_bgcolor(uint32_t color888);
+int tft_get_mode(void);
+void tft_set_cursor_color(uint8_t color);
+int tft_get_default_mode(void);
+
+#ifdef __cplusplus
+}
+#endif

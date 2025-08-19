@@ -4,6 +4,7 @@
 #include "task.h"
 #include <stdarg.h>
 #include "sys_table.h"
+#include "st7789.h"
 
 #ifndef logMsg
    
@@ -65,6 +66,46 @@ const static graphics_driver_t internal_vga_driver = {
     common_set_ext_font,
     common_get_font_table
 };
+
+#ifdef TFT
+#include "st7789.h"
+const static graphics_driver_t internal_tft_driver = {
+    0, //ctx
+    tft_driver_init,
+    hdmi_cleanup, // TODO: deregister driver
+    tft_graphics_set_mode, // set_mode
+    tft_is_text_mode, // is_text
+    tft_console_width,
+    tft_console_height,
+    tft_screen_width,
+    tft_screen_height,
+    get_tft_buffer,
+    set_tft_buffer,
+    tft_clr_scr,
+    common_draw_text,
+    get_hdmi_buffer_bitness,
+    get_hdmi_buffer_bitness,
+    hdmi_set_offset, // set_offsets TODO
+    tft_set_bgcolor,
+    tft_buffer_size,
+    common_set_con_pos,
+    common_con_x,
+    common_con_y,
+    common_set_con_color,
+    common_print,
+    common_backspace,
+    tft_lock_buffer,
+    tft_get_mode,
+    tft_is_mode_text,
+    tft_set_cursor_color,
+    tft_get_default_mode,
+    common_set_font,
+    common_get_font_width,
+    common_get_font_height,
+    common_set_ext_font,
+    common_get_font_table
+};
+#endif
 
 #ifdef HDMI
 const static graphics_driver_t internal_hdmi_driver = {
@@ -242,6 +283,11 @@ void __in_hfa() graphics_init(int drv_type) {
                 graphics_driver = &internal_stv_driver;
                 break;
 #endif
+#ifdef TFT
+            case TFT_DRV:
+                graphics_driver = &internal_tft_driver;
+                break;
+#endif
             default:
                 graphics_driver = &internal_vga_driver;
                 break;
@@ -254,6 +300,11 @@ void __in_hfa() graphics_init(int drv_type) {
     }
     DBG_PRINT("graphics_init %ph exit\n", graphics_driver);
     switch(drv_type) {
+#ifdef TFT
+        case TFT_DRV:
+            tft_driver_init();
+            break;
+#endif
 #ifdef HDMI
         case HDMI_DRV:
             hdmi_init();

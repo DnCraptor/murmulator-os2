@@ -16,8 +16,41 @@
 #include <string.h>
 #include <pico/multicore.h>
 
+#include "st7789.h"
 #include "st7789.pio.h"
 #include "hardware/dma.h"
+
+#include "font6x8.h"
+
+#ifndef TFT_RST_PIN
+#define TFT_RST_PIN 8
+#endif
+
+
+#ifndef TFT_CS_PIN
+#define TFT_CS_PIN 6
+#endif
+
+
+#ifndef TFT_LED_PIN
+#define TFT_LED_PIN 9
+#endif
+
+
+#ifndef TFT_CLK_PIN
+#define TFT_CLK_PIN 13
+#endif 
+
+#ifndef TFT_DATA_PIN
+#define TFT_DATA_PIN 12
+#endif
+
+#ifndef TFT_DC_PIN
+#define TFT_DC_PIN 10
+#endif
+
+#define TEXTMODE_COLS 53
+#define TEXTMODE_ROWS 30
 
 #ifndef SCREEN_WIDTH
 #define SCREEN_WIDTH 320
@@ -33,14 +66,34 @@
 #define MADCTL_ROW_COLUMN_EXCHANGE (1<<5)
 #define MADCTL_COLUMN_ADDRESS_ORDER_SWAP (1<<6)
 
-
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
+
+#define RGB888(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
+static const uint16_t textmode_palette[16] = {
+    //R, G, B
+    RGB888(0x00,0x00, 0x00), //black
+    RGB888(0x00,0x00, 0xC4), //blue
+    RGB888(0x00,0xC4, 0x00), //green
+    RGB888(0x00,0xC4, 0xC4), //cyan
+    RGB888(0xC4,0x00, 0x00), //red
+    RGB888(0xC4,0x00, 0xC4), //magenta
+    RGB888(0xC4,0x7E, 0x00), //brown
+    RGB888(0xC4,0xC4, 0xC4), //light gray
+    RGB888(0x4E,0x4E, 0x4E), //dark gray
+    RGB888(0x4E,0x4E, 0xDC), //light blue
+    RGB888(0x4E,0xDC, 0x4E), //light green
+    RGB888(0x4E,0xF3, 0xF3), //light cyan
+    RGB888(0xDC,0x4E, 0x4E), //light red
+    RGB888(0xF3,0x4E, 0xF3), //light magenta
+    RGB888(0xF3,0xF3, 0x4E), //yellow
+    RGB888(0xFF,0xFF, 0xFF), //white
+};
 
 static uint sm = 0;
 static PIO pio = pio0;
 static uint st7789_chan;
 
-uint16_t __scratch_y("tft_palette") palette[256];
+uint16_t palette[256];
 
 uint8_t* text_buffer = NULL;
 static uint8_t* graphics_buffer = NULL;
@@ -51,6 +104,7 @@ static int graphics_buffer_shift_x = 0;
 static int graphics_buffer_shift_y = 0;
 
 enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
+extern volatile uint8_t _cursor_color;
 
 static const uint8_t init_seq[] = {
     1, 20, 0x01, // Software reset
@@ -112,7 +166,7 @@ static inline void lcd_init(const uint8_t* init_seq) {
     const uint8_t* cmd = init_seq;
     while (*cmd) {
         lcd_write_cmd(cmd + 2, *cmd);
-        sleep_ms(*(cmd + 1) * 5);
+        vTaskDelay(*(cmd + 1) * 5);
         cmd += *cmd + 2;
     }
 }
@@ -151,7 +205,14 @@ void create_dma_channel() {
     );
 }
 
-void graphics_init() {
+void tft_graphics_set_palette(const uint8_t i, const uint32_t color) {
+    palette[i] = (uint16_t)color;
+}
+
+void tft_driver_init() {
+    static bool protect = false; // avoid to call it twice
+    if (protect) return;
+    protect = true;
     const uint offset = pio_add_program(pio, &st7789_lcd_program);
     sm = pio_claim_unused_sm(pio, true);
     st7789_lcd_program_init(pio, sm, offset, TFT_DATA_PIN, TFT_CLK_PIN, SERIAL_CLK_DIV);
@@ -171,38 +232,39 @@ void graphics_init() {
     gpio_put(TFT_LED_PIN, 1);
 
     for (int i = 0; i < sizeof palette; i++) {
-        graphics_set_palette(i, 0x0000);
+        tft_graphics_set_palette(i, 0x0000);
     }
     clrScr(0);
 
     create_dma_channel();
 }
 
-void inline graphics_set_mode(const enum graphics_mode_t mode) {
+void tft_graphics_set_mode(const enum graphics_mode_t mode) {
+    if (mode != GRAPHICSMODE_DEFAULT && mode != TEXTMODE_DEFAULT) return;
     graphics_mode = -1;
-    sleep_ms(16);
+    vTaskDelay(16);
     clrScr(0);
     graphics_mode = mode;
 }
 
-void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
+void tft_graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;
     graphics_buffer_width = width;
     graphics_buffer_height = height;
 }
 
-void graphics_set_textbuffer(uint8_t* buffer) {
+void tft_graphics_set_textbuffer(uint8_t* buffer) {
     text_buffer = buffer;
 }
 
-void graphics_set_offset(const int x, const int y) {
+void tft_graphics_set_offset(const int x, const int y) {
     graphics_buffer_shift_x = x;
     graphics_buffer_shift_y = y;
 }
 
-void clrScr(const uint8_t color) {
+void tft_clr_scr(const uint8_t color) {
     memset(&graphics_buffer[0], 0, graphics_buffer_height * graphics_buffer_width);
-    lcd_set_window(0, 0,SCREEN_WIDTH,SCREEN_HEIGHT);
+    lcd_set_window(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     uint32_t i = SCREEN_WIDTH * SCREEN_HEIGHT;
     start_pixels();
     while (--i) {
@@ -221,7 +283,7 @@ void st7789_dma_pixels(const uint16_t* pixels, const uint num_pixels) {
     dma_channel_hw_addr(st7789_chan)->ctrl_trig = ctrl | DMA_CH0_CTRL_TRIG_INCR_READ_BITS;
 }
 
-void __inline __scratch_y("refresh_lcd") refresh_lcd() {
+void __attribute__((section(".time_critical"))) refresh_lcd() {
     switch (graphics_mode) {
         case TEXTMODE_DEFAULT:
             lcd_set_window(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -255,7 +317,7 @@ void __inline __scratch_y("refresh_lcd") refresh_lcd() {
             // st7789_dma_pixels(graphics_buffer, i);
             while (--i) {
                st7789_lcd_put_pixel(pio, sm, palette[*bitmap++]);
-                }
+            }
 
             stop_pixels();
         }
@@ -264,17 +326,78 @@ void __inline __scratch_y("refresh_lcd") refresh_lcd() {
     // st7789_lcd_wait_idle(pio, sm);
 }
 
-
-void graphics_set_palette(const uint8_t i, const uint32_t color) {
-    palette[i] = (uint16_t)color;
-}
-
-uint32_t get_console_width() {
+uint32_t tft_get_console_width() {
     return TEXTMODE_COLS;
 }
-uint32_t get_console_height() {
+uint32_t tft_get_console_height() {
     return TEXTMODE_ROWS;
 }
-uint8_t* get_buffer() {
+uint8_t* tft_get_buffer() {
     return text_buffer;
+}
+
+bool tft_is_mode_text(int mode) {
+    return mode < GRAPHICSMODE_DEFAULT;
+}
+
+bool tft_is_text_mode() {
+    return tft_is_mode_text(graphics_mode);
+}
+
+extern volatile uint8_t font_width;
+extern volatile uint8_t font_height;
+
+uint32_t tft_console_width(void) {
+    if (graphics_mode == GRAPHICSMODE_DEFAULT) {
+        return graphics_buffer_width / font_width;
+    }
+    return graphics_buffer_width;
+}
+uint32_t tft_console_height(void) {
+    if (graphics_mode == GRAPHICSMODE_DEFAULT) {
+        return graphics_buffer_height / font_height;
+    }
+    return graphics_buffer_height;
+}
+uint32_t tft_screen_width(void) {
+    return graphics_buffer_width;
+}
+uint32_t tft_screen_height(void) {
+    return graphics_buffer_height;
+}
+uint8_t* get_tft_buffer(void) {
+    return graphics_buffer;
+}
+void set_tft_buffer(uint8_t* b) {
+    graphics_buffer = b;
+}
+
+uint8_t get_tft_buffer_bitness(void) {
+    return graphics_mode == GRAPHICSMODE_DEFAULT ? 8 : 16;
+}
+
+size_t tft_buffer_size() {
+    if (!graphics_buffer) return 0;
+    return (graphics_buffer_height * graphics_buffer_width * get_tft_buffer_bitness()) >> 3;
+}
+
+void tft_lock_buffer(bool b) {
+//    lock_buffer = b;
+}
+
+void tft_set_bgcolor(uint32_t color888) //определяем зарезервированный цвет в палитре
+{
+    tft_graphics_set_palette(255, color888);
+}
+
+int tft_get_mode(void) {
+    return graphics_mode;
+}
+
+void tft_set_cursor_color(uint8_t color) {
+    _cursor_color = color;
+}
+
+int tft_get_default_mode(void) {
+    return TEXTMODE_DEFAULT;
 }

@@ -8,6 +8,9 @@
 #include "pico/multicore.h"
 #include "hardware/clocks.h"
 #include "sys_table.h"
+#include "font6x8.h"
+
+extern const uint8_t textmode_palette[16];
 
 //PIO параметры
 static uint offs_prg0 = 0;
@@ -635,26 +638,12 @@ static inline bool inner_init() {
     return true;
 };
 
-#include "font6x8.h"
-
 //выбор видеорежима
 void hdmi_set_mode(int mode) {
     font_width = 6;
     font_height = 8;
     font_table = font_6x8;
     switch (mode) {
-        case TEXTMODE_53x30:
-            graphics_buffer_width = 53;
-            graphics_buffer_height = 30;
-            bitness = 16;
-            break;
-#if TEXTMODE_53x60
-        case TEXTMODE_53x60:
-            graphics_buffer_width = 53;
-            graphics_buffer_height = 60;
-            bitness = 16;
-            break;
-#endif
         case TEXTMODE_80x30:
             graphics_buffer_width = 80;
             graphics_buffer_height = 30;
@@ -729,13 +718,12 @@ void __in_hfa() hdmi_init() {
 void hdmi_set_bgcolor(uint32_t color888) //определяем зарезервированный цвет в палитре
 {
     hdmi_set_palette(255, color888);
-};
+}
 
 void hdmi_set_offset(int x, int y) {
     graphics_buffer_shift_x = x;
     graphics_buffer_shift_y = y;
-};
-
+}
 
 void hdmi_clr_scr(const uint8_t color) {
     if (graphics_buffer) {

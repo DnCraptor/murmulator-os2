@@ -37,6 +37,10 @@ extern "C" {
 
 #include "nespad.h"
 
+#if TFT
+#include "st7789.h"
+#endif
+
 extern "C" uint32_t flash_size;;
 
 #if BUTTER_PSRAM_GPIO
@@ -157,6 +161,7 @@ extern "C" FATFS* get_mount_fs() { // only one FS is supported for now
     return &fs;
 }
 semaphore vga_start_semaphore;
+static int override_drv = -1;
 static int drv = DEFAULT_VIDEO_DRIVER;
 extern "C" volatile bool reboot_is_requested;
 
@@ -168,6 +173,10 @@ void __time_critical_func(render_core)() {
     sem_acquire_blocking(&vga_start_semaphore);
     while(!reboot_is_requested) {
         pcm_call();
+#if TFT
+        if (drv == TFT_DRV)
+            refresh_lcd();
+#endif
         tight_loop_contents();
     }
     watchdog_enable(1, true);
@@ -523,14 +532,26 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
 }
 
 static void __in_hfa() startup_vga(void) {
-    #ifdef HDMI_DRV
-    uint8_t link = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
-    if (link == 0 || link == 0x1F) {
-        drv = VGA_DRV;
+    if (override_drv >= 0) {
+        drv = override_drv;
     } else {
-        drv = HDMI_DRV;
+        #ifdef HDMI_DRV
+        uint8_t link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
+        if (link6 == 0 || link6 == 0x1F) {
+            drv = VGA_DRV;
+        } else {
+            uint8_t link9 = testPins(VGA_BASE_PIN + 3, VGA_BASE_PIN + 4);
+            bool pio9PD = !!(link9 & 0b010000);
+            bool pio9PU = !!(link9 & 0b001000);
+            if (!pio9PD && !pio9PU) {
+                drv = TFT_DRV;
+            } else {
+                drv = HDMI_DRV;
+            }
+        }
+        #endif
     }
-    #endif
+
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
@@ -610,26 +631,29 @@ void selectDRV1(void) {
             switch(DEFAULT_VIDEO_DRIVER) {
                 case VGA_DRV:
                     #ifdef HDMI
-                        drv = HDMI_DRV;
+                        override_drv = HDMI_DRV;
                     #else
                     #ifdef TV
-                        drv = RGB_DRV;
+                        override_drv = RGB_DRV;
+                    #endif
+                    #ifdef TFT
+                        override_drv = TFT_DRV;
                     #endif
                     #endif
                     break;
                 #ifdef HDMI
                 case HDMI_DRV:
-                    drv = VGA_DRV;
+                    override_drv = VGA_DRV;
                     break;
                 #endif
                 #ifdef TV
                 case RGB_DRV:
-                    drv = VGA_DRV;
+                    override_drv = VGA_DRV;
                     break;
                 #endif
                 #ifdef SOFTTV
                 case SOFTTV_DRV:
-                    drv = VGA_DRV;
+                    override_drv = VGA_DRV;
                     break;
                 #endif
             }
@@ -639,30 +663,36 @@ void selectDRV2(void) {
             switch(DEFAULT_VIDEO_DRIVER) {
                 case VGA_DRV:
                     #ifdef HDMI
-                        drv = HDMI_DRV;
+                        override_drv = HDMI_DRV;
                     #else
                         #ifdef TV
-                            drv = RGB_DRV;
+                            override_drv = RGB_DRV;
+                        #endif
+                        #ifdef TFT
+                            override_drv = TFT_DRV;
                         #endif
                     #endif
                     break;
                 #ifdef HDMI
                 case HDMI_DRV:
-                    drv = VGA_DRV;
+                    override_drv = VGA_DRV;
                     break;
+                #endif
+                #ifdef TFT
+                    override_drv = TFT_DRV;
                 #endif
                 #ifdef TV
                 case RGB_DRV:
                     #ifdef HDMI
-                        drv = HDMI_DRV;
+                        override_drv = HDMI_DRV;
                     #else
-                        drv = VGA_DRV;
+                        override_drv = VGA_DRV;
                     #endif
                     break;
                 #endif
                 #ifdef SOFTTV
                 case SOFTTV_DRV:
-                    drv = HDMI_DRV;
+                    override_drv = HDMI_DRV;
                     break;
                 #endif
             }
