@@ -384,8 +384,8 @@ uint8_t get_tft_buffer_bitness(void) {
 }
 
 size_t tft_buffer_size() {
-    if (!graphics_buffer) return 0;
-    return (graphics_buffer_height * graphics_buffer_width * get_tft_buffer_bitness()) >> 3;
+    if (graphics_mode == GRAPHICSMODE_DEFAULT) return SCREEN_WIDTH * SCREEN_HEIGHT;
+    return TEXTMODE_COLS * TEXTMODE_ROWS * 2;
 }
 
 void tft_lock_buffer(bool b) {
