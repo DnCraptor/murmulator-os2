@@ -340,7 +340,7 @@ inline static uint8_t* __in_hfa() sec_align(uint32_t sz, uint8_t* *pdel_addr, ui
         res = (uint8_t*)pvPortMalloc(sz + (a - 1));
         *pdel_addr = res;
         if ((uint32_t)res & (a - 1)) {
-            res = ((uint32_t)res & (0xFFFFFFFF ^ (a - 1))) + a;
+            res = (uint8_t*)(((uint32_t)res & (0xFFFFFFFF ^ (a - 1))) + a);
         }
     } else {
         *pdel_addr = res;
@@ -352,7 +352,7 @@ inline static uint8_t* __in_hfa() sec_align(uint32_t sz, uint8_t* *pdel_addr, ui
         flash_addr += sz;
         if ((uint32_t)res & (a - 1)) {
             flash_addr += (a - 1);
-            res = ((uint32_t)res & (0xFFFFFFFF ^ (a - 1))) + a;
+            res = (uint8_t*)(((uint32_t)res & (0xFFFFFFFF ^ (a - 1))) + a);
         }
         // goutf("res: %ph\n" , res);
     }
