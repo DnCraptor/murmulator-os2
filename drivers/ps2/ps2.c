@@ -273,7 +273,6 @@ uint32_t ps2getcode() {
 void KeyboardHandler(void) {
     static uint8_t incoming = 0;
     static uint64_t prev_us = 0;
-    gpio_put(PICO_DEFAULT_LED_PIN, true);
     uint8_t n, val;
 
     val = gpio_get(KBD_DATA_PIN);
@@ -297,7 +296,6 @@ void KeyboardHandler(void) {
         incoming = 0;
     }
     kbloop = 1;
-    gpio_put(PICO_DEFAULT_LED_PIN, false);
 }
 
 void keyboard_init(void) {

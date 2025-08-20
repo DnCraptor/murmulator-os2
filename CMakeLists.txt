@@ -169,6 +169,7 @@ target_compile_options(${PROJECT_NAME} PUBLIC
 )
 endif ()
 
+#target_compile_definitions(${PROJECT_NAME} PRIVATE DEBUG_VGA=1)
 if(BUTTER_PSRAM_GPIO)
     target_compile_definitions(${PROJECT_NAME} PRIVATE BUTTER_PSRAM_GPIO=${BUTTER_PSRAM_GPIO})
 endif()

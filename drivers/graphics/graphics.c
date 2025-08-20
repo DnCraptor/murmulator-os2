@@ -7,14 +7,20 @@
 #include "st7789.h"
 
 #ifndef logMsg
+void logMsg(char* m) {
+    static FIL f;
+    f_open(&f, ".log", FA_WRITE | FA_OPEN_APPEND | FA_OPEN_ALWAYS);
+    UINT bw;
+    f_write(&f, m, strlen(m), &bw);
+    f_close(&f);
+}
+#endif
    
 #ifdef DEBUG_VGA
 char vga_dbg_msg[1024] = { 0 };
-#define DBG_PRINT(...) { sprintf(vga_dbg_msg + strlen(vga_dbg_msg), __VA_ARGS__); }
+#define DBG_PRINT(...) { sprintf(vga_dbg_msg + strlen(vga_dbg_msg), __VA_ARGS__); logMsg(vga_dbg_msg); }
 #else
 #define DBG_PRINT(...)
-#endif
-
 #endif
 
 void common_set_con_pos(int x, int y);

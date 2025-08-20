@@ -253,7 +253,6 @@ void tft_graphics_set_mode(enum graphics_mode_t mode) {
     if (mode != GRAPHICSMODE_DEFAULT && mode != TEXTMODE_DEFAULT) mode = TEXTMODE_DEFAULT;
     graphics_mode = -1;
     sleep_ms(16);
-    tft_clr_scr(0);
     graphics_mode = mode;
     if (graphics_buffer) vPortFree(graphics_buffer);
     graphics_buffer = pvPortMalloc(tft_buffer_size());
@@ -266,7 +265,11 @@ void tft_graphics_set_offset(const int x, const int y) {
 }
 
 void tft_clr_scr(const uint8_t color) {
-    memset(&graphics_buffer[0], 0, graphics_buffer_height * graphics_buffer_width);
+    size_t sz = tft_buffer_size();
+    if (graphics_buffer && sz) {
+        memset(graphics_buffer, 0, sz);
+        // todo: bcolor
+    }
     lcd_set_window(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     uint32_t i = SCREEN_WIDTH * SCREEN_HEIGHT;
     start_pixels();
