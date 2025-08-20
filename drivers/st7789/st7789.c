@@ -244,8 +244,7 @@ void tft_driver_init() {
     for (int i = 0; i < sizeof palette; i++) {
         tft_graphics_set_palette(i, 0x0000);
     }
-    tft_clr_scr(0);
-
+    tft_graphics_set_mode(TEXTMODE_DEFAULT);
     create_dma_channel();
     gpio_put(PICO_DEFAULT_LED_PIN, false);
 }
