@@ -73,12 +73,12 @@ const static graphics_driver_t internal_vga_driver = {
     common_get_font_table
 };
 
-#ifdef TFT
+#if TFT
 #include "st7789.h"
 const static graphics_driver_t internal_tft_driver = {
     0, //ctx
-    tft_driver_init,
-    hdmi_cleanup, // TODO: deregister driver
+    0,
+    tft_cleanup, // TODO: deregister driver
     tft_graphics_set_mode, // set_mode
     tft_is_text_mode, // is_text
     tft_console_width,
@@ -87,7 +87,7 @@ const static graphics_driver_t internal_tft_driver = {
     tft_screen_height,
     get_tft_buffer,
     set_tft_buffer,
-    tft_clr_scr,
+    tft_clrScr,
     common_draw_text,
     get_tft_buffer_bitness,
     get_tft_buffer_bitness,
@@ -289,7 +289,7 @@ void __in_hfa() graphics_init(int drv_type) {
                 graphics_driver = &internal_stv_driver;
                 break;
 #endif
-#ifdef TFT
+#if TFT
             case TFT_DRV:
                 graphics_driver = &internal_tft_driver;
                 break;
@@ -309,6 +309,11 @@ void __in_hfa() graphics_init(int drv_type) {
 #ifdef HDMI
         case HDMI_DRV:
             hdmi_init();
+            break;
+#endif
+#if TFT
+        case TFT_DRV:
+            tft_graphics_init();
             break;
 #endif
 #ifdef TV

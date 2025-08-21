@@ -33,13 +33,12 @@ extern "C" {
 #include "overclock.h"
 #include "app.h"
 #include "sound.h"
-}
-
-#include "nespad.h"
-
 #if TFT
 #include "st7789.h"
 #endif
+}
+
+#include "nespad.h"
 
 extern "C" uint32_t flash_size;;
 
@@ -173,6 +172,9 @@ void __time_critical_func(render_core)() {
     sem_acquire_blocking(&vga_start_semaphore);
     while(!reboot_is_requested) {
         pcm_call();
+#if 0
+        if (drv == TFT_DRV) refresh_lcd();
+#endif
         tight_loop_contents();
     }
     watchdog_enable(1, true);
@@ -527,6 +529,15 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
     return res;
 }
 
+#if TFT
+static void tft_refresh(void* pv) {
+    while(1) {
+        refresh_lcd();
+        vTaskDelay(1);
+    }
+}
+#endif
+
 static void __in_hfa() startup_vga(void) {
     if (override_drv >= 0) {
         drv = override_drv;
@@ -547,10 +558,20 @@ static void __in_hfa() startup_vga(void) {
         }
         #endif
     }
+#if TFT
+    if (drv == TFT_DRV) {
+        tft_graphics_set_buffer((uint8_t*)pvPortMalloc(320 * 240), 320, 240);
+    }
+#endif
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
     vTaskDelay(300);
+#if TFT
+    if (drv == TFT_DRV) {
+        xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 2, NULL);
+    }
+#endif
     clrScr(0);
 }
 
@@ -798,7 +819,6 @@ static void __in_hfa() vPostInit(void *pv) {
     kbd_state_t* ks = process_input_on_boot();
     // send kbd reset only after initial process passed
     keyboard_send(0xFF);
-
     char* err = mount_os();
     if (!err) {
         check_firmware();
@@ -813,10 +833,6 @@ static void __in_hfa() vPostInit(void *pv) {
         test_cycle(ks);
         __unreachable();
     }
-#if TFT
-    if (drv == TFT_DRV)
-        xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 2, NULL);
-#endif
 
     startup_vga();
     graphics_set_mode(graphics_get_default_mode());
