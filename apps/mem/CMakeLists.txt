@@ -5,19 +5,19 @@ else()
     set(USERHOME $ENV{HOME})
 endif()
 set(sdkVersion 2.2.0)
-set(toolchainVersion 13_3_Rel1)
+set(toolchainVersion 14_2_Rel1)
 set(picotoolVersion 2.2.0)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
+set(PICO_BOARD pico CACHE STRING "Board type")
 
 cmake_minimum_required(VERSION 3.22)
 include(pico_sdk_import.cmake)
 
-project(murmulator-os-apps-mem C CXX ASM)
+project(mem C CXX ASM)
 pico_sdk_init()
 
 SET(BUILD_NAME "${PROJECT_NAME}")
@@ -26,12 +26,13 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/../../bin/${CMAKE_BUILD_TYPE}")
+set(COMPILED_DIR "${CMAKE_SOURCE_DIR}/../../apps/compiled")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 # INCLUDE FILES THAT SHOULD BE COMPILED:
-file(GLOB_RECURSE SRC "*.cpp" "*.c")
+file(GLOB_RECURSE SRC "*.cpp" "*.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../api/*.c")
 
 message(STATUS "Add source files:")
 foreach (SRC_FILE IN LISTS SRC)
@@ -39,7 +40,11 @@ foreach (SRC_FILE IN LISTS SRC)
 endforeach ()
 message(STATUS "")
 
-add_executable(${PROJECT_NAME} mem.c)
+add_executable(${PROJECT_NAME}
+    mem.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/m-os-api-math.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/m-os-api-sdtfn.c
+)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -60,14 +65,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 #family_configure_device_example(${PROJECT_NAME} noos)
 # -fPIC -shared
-target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
-target_include_directories(${PROJECT_NAME} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../api
-)
+target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage -r)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
+        -fno-jump-tables  # suppress __gnu_thumb1_case_uni symbol generation
         -Wno-error=suggest-attribute=format
         -Wno-error=cast-qual
         -Wno-error=unused-parameter
@@ -83,12 +85,15 @@ target_compile_options(${PROJECT_NAME} PUBLIC
 )
 endif ()
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE)
-
+target_compile_definitions(${PROJECT_NAME} PRIVATE ELF_MODE)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
 
-pico_add_extra_outputs(${PROJECT_NAME})
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rename
+        $<TARGET_FILE:${PROJECT_NAME}>
+        ${COMPILED_DIR}/${BUILD_NAME}
+)
