@@ -1,8 +1,11 @@
 #ifndef PICO_TIMER
 #define PICO_TIMER
 
-static inline __uint64_t time_us_64(void) {
-    typedef __uint64_t (*fn_ptr_t)(void);
+#include <stdint.h>
+#include "m-os-api.h"
+
+static inline uint64_t time_us_64(void) {
+    typedef uint64_t (*fn_ptr_t)(void);
     return ((fn_ptr_t)_sys_table_ptrs[263])();
 }
 static inline unsigned time_us_32(void) {

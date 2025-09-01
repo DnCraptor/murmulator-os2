@@ -16,8 +16,6 @@
 
 #include "hardware.h"
 #include "runtime.h"
-#include "m-os-api-sdtfn.h"
-#include "m-os-api-math.h"
 
 /* a small character buffer to receive strings */
 #define CBUFSIZE 4 
@@ -103,7 +101,7 @@ inline static void ebegin(){
   if (f_open(efile, "eeprom.dat", FA_READ) != FR_OK) {
     goto e;
   }
-  uint32_t br;
+  UINT br;
   f_read(efile, eeprom, EEPROMSIZE, &br);
   f_close(efile);
 e:
@@ -115,7 +113,7 @@ inline static void eflush(){
   if (f_open(efile, "eeprom.dat", FA_WRITE | FA_CREATE_ALWAYS) != FR_OK) {
     goto e;
   }
-  uint32_t bw;
+  UINT bw;
   f_write(efile, eeprom, EEPROMSIZE, &bw);
   f_close(efile);
 e:
@@ -600,8 +598,6 @@ inline static long freeRam() {
 /* 
  * the sleep and restart functions
  */
-volatile bool marked_to_exit;
-
 inline static void restartsystem() {
   marked_to_exit = true;
   //exit(0);
@@ -1217,7 +1213,8 @@ inline static uint8_t getbreakpin() { return 1; } /* we return 1 because the bre
 #if !defined(POSIXWIRING)
 
 inline static unsigned long millis() {
-  return __aeabi_uldivmod(time_us_64(), 1000);
+//  return __aeabi_uldivmod(time_us_64(), 1000);
+  return time_us_64() / 1000;
   /*
   struct timeb thetime;
   ftime(&thetime);
