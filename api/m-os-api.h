@@ -299,7 +299,7 @@ inline static TaskHandle_t xTaskGetCurrentTaskHandle( void ) {
 }
 
 inline static
-void __in_hfa() vTaskSetThreadLocalStoragePointer( TaskHandle_t xTaskToSet,
+void vTaskSetThreadLocalStoragePointer( TaskHandle_t xTaskToSet,
                                         BaseType_t xIndex,
                                         void* pvValue ) {
     typedef void (*f_ptr_t)(TaskHandle_t, BaseType_t, void*);
