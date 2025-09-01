@@ -80,3 +80,6 @@ Press [TAB] (DPAD [A]) and hold on the Murmulator reset or power-on, in case you
 Press DPAD [B] and hold on the Murmulator reset or power-on, in case you want to switch default output to third output.<br/>
 Press [HOME] and hold on the Murmulator reset or power-on, in case you want  start USB-drive mode prior starting M-OS.<br/>
 Press [ESC] and hold on the Murmulator reset or power-on, to boot (skip waiting for other key-cases).<br/>
+
+# config.sys
+TBA
