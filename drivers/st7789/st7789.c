@@ -256,14 +256,9 @@ void tft_graphics_set_offset(const int x, const int y) {
 }
 
 void tft_clrScr(const uint8_t color) {
-    if (graphics_buffer) memset(graphics_buffer, 0, graphics_buffer_height * graphics_buffer_width);
-    lcd_set_window(0, 0,SCREEN_WIDTH,SCREEN_HEIGHT);
-    uint32_t i = SCREEN_WIDTH * SCREEN_HEIGHT;
-    start_pixels();
-    while (--i) {
-        st7789_lcd_put_pixel(pio, sm, 0x0000);
-    }
-    stop_pixels();
+    if (!graphics_buffer) return;
+    memset(graphics_buffer, color, graphics_buffer_height * graphics_buffer_width);
+    // TODO: bgcolor
 }
 
 void st7789_dma_pixels(const uint16_t* pixels, const uint num_pixels) {

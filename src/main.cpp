@@ -5,6 +5,7 @@
 #include <hardware/pwm.h>
 #include <hardware/clocks.h>
 #include <hardware/watchdog.h>
+#include <hardware/structs/qmi.h>
 #include <pico/bootrom.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
@@ -42,39 +43,30 @@ extern "C" {
 
 extern "C" uint32_t flash_size;;
 
-#if BUTTER_PSRAM_GPIO
 #include <hardware/structs/qmi.h>
 #include <hardware/structs/xip.h>
 extern "C" uint32_t butter_psram_size;
+extern "C" uint32_t BUTTER_PSRAM_GPIO = 0;
 #define MB16 (16ul << 20)
 #define MB8 (8ul << 20)
 #define MB4 (4ul << 20)
 #define MB1 (1ul << 20)
 volatile uint8_t* PSRAM_DATA = (uint8_t*)0x11000000;
 inline static uint32_t __not_in_flash_func(_butter_psram_size)() {
-    for(register int i = MB16 - MB1; i < MB16; ++i)
-        PSRAM_DATA[i] = i & 0xFF;
-    register uint32_t res = 0;
-    for(register int i = MB4 - MB1; i < MB4; ++i) {
-        if (PSRAM_DATA[i] != (i & 0xFF)) {
-            for(register int i = MB8 - MB1; i < MB8; ++i) {
-                if (PSRAM_DATA[i] != (i & 0xFF)) {
-                    for(register int i = MB16 - MB1; i < MB16; ++i) {
-                        if (PSRAM_DATA[i] != (i & 0xFF)) {
-                            goto e0;
-                        }
-                    }
-                    res = MB16;
-                    goto e0;
-                }
-            }
-            res = MB8;
-            goto e0;
-        }
+    for(register int i = MB8; i < MB16; ++i)
+        PSRAM_DATA[i] = 16;
+    for(register int i = MB4; i < MB8; ++i)
+        PSRAM_DATA[i] = 8;
+    for(register int i = MB1; i < MB4; ++i)
+        PSRAM_DATA[i] = 4;
+    for(register int i = 0; i < MB1; ++i)
+        PSRAM_DATA[i] = 1;
+    register uint32_t res = PSRAM_DATA[MB16 - 1];
+    for (register int i = MB16 - MB1; i < MB16; ++i) {
+        if (res != PSRAM_DATA[i])
+            return 0;
     }
-    res = MB4;
-e0:
-    return res;
+    return res << 20;
 }
 void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
@@ -151,9 +143,21 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
 
     // detect a chip size
-    butter_psram_size = 8 << 20; /// _butter_psram_size();
+    butter_psram_size = _butter_psram_size();
 }
-#endif
+void __no_inline_not_in_flash_func(psram_deinit)(uint cs_pin) {
+    hw_clear_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
+    qmi_hw->m[1].timing = 0;
+    qmi_hw->m[1].rfmt   = 0;
+    qmi_hw->m[1].rcmd   = 0;
+    qmi_hw->m[1].wfmt   = 0;
+    qmi_hw->m[1].wcmd   = 0;
+    qmi_hw->direct_csr = 0;
+    if (gpio_get_function(cs_pin) == GPIO_FUNC_XIP_CS1) {
+        gpio_set_function(cs_pin, GPIO_FUNC_SIO);
+    }
+    butter_psram_size = 0;
+}
 
 static FATFS fs;
 extern "C" FATFS* get_mount_fs() { // only one FS is supported for now
@@ -415,9 +419,9 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
     int res = 0b000000;
 #if PICO_RP2350
     /// do not try to test butter psram this way
-#if BUTTER_PSRAM_GPIO
-    if (pin0 == BUTTER_PSRAM_GPIO || pin1 == BUTTER_PSRAM_GPIO) return res;
-#endif
+    if (BUTTER_PSRAM_GPIO) {
+        if (pin0 == BUTTER_PSRAM_GPIO || pin1 == BUTTER_PSRAM_GPIO) return res;
+    }
     if (pin0 == 23 || pin1 == 23) return res; // SMPS Power
     if (pin0 == 24 || pin1 == 24) return res; // VBus sense
     if (pin0 == 25 || pin1 == 25) return res; // LED
@@ -533,20 +537,22 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
 static void tft_refresh(void* pv) {
     while(1) {
         refresh_lcd();
-        vTaskDelay(1);
+        vTaskDelay(20);
     }
 }
 #endif
 
 static void __in_hfa() startup_vga(void) {
+        uint8_t link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
     if (override_drv >= 0) {
         drv = override_drv;
     } else {
         #ifdef HDMI_DRV
-        uint8_t link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
         if (link6 == 0 || link6 == 0x1F) {
             drv = VGA_DRV;
-        } else {
+        }
+        #ifdef TFT_DRV
+        else {
             uint8_t link9 = testPins(VGA_BASE_PIN + 3, VGA_BASE_PIN + 4);
             bool pio9PD = !!(link9 & 0b010000);
             bool pio9PU = !!(link9 & 0b001000);
@@ -556,6 +562,11 @@ static void __in_hfa() startup_vga(void) {
                 drv = HDMI_DRV;
             }
         }
+        #else
+        else {
+            drv = HDMI_DRV;
+        }
+        #endif
         #endif
     }
 #if TFT
@@ -573,6 +584,7 @@ static void __in_hfa() startup_vga(void) {
     }
 #endif
     clrScr(0);
+    goutf("\n\n\n\n\n\n\nlink6=%02Xh\n", link6);
 }
 
 void __in_hfa() info(bool with_sd) {
@@ -587,23 +599,23 @@ void __in_hfa() info(bool with_sd) {
           ram32 >> 10,
           flash_size >> 20, rx[0], rx[1], rx[2], rx[3]
     );
-    uint32_t psram32 = psram_size();
-    if (psram32) {
-        uint8_t rx8[8];
-        psram_id(rx8);
-        if (psram32) {
-            goutf("PSRAM %d MB; MF ID: %02x; KGD: %02x; EID: %02X%02X-%02X%02X-%02X%02X\n",
-                  psram32 >> 20, rx8[0], rx8[1], rx8[2], rx8[3], rx8[4], rx8[5], rx8[6], rx8[7]
-            );
-        }
-    }
-    #if BUTTER_PSRAM_GPIO
     if (butter_psram_size) {
         goutf("Butter-PSRAM %d MB on GPIO%d\n",
               butter_psram_size >> 20, BUTTER_PSRAM_GPIO
         );
     }
-    #endif
+    if (!butter_psram_size || BUTTER_PSRAM_GPIO == 47) {
+        uint32_t psram32 = psram_size();
+        if (psram32) {
+            uint8_t rx8[8];
+            psram_id(rx8);
+            if (psram32) {
+                goutf("Murm-PSRAM %d MB; MF ID: %02x; KGD: %02x; EID: %02X%02X-%02X%02X-%02X%02X\n",
+                    psram32 >> 20, rx8[0], rx8[1], rx8[2], rx8[3], rx8[4], rx8[5], rx8[6], rx8[7]
+                );
+            }
+        }
+    }
     if (!with_sd) {
         goutf("\n");
         return;
@@ -789,29 +801,30 @@ void __in_hfa() init(void) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
-    volatile uint32_t *qmi_m0_timing=(uint32_t *)0x400d000c;
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
-    sleep_ms(33);
-    *qmi_m0_timing = 0x60007204;
+    qmi_hw->m[0].timing = 0x60007404; // 4x FLASH divisor    
+    sleep_ms(100);
     uint32_t overclocking = get_overclocking_khz();
     if (! set_sys_clock_khz(overclocking, 0) ) {
-        overclocking = 125000;
+        overclocking = 252000;
     }
-    *qmi_m0_timing = 0x60007303;
     set_last_overclocking(overclocking);
-#if BUTTER_PSRAM_GPIO
-    psram_init(BUTTER_PSRAM_GPIO);
+#ifdef MURM2
+    BUTTER_PSRAM_GPIO = 8;
+#else
+    BUTTER_PSRAM_GPIO = 19;
 #endif
+/// TODO: how to autodetect?
+#ifdef PIMO
+    BUTTER_PSRAM_GPIO = 47;
+#endif
+    psram_init(BUTTER_PSRAM_GPIO);
     keyboard_init();
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
-#ifndef BUTTER_PSRAM_GPIO
-    init_psram();
-#else
-    #if BUTTER_PSRAM_GPIO == 47
+    if (!butter_psram_size || BUTTER_PSRAM_GPIO == 47) {
         init_psram();
-    #endif
-#endif
+    }
 }
 
 static void __in_hfa() vPostInit(void *pv) {
@@ -834,10 +847,10 @@ static void __in_hfa() vPostInit(void *pv) {
         __unreachable();
     }
 
+    load_config_sys();
     startup_vga();
     graphics_set_mode(graphics_get_default_mode());
 ///    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);
-    load_config_sys();
     show_logo(true);
     graphics_set_con_pos(0, 1);
     init_sound();

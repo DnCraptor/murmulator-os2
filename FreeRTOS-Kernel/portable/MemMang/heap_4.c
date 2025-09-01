@@ -361,7 +361,7 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
 void __in_hfa() vPortFreePsram( void * pv );
 void __in_hfa() vPortFree( void * pv )
 {
-    if (pv >= 0x11000000) return vPortFreePsram(pv);
+    if (pv <= 0x20000000) return vPortFreePsram(pv);
     uint8_t * puc = ( uint8_t * ) pv;
     BlockLink_t * pxLink;
 

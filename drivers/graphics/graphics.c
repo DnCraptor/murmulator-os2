@@ -4,9 +4,13 @@
 #include "task.h"
 #include <stdarg.h>
 #include "sys_table.h"
+#ifdef TFT_DRV
 #include "st7789.h"
+#endif
 
 #ifndef logMsg
+#define logMsg(...)
+#if 0
 void logMsg(char* m) {
     static FIL f;
     f_open(&f, ".log", FA_WRITE | FA_OPEN_APPEND | FA_OPEN_ALWAYS);
@@ -14,6 +18,7 @@ void logMsg(char* m) {
     f_write(&f, m, strlen(m), &bw);
     f_close(&f);
 }
+#endif
 #endif
    
 #ifdef DEBUG_VGA
