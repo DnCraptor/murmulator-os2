@@ -6,6 +6,7 @@
 #include <hardware/clocks.h>
 #include <hardware/watchdog.h>
 #include <hardware/structs/qmi.h>
+#include <hardware/regs/sysinfo.h>
 #include <pico/bootrom.h>
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
@@ -47,6 +48,7 @@ extern "C" uint32_t flash_size;;
 #include <hardware/structs/xip.h>
 extern "C" uint32_t butter_psram_size;
 extern "C" uint32_t BUTTER_PSRAM_GPIO = 0;
+extern "C" bool rp2350a = true;
 #define MB16 (16ul << 20)
 #define MB8 (8ul << 20)
 #define MB4 (4ul << 20)
@@ -336,7 +338,8 @@ static void load_config_sys() {
     set_last_overclocking(overclocking);
 }
 
-const char* tmp = "Murmulator (RP2350) OS v." MOS_VERSION_STR;
+const char mRP2350[] = "Murmulator (RP2350";
+const char mOSV[] = ") OS v." MOS_VERSION_STR;
 
 #ifdef DEBUG_VGA
 extern "C" char vga_dbg_msg[1024];
@@ -345,15 +348,21 @@ extern "C" char vga_dbg_msg[1024];
 extern "C" void show_logo(bool with_top) {
     uint32_t w = get_console_width();
     uint32_t y = get_console_height() - 1;
-    uint32_t sz = strlen(tmp);
+    uint32_t sz = sizeof(mRP2350) + sizeof(mOSV) - 1;
     uint32_t sps = (w - sz) / 2;
 
     for(uint32_t x = 0; x < w; ++x) {
         if(with_top) draw_text(" ", x, 0, 13, 1);
         draw_text(" ", x, y, 13, 1);
     }
-    if(with_top) draw_text(tmp, sps, 0, 13, 1);
-    draw_text(tmp, sps, y, 13, 1);
+    if(with_top) {
+        draw_text(mRP2350, sps, 0, 13, 1);
+        draw_text(rp2350a ? "A" : "B", sps + sizeof(mRP2350) - 1, 0, 13, 1);
+        draw_text(mOSV, sps + sizeof(mRP2350), 0, 13, 1);
+    }
+    draw_text(mRP2350, sps, y, 13, 1);
+    draw_text(rp2350a ? "A" : "B", sps + sizeof(mRP2350) - 1, y, 13, 1);
+    draw_text(mOSV, sps + sizeof(mRP2350), y, 13, 1);
     graphics_set_con_color(7, 0); // TODO: config
 }
 
@@ -543,11 +552,11 @@ static void tft_refresh(void* pv) {
 #endif
 
 static void __in_hfa() startup_vga(void) {
-        uint8_t link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
     if (override_drv >= 0) {
         drv = override_drv;
     } else {
         #ifdef HDMI_DRV
+        uint8_t link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
         if (link6 == 0 || link6 == 0x1F) {
             drv = VGA_DRV;
         }
@@ -584,7 +593,6 @@ static void __in_hfa() startup_vga(void) {
     }
 #endif
     clrScr(0);
-    goutf("\n\n\n\n\n\n\nlink6=%02Xh\n", link6);
 }
 
 void __in_hfa() info(bool with_sd) {
@@ -810,14 +818,11 @@ void __in_hfa() init(void) {
         overclocking = 252000;
     }
     set_last_overclocking(overclocking);
+    rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
 #ifdef MURM2
-    BUTTER_PSRAM_GPIO = 8;
+    BUTTER_PSRAM_GPIO = rp2350a ?  8 : 47;
 #else
-    BUTTER_PSRAM_GPIO = 19;
-#endif
-/// TODO: how to autodetect?
-#ifdef PIMO
-    BUTTER_PSRAM_GPIO = 47;
+    BUTTER_PSRAM_GPIO = rp2350a ? 19 : 47;
 #endif
     psram_init(BUTTER_PSRAM_GPIO);
     keyboard_init();

@@ -32,8 +32,7 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
-set(MURM20 ON)
-#set(PIMO ON)
+#set(MURM20 ON)
 
 #set(HID ON)
 #set(VGA ON)
@@ -49,7 +48,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.1.2")
+set(MOS_VERSION "2.1.3")
 endif ()
 
 if(MURM20)
@@ -353,11 +352,6 @@ if (HID)
     SET(BUILD_NAME "${BUILD_NAME}-HID-${MOS_VERSION}-${CPU_MHZ}MHz")
 else()
     SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz")
-endif()
-
-if (PIMO)
-    SET(BUILD_NAME "${BUILD_NAME}-GP47")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE PIMO)
 endif()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
