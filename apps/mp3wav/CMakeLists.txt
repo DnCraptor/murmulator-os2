@@ -17,7 +17,7 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.22)
 include(pico_sdk_import.cmake)
 
-project(murmulator-os-apps-mem C CXX ASM)
+project(mp3wav C CXX ASM)
 pico_sdk_init()
 
 SET(BUILD_NAME "${PROJECT_NAME}")
@@ -31,8 +31,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 # INCLUDE FILES THAT SHOULD BE COMPILED:
-#file(GLOB_RECURSE SRC "*.cpp" "*.c")
-file(GLOB_RECURSE SRC "mp3wav.c")
+file(GLOB_RECURSE SRC "*.cpp" "*.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../api/*.c")
 
 message(STATUS "Add source files:")
 foreach (SRC_FILE IN LISTS SRC)
@@ -40,7 +39,29 @@ foreach (SRC_FILE IN LISTS SRC)
 endforeach ()
 message(STATUS "")
 
-add_executable(${PROJECT_NAME} mp3wav.c)
+add_executable(${PROJECT_NAME}
+    mp3wav.c
+    bitstream.c
+    buffers.c
+    dct32.c
+    dequant.c
+    dqchan.c
+    huffman.c
+    hufftabs.c
+    imdct.c
+    mp3dec.c
+    mp3tabs.c
+    music_file.c
+    polyphase.c
+    scalfact.c
+    stproc.c
+    subband.c
+    timing.c
+    trigtabs.c
+    wave.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/m-os-api-math.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/m-os-api-sdtfn.c
+)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -61,11 +82,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 #family_configure_device_example(${PROJECT_NAME} noos)
 # -fPIC -shared
-target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
-target_include_directories(${PROJECT_NAME} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../api
-)
+target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage -r)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
@@ -84,12 +101,16 @@ target_compile_options(${PROJECT_NAME} PUBLIC
 )
 endif ()
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE)
-
+target_compile_definitions(${PROJECT_NAME} PRIVATE ELF_MODE)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
 
-pico_add_extra_outputs(${PROJECT_NAME})
+#pico_add_extra_outputs(${PROJECT_NAME})
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rename
+        $<TARGET_FILE:${PROJECT_NAME}>
+        ${OUTPUT_DIR}/${BUILD_NAME}
+)

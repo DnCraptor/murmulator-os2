@@ -1,8 +1,5 @@
 #include "m-os-api.h"
-#include "m-os-api-sdtfn.h"
 #include "m-os-api-timer.h"
-#include "m-os-api-math.h"
-/// TODO:
 #undef switch
 
 #include "timing.h"
@@ -150,22 +147,3 @@ int main(void) {
 
 #define MPDEC_ALLOCATOR(x) malloc(x)
 #define SAFE_FREE(x) free(x)
-
-#include "timing.c"
-#include "bitstream.c"
-#include "buffers.c"
-#include "dct32.c"
-#include "dequant.c"
-#include "dqchan.c"
-#include "huffman.c"
-#include "hufftabs.c"
-#include "imdct.c"
-#include "mp3dec.c"
-#include "mp3tabs.c"
-#include "polyphase.c"
-#include "scalfact.c"
-#include "stproc.c"
-#include "subband.c"
-#include "trigtabs.c"
-#include "wave.c"
-#include "music_file.c"

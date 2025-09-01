@@ -1,10 +1,5 @@
-#pragma once
-
 // use it to resolve issues like memset and/or memcpy are not found on elf32 obj execution attempt
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "m-os-api.h"
 
 void* memset(void* p, int v, size_t sz) {
     typedef void* (*fn)(void *, int, size_t);
@@ -31,6 +26,7 @@ char* strcat(char* t, const char * s) {
     return ((fn_ptr_t)_sys_table_ptrs[252])(t, s);
 }
 
+#ifndef UF2_MODE
 void _exit(int status) { goutf("_exit(%d)\n", status); }
 void _kill(void) { gouta("_kill\n"); }
 int _getpid(void) { gouta("_getpid\n"); return 0; }
@@ -45,6 +41,22 @@ void __cxa_pure_virtual(void) { gouta("__cxa_pure_virtual\n"); }
 void __cxa_end_cleanup(void) { gouta("__cxa_end_cleanup\n"); }
 void __aeabi_atexit(void) { gouta("__aeabi_atexit\n"); }
 void __dso_handle(void) { gouta("__dso_handle\n"); }
+
+#ifndef marked_to_exit
+volatile bool marked_to_exit;
+
+int __required_m_api_verion(void) {
+    return M_API_VERSION;
+}
+
+// only SIGTERM is supported for now
+int signal(void) {
+    marked_to_exit = true;
+    return 0;
+}
+#endif
+
+#endif
 /*
 2512 00000000h NOTYPE  GLOBAL __aeabi_unwind_cpp_pr0 (0) -> 0 UNDEF
 2605 00000000h NOTYPE  GLOBAL __gnu_thumb1_case_uqi (0) -> 0 UNDEF
@@ -53,7 +65,3 @@ void __dso_handle(void) { gouta("__dso_handle\n"); }
 2732 00000000h NOTYPE  GLOBAL __gnu_thumb1_case_uhi (0) -> 0 UNDEF
 2764 00000000h NOTYPE  GLOBAL __gnu_thumb1_case_sqi (0) -> 0 UNDEF
 */
-
-#ifdef __cplusplus
-}
-#endif

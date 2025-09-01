@@ -42,6 +42,10 @@
  **************************************************************************************/
 
 #include "timing.h"
+#include "m-os-api.h"
+#include "m-os-api-timer.h"
+#undef switch
+
 
 /* NOTES: 
  * - for armulator (ARM_ADS) use -clock 100 (100 Hz system clock) for accurate

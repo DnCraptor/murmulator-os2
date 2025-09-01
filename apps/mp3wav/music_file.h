@@ -1,4 +1,8 @@
 #pragma once
+#include "m-os-api.h"
+#include "m-os-api-timer.h"
+#undef switch
+
 #include "mp3dec.h"
 
 typedef enum MusicType

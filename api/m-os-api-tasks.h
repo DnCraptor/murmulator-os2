@@ -1,3 +1,6 @@
+#ifndef M_OS_API_TASKS_H
+#define M_OS_API_TASKS_H
+
 #include "FreeRTOSConfig.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -533,3 +536,5 @@ inline static void* pvTaskGetThreadLocalStoragePointer( TaskHandle_t xTaskToQuer
     typedef void* (*v_ptr_t)( TaskHandle_t, BaseType_t );
     return ((v_ptr_t)_sys_table_ptrs[_pvTaskGetThreadLocalStoragePointerPtrIdx])(xTaskToQuery, xIndex);
 }
+
+#endif // M_OS_API_TASKS_H

@@ -1,12 +1,5 @@
-#ifndef MOS_API_MATH
-#define MOS_API_MATH
-
 // use it to resolve issues like memset and/or memcpy are not found on elf32 obj execution attempt
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include "m-os-api.h"
 float __aeabi_fmul(float x, float y) { //         single-precision multiplication
     typedef float (*fn)(float, float);
     return ((fn)_sys_table_ptrs[210])(x, y);
@@ -153,8 +146,3 @@ unsigned long long __aeabi_uldivmod(unsigned long long x, unsigned long long y) 
     typedef unsigned long long (*fn)(unsigned long long, unsigned long long);
     return ((fn)_sys_table_ptrs[264])(x, y);
 }
-#ifdef __cplusplus
-}
-#endif
-
-#endif

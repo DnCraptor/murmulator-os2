@@ -1,3 +1,6 @@
+#ifndef M_OS_API_C_ARRAY_H
+#define M_OS_API_C_ARRAY_H
+
 // array of pointers to some objects
 typedef void (*dealloc_fn_ptr_t)(void*);
 typedef void* (*alloc_fn_ptr_t)(void);
@@ -72,3 +75,5 @@ inline static void array_resize(array_t* arr, size_t n) {
     }
     arr->size = n;
 }
+
+#endif /// M_OS_API_C_ARRAY_H

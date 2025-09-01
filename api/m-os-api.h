@@ -1,3 +1,6 @@
+#ifndef M_OS_API_H
+#define M_OS_API_H
+
 #ifndef M_API_VERSION
 
 #define __force_inline __attribute__((always_inline))
@@ -1011,6 +1014,8 @@ inline static int memcmp( const void *buffer1, const void *buffer2, size_t count
     return ((fn_ptr_t)_sys_table_ptrs[253])(buffer1, buffer2, count);
 }
 
+void* memmove(void* dst, const void* src, size_t sz);
+
 inline static void reboot_me( void ) {
     typedef void (*fn_ptr_t)(void);
     ((fn_ptr_t)_sys_table_ptrs[254])();
@@ -1024,23 +1029,7 @@ inline static size_t free_app_flash(void) {
 
 #define abs(x) (x > 0 ? x : -x)
 
-#ifndef UF2_MODE
-
-#ifndef marked_to_exit
-volatile bool marked_to_exit;
-
-int __required_m_api_verion(void) {
-    return M_API_VERSION;
-}
-
-// only SIGTERM is supported for now
-int signal(void) {
-	marked_to_exit = true;
-    return 0;
-}
-#endif
-
-#endif
+extern volatile bool marked_to_exit;
 
 #ifdef __cplusplus
 }
@@ -1071,3 +1060,5 @@ inline static bool cmd_enter_helper(cmd_ctx_t* ctx, string_t* s_cmd) {
 #endif
 
 #endif
+
+#endif // M_OS_API_H
