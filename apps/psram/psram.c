@@ -1,8 +1,6 @@
 #include "m-os-api.h"
 #include "m-os-api-timer.h"
 
-volatile bool marked_to_exit;
-
 int main(void) {
     marked_to_exit = false;
     FIL * f = get_stdout();

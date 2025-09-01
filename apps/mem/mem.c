@@ -7,14 +7,14 @@ int main(void) {
     uint32_t ram32 = get_cpu_ram_size();
     uint32_t sz = psram_size();
     size_t free_sz = xPortGetFreeHeapSize();
-    printf( "SRAM size : %d (%dK) bytes (%dK free)\n"
-            "FLASH size: %d (%dK) bytes (%dK free)\n"
-            "PSRAM size: %d (%dK) bytes\n", // TODO: <-- psram table
+    printf( "SRAM size  : %d (%dK) bytes (%dK free)\n"
+            "FLASH size : %d (%dK) bytes (%dK free)\n"
+            "Murm-PSRAM : %d (%dK) bytes\n",
             ram32, ram32 >> 10, free_sz >> 10,
             flash32, flash32 >> 10, (free_app_flash() >> 10),
             sz, sz >> 10);
     sz = swap_size();
-    printf( "SWAP size : %d (%dK) bytes\n", sz, sz >> 10);
+    printf( "SWAP size  : %d (%dK) bytes\n", sz, sz >> 10);
     sz = swap_base_size();
     printf( "SWAP SRAM size: %d (%dK) bytes\n", sz, sz >> 10);
     size_t vsz = get_buffer_size();
@@ -24,6 +24,9 @@ int main(void) {
     );
     vPortGetHeapStats(stat);
     size_t heap = get_heap_total();
+    if (heap > (520 << 10)) {
+        printf( "Butter-PSRAM  : %d MB\n", heap >> 20);
+    }
     printf( "Heap memory: %d (%dK)\n"
             " available bytes total: %d (%dK)\n"
             "         largets block: %d (%dK)\n",
