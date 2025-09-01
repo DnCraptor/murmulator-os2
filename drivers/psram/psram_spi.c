@@ -22,17 +22,23 @@ static uint32_t __in_hfa() _psram_size() {
 #endif
 }
 
+extern uint32_t butter_psram_size;
+extern uint32_t BUTTER_PSRAM_GPIO;
 #ifdef PSRAM
 static int32_t _res = -1;
 #else
 static int32_t _res = 0;
 #endif
 uint32_t psram_size() {
-    int32_t res = 0;
-    if (_res != -1) {
-        return _res;
+    if (!butter_psram_size || BUTTER_PSRAM_GPIO == 47) {
+        int32_t res = 0;
+        if (_res != -1) {
+            return _res;
+        }
+        _res = _psram_size();
+    } else {
+        _res = 0;
     }
-    _res = _psram_size();
     return _res;
 }
 

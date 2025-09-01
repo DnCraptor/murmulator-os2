@@ -32,7 +32,7 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
-#set(MURM20 ON)
+set(MURM20 ON)
 
 #set(HID ON)
 #set(VGA ON)
@@ -48,7 +48,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.1.3")
+set(MOS_VERSION "2.1.4")
 endif ()
 
 if(MURM20)
@@ -210,7 +210,7 @@ if (MURM20)
         NES_GPIO_LAT=21
         NES_GPIO_DATA=26
 
-#        PSRAM
+        PSRAM
         # PSRAM_MUTEX=1
         PSRAM_SPINLOCK=1
         PSRAM_ASYNC=1
