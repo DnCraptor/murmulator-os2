@@ -32,8 +32,7 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
-set(MURM20 ON)
-
+#set(MURM20 ON)
 #set(HID ON)
 #set(VGA ON)
 set(VGAHDMI ON)
