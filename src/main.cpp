@@ -43,6 +43,12 @@ extern "C" {
 #include "nespad.h"
 
 extern "C" uint32_t flash_size;;
+int flash_mhz = FLASH_FREQ_MHZ;
+int psram_mhz = PSRAM_FREQ_MHZ;
+uint new_flash_timings = 0;
+uint new_psram_timings = 0;
+static int vreg = VREG_VOLTAGE_1_60;
+static int new_vreg = VREG_VOLTAGE_1_60;
 
 #include <hardware/structs/qmi.h>
 #include <hardware/structs/xip.h>
@@ -92,7 +98,7 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     // Using an rxdelay equal to the divisor isn't enough when running the APS6404 close to 133MHz.
     // So: don't allow running at divisor 1 above 100MHz (because delay of 2 would be too late),
     // and add an extra 1 to the rxdelay if the divided clock is > 100MHz (i.e. sys clock > 200MHz).
-    const int max_psram_freq = 166000000;
+    const int max_psram_freq = psram_mhz * 1000000;
     const int clock_hz = clock_get_hz(clk_sys);
     int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
     if (divisor == 1 && clock_hz > 100000000) {
@@ -147,6 +153,47 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     // detect a chip size
     butter_psram_size = _butter_psram_size();
 }
+
+void __not_in_flash() flash_timings() {
+    if (!new_flash_timings) {
+        const int max_flash_freq = flash_mhz * MHZ;
+        const int clock_hz = get_overclocking_khz() * 1000;
+        int divisor = (clock_hz + max_flash_freq - 1) / max_flash_freq;
+        if (divisor == 1 && clock_hz > 100000000) {
+            divisor = 2;
+        }
+        int rxdelay = divisor;
+        if (clock_hz / divisor > 100000000) {
+            rxdelay += 1;
+        }
+        qmi_hw->m[0].timing = 0x60007000 |
+                            rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
+                            divisor << QMI_M0_TIMING_CLKDIV_LSB;
+    } else {
+        qmi_hw->m[0].timing = new_flash_timings;
+    }
+}
+
+void __not_in_flash() psram_timings() {
+    if (!new_psram_timings) {
+        const int max_psram_freq = psram_mhz * MHZ;
+        const int clock_hz = get_overclocking_khz() * 1000;
+        int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
+        if (divisor == 1 && clock_hz > 100000000) {
+            divisor = 2;
+        }
+        int rxdelay = divisor;
+        if (clock_hz / divisor > 100000000) {
+            rxdelay += 1;
+        }
+        qmi_hw->m[1].timing = (qmi_hw->m[1].timing & ~0x000000FFF) |
+                            rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
+                            divisor << QMI_M0_TIMING_CLKDIV_LSB;
+    } else {
+        qmi_hw->m[1].timing = new_psram_timings;
+    }
+}
+
 void __no_inline_not_in_flash_func(psram_deinit)(uint cs_pin) {
     hw_clear_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
     qmi_hw->m[1].timing = 0;
@@ -305,6 +352,41 @@ static void load_config_sys() {
                 int cpu = atoi(t);
                 if (cpu > 123 && cpu < 450) {
                     set_last_overclocking(cpu * 1000);
+                }
+            } else if (strcmp(t, "VREG") == 0) {
+                t = next_token(t);
+                new_vreg = atoi(t);
+                if (new_vreg != vreg && new_vreg >= VREG_VOLTAGE_0_55 && new_vreg <= VREG_VOLTAGE_3_30) {
+                    vreg = new_vreg;
+                    vreg_set_voltage((enum vreg_voltage)vreg);
+                }
+            } else if (!new_flash_timings && strcmp(t, "FLASH") == 0) {
+                t = next_token(t);
+                int new_flash_mhz = atoi(t);
+                if (flash_mhz != new_flash_mhz) {
+                    flash_mhz = new_flash_mhz;
+                    flash_timings();
+                }
+            } else if (strcmp(t, "FLASH_T") == 0) {
+                t = next_token(t);
+                char *endptr;
+                new_flash_timings = (uint)strtol(t, &endptr, 16);
+                if (*endptr == 0 && qmi_hw->m[0].timing != new_flash_timings) {
+                    flash_timings();
+                }
+            } else if (!new_psram_timings && strcmp(t, "PSRAM") == 0) {
+                t = next_token(t);
+                int new_psram_mhz = atoi(t);
+                if (psram_mhz != new_psram_mhz) {
+                    psram_mhz = new_psram_mhz;
+                    psram_timings();
+                }
+            } else if (strcmp(t, "PSRAM_T") == 0) {
+                t = next_token(t);
+                char *endptr;
+                new_psram_timings = (uint)strtol(t, &endptr, 16);
+                if (*endptr == 0 && qmi_hw->m[1].timing != new_psram_timings) {
+                    psram_timings();
                 }
             } else if (strcmp(t, BASE) == 0) {
                 t = next_token(t);
@@ -600,16 +682,17 @@ void __in_hfa() info(bool with_sd) {
     uint8_t rx[4];
     get_cpu_flash_jedec_id(rx);
     flash_size = (1 << rx[3]);
-    goutf("CPU %d MHz\n"
+    goutf("CPU: RP2350%c %d MHz\n"
           "SRAM %d KB\n"
-          "FLASH %d MB; JEDEC ID: %02X-%02X-%02X-%02X\n",
+          "FLASH %d MB; JEDEC ID: %02X-%02X-%02X-%02X (max %d MHz, [T%p])\n",
+          rp2350a ? 'A' : 'B',
           get_overclocking_khz() / 1000,
           ram32 >> 10,
-          flash_size >> 20, rx[0], rx[1], rx[2], rx[3]
+          flash_size >> 20, rx[0], rx[1], rx[2], rx[3], flash_mhz, qmi_hw->m[0].timing
     );
     if (butter_psram_size) {
-        goutf("Butter-PSRAM %d MB on GPIO%d\n",
-              butter_psram_size >> 20, BUTTER_PSRAM_GPIO
+        goutf("Butter-PSRAM %d MB on GPIO%d (max %d MHz, [T%p])\n",
+              butter_psram_size >> 20, BUTTER_PSRAM_GPIO, psram_mhz, qmi_hw->m[1].timing
         );
     }
     if (!butter_psram_size || BUTTER_PSRAM_GPIO == 47) {
@@ -664,74 +747,11 @@ void caseF12(void) {
 }
 
 void selectDRV1(void) {
-            switch(DEFAULT_VIDEO_DRIVER) {
-                case VGA_DRV:
-                    #ifdef HDMI
-                        override_drv = HDMI_DRV;
-                    #else
-                    #ifdef TV
-                        override_drv = RGB_DRV;
-                    #endif
-                    #ifdef TFT
-                        override_drv = TFT_DRV;
-                    #endif
-                    #endif
-                    break;
-                #ifdef HDMI
-                case HDMI_DRV:
-                    override_drv = VGA_DRV;
-                    break;
-                #endif
-                #ifdef TV
-                case RGB_DRV:
-                    override_drv = VGA_DRV;
-                    break;
-                #endif
-                #ifdef SOFTTV
-                case SOFTTV_DRV:
-                    override_drv = VGA_DRV;
-                    break;
-                #endif
-            }
+    override_drv = HDMI_DRV;
 }
 
 void selectDRV2(void) {
-            switch(DEFAULT_VIDEO_DRIVER) {
-                case VGA_DRV:
-                    #ifdef HDMI
-                        override_drv = HDMI_DRV;
-                    #else
-                        #ifdef TV
-                            override_drv = RGB_DRV;
-                        #endif
-                        #ifdef TFT
-                            override_drv = TFT_DRV;
-                        #endif
-                    #endif
-                    break;
-                #ifdef HDMI
-                case HDMI_DRV:
-                    override_drv = VGA_DRV;
-                    break;
-                #endif
-                #ifdef TFT
-                    override_drv = TFT_DRV;
-                #endif
-                #ifdef TV
-                case RGB_DRV:
-                    #ifdef HDMI
-                        override_drv = HDMI_DRV;
-                    #else
-                        override_drv = VGA_DRV;
-                    #endif
-                    break;
-                #endif
-                #ifdef SOFTTV
-                case SOFTTV_DRV:
-                    override_drv = HDMI_DRV;
-                    break;
-                #endif
-            }
+    override_drv = VGA_DRV;
 }
 
 kbd_state_t* __in_hfa() process_input_on_boot() {

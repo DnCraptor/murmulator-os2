@@ -16,7 +16,7 @@ void set_last_overclocking(uint32_t khz) {
     last_overclocking_khz = khz;
     overclocking_khz = khz;
 }
-uint32_t get_overclocking_khz() {
+uint32_t __not_in_flash() get_overclocking_khz() {
     return last_overclocking_khz ? last_overclocking_khz : overclocking_khz;
 }
 
