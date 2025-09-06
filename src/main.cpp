@@ -350,7 +350,7 @@ static void load_config_sys() {
             } else if (strcmp(t, "CPU") == 0) {
                 t = next_token(t);
                 int cpu = atoi(t);
-                if (cpu > 123 && cpu < 450) {
+                if (cpu > 123 && cpu < 1000) {
                     set_last_overclocking(cpu * 1000);
                 }
             } else if (strcmp(t, "VREG") == 0) {
@@ -730,20 +730,20 @@ void usb_on_boot() {
 }
 
 void caseF10(void) {
-            if (FR_OK == f_mount(&fs, SD, 1)) {
-                FIL f;
-                link_firmware(&f, "unknown");
-            }
-            watchdog_enable(1, false);
-            while(1);
+    if (FR_OK == f_mount(&fs, SD, 1)) {
+        FIL f;
+        link_firmware(&f, "unknown");
+    }
+    watchdog_enable(1, false);
+    while(1);
 }
 
 void caseF12(void) {
-            if (FR_OK == f_mount(&fs, SD, 1)) {
-                unlink_firmware();
-            }
-            reset_usb_boot(0, 0);
-            while(1);
+    if (FR_OK == f_mount(&fs, SD, 1)) {
+        unlink_firmware();
+    }
+    reset_usb_boot(0, 0);
+    while(1);
 }
 
 void selectDRV1(void) {
@@ -872,7 +872,11 @@ static void __in_hfa() vPostInit(void *pv) {
         __unreachable();
     }
 
-    load_config_sys();
+    if (nespad_state & DPAD_SELECT) {
+        set_default_vars();
+    } else {
+        load_config_sys();
+    }
     startup_vga();
     graphics_set_mode(graphics_get_default_mode());
 ///    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);

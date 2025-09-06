@@ -32,7 +32,7 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
-set(MURM20 ON)
+#set(MURM20 ON)
 #set(HID ON)
 #set(VGA ON)
 set(VGAHDMI ON)
@@ -49,7 +49,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.1.5")
+set(MOS_VERSION "2.1.6")
 endif ()
 
 if(MURM20)
