@@ -28,6 +28,8 @@
 #include "sound.h"
 #include <math.h>
 
+#include "sys/fcntl.h"
+
 // TODO: think about it
 //extern int __cxa_pure_virtual();
 
@@ -352,6 +354,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     time_us_32, // 262
     time_us_64, // 263
     __aeabi_uldivmod, // 264
+    // API v.27 POSIX.1 (Base)
+    __open, // 265
     // TODO:
     0
 };

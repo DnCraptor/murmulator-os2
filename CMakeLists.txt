@@ -49,7 +49,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.1.6")
+set(MOS_VERSION "2.2.0")
 endif ()
 
 if(MURM20)
@@ -101,6 +101,7 @@ add_executable(${PROJECT_NAME} ${SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/freertos_config
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/posix.1/include 
 )
 
 configure_file(memmap.ld.in memmap.ld @ONLY)

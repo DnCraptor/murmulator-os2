@@ -1053,7 +1053,7 @@ void __in_hfa() vCmdTask(void *pv) {
         if (b_exists) {
             size_t len = strlen(ctx->orig_cmd); // TODO: more than one?
             // goutf("Command found: %s\n", ctx->orig_cmd);
-            if (len > 4 && strcmp(ctx->orig_cmd + len - 5, ".m1p2") == 0) {
+            if (len > 4 && (strcmp(ctx->orig_cmd + len - 5, ".m1p2") == 0 || strcmp(ctx->orig_cmd + len - 5, ".m2p2") == 0 )) {
                 if(load_firmware(ctx->orig_cmd)) { // TODO: by ctx
                     ctx->stage = LOAD;
                     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
