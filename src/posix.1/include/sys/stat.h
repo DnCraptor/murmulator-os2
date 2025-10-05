@@ -44,7 +44,7 @@ typedef unsigned int gid_t;
 
 /* Type for file offsets */
 #ifndef _OFF_T_DECLARED
-typedef long off_t;
+typedef long long off_t;
 #define	_OFF_T_DECLARED
 #endif
 
@@ -130,10 +130,8 @@ inline static int stat(const char *path, struct stat *buf) {
     return __stat(path, buf);
 }
 
-/* TODO:
-int fstat(int fd, struct stat *buf);
-int lstat(const char *pathname, struct stat *buf); // for symbolic links
-*/
+int __fstat(int fildes, struct stat *buf);
+int __lstat(const char *path, struct stat *buf); // for symbolic links
 
 #ifdef __cplusplus
 }

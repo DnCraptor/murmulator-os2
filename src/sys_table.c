@@ -360,6 +360,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __open, // 265
     __close, // 266
     __stat, // 267
+    __fstat, // 268
+    __lstat, // 269
     // TODO:
     0
 };

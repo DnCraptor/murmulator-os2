@@ -222,6 +222,7 @@ typedef struct FIL {
 	BYTE	buf[FF_MAX_SS];	/* File private data read/write window */
 #endif
     struct FIL* chained;
+	unsigned long ctime;
 } FIL;
 
 
