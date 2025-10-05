@@ -142,7 +142,7 @@ static FIL* list_lookup_first_closed(list_t* lst) {
     while (i) {
         FIL* fp = (FIL*)i->data;
         if (fp->obj.fs == 0) { // closed
-            return i;
+            return fp;
         }
         i = i->next;
         ++n;
@@ -163,11 +163,7 @@ int __open(const char *path, int flags, mode_t mode) {
         return -1;
     }
     if (!pfiles_list) pfiles_list = new_list_v(alloc_file, dealloc_file, 0);
-    FIL* pf = list_lookup_first_closed(pfiles_list);
-    if (pf == 0) {
-        pf = (FIL*)alloc_file();
-        list_push_back(pfiles_list, pf);
-    }
+    FIL* pf = (FIL*)alloc_file();
     BYTE ff_mode = map_flags_to_ff_mode(flags);
     fr = f_open(pf, path, ff_mode);
     if (fr != FR_OK) {
@@ -187,15 +183,13 @@ int __close(int fd) {
     if (n == 0) {
         goto e;
     }
-    FIL* fp = (FIL*)n->data;
-    if (fp->obj.fs == 0) { // closed
-        goto e;
-    }
-    errno = map_ff_fresult_to_errno(f_close(fp));
+    FRESULT fr = f_close((FIL*)n->data);
+    list_erase_node(pfiles_list, n);
+    errno = map_ff_fresult_to_errno(fr);
     return errno == 0 ? 0 : -1;
 e:
-    errno = -1;
-    return EBADF;
+    errno = EBADF;
+    return -1;
 }
 
 int __stat(const char *path, struct stat *buf) {
@@ -275,8 +269,8 @@ int __fstat(int fildes, struct stat *buf) {
     errno = 0;
     return 0;
 e:
-    errno = -1;
-    return EBADF;
+    errno = EBADF;
+    return -1;
 }
 
 int __lstat(const char *path, struct stat *buf) {

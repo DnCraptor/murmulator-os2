@@ -222,6 +222,7 @@ typedef struct FIL {
 	BYTE	buf[FF_MAX_SS];	/* File private data read/write window */
 #endif
     struct FIL* chained;
+	// injected for posix.1 support fstat
 	unsigned long ctime;
 } FIL;
 
