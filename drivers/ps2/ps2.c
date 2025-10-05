@@ -4,6 +4,7 @@
 #include "string.h"
 #include "hardware/irq.h"
 #include "graphics.h"
+#include "sys_table.h"
 
 volatile int bitcount;
 static uint8_t ps2bufsize = 0;
@@ -130,7 +131,7 @@ static int16_t ps2_recv_response(void) {
     return c;
 }
 
-int16_t keyboard_send(uint8_t data) {
+int16_t __in_hfa() keyboard_send(uint8_t data) {
     bool parity = true;
     ps2_error = PS2_ERR_NONE;
 

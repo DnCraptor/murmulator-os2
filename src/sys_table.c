@@ -29,6 +29,7 @@
 #include <math.h>
 
 #include "sys/fcntl.h"
+#include "sys/stat.h"
 #include "unistd.h"
 
 // TODO: think about it
@@ -358,6 +359,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // API v.27 POSIX.1 (Base)
     __open, // 265
     __close, // 266
+    __stat, // 267
     // TODO:
     0
 };

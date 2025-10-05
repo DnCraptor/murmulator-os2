@@ -13,6 +13,7 @@ extern "C" {
 #define EIO       5   /* I/O error */
 #define EBADF     9   /* Bad file descriptor */
 #define EACCES    13  /* Permission denied */
+#define EFAULT    14  /* Bad address: pointer points outside accessible memory */
 #define EEXIST    17  /* File exists */
 #define ENOTDIR   20  /* Not a directory */
 #define EISDIR    21  /* Is a directory */
