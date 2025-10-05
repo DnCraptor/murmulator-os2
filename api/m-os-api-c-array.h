@@ -1,6 +1,12 @@
 #ifndef M_OS_API_C_ARRAY_H
 #define M_OS_API_C_ARRAY_H
 
+void* pvPortMalloc(size_t sz); // 32
+void vPortFree(void*); // 33
+
+#define malloc(sz) pvPortMalloc(sz)
+#define free(p) vPortFree(p)
+
 // array of pointers to some objects
 typedef void (*dealloc_fn_ptr_t)(void*);
 typedef void* (*alloc_fn_ptr_t)(void);
@@ -16,8 +22,8 @@ typedef struct array {
 
 inline static array_t* new_array_v(alloc_fn_ptr_t allocator, dealloc_fn_ptr_t deallocator, size_fn_ptr_t size_fn) {
     array_t* res = malloc(sizeof(array_t));
-    res->allocator = allocator ? allocator : (alloc_fn_ptr_t)malloc;
-    res->deallocator = deallocator ? deallocator : free;
+    res->allocator = allocator ? allocator : (alloc_fn_ptr_t)pvPortMalloc;
+    res->deallocator = deallocator ? deallocator : vPortFree;
     res->size_fn = size_fn;
     res->alloc = 10 * sizeof(void*);
     res->p = malloc(res->alloc);
@@ -45,13 +51,13 @@ inline static void array_reserve(array_t* arr, size_t sz) { // sz - in bytes
     arr->alloc = sz;
 }
 
-inline static void array_push_back(array_t* arr, const void* data) {
+inline static size_t array_push_back(array_t* arr, const void* data) {
     register size_t min_sz_bytes = (arr->size + 1) * sizeof(void*);
     if (min_sz_bytes > arr->alloc) {
         array_reserve(arr, min_sz_bytes);
     }
     arr->p[arr->size] = data;
-    ++arr->size;
+    return arr->size++;
 }
 
 inline static void* array_get_at(array_t* arr, size_t n) { // by element number

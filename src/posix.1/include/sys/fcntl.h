@@ -76,6 +76,63 @@ inline static int open(const char *path, int oflag, ...) {
     return __open(path, oflag, mode);
 }
 
+/* Commands for fcntl() */
+#define F_DUPFD         0   /* Duplicate file descriptor (>= arg) */
+#define F_DUPFD_CLOEXEC 1030 /* Duplicate FD with FD_CLOEXEC */
+#define F_GETFD         1   /* Get file descriptor flags */
+#define F_SETFD         2   /* Set file descriptor flags */
+#define F_GETFL         3   /* Get file status flags */
+#define F_SETFL         4   /* Set file status flags */
+#define F_GETLK         5   /* Get record locking information */
+#define F_SETLK         6   /* Set record locking information (non-blocking) */
+#define F_SETLKW        7   /* Set record locking information (blocking) */
+#define F_GETOWN        8   /* Get owner (for SIGIO) */
+#define F_SETOWN        9   /* Set owner (for SIGIO) */
+#define F_GETSIG        10  /* Get signal for async notification */
+#define F_SETSIG        11  /* Set signal for async notification */
+#define F_SETLEASE      1024 /* Set file lease (Linux-specific) */
+#define F_GETLEASE      1025 /* Get file lease */
+#define F_NOTIFY        1026 /* Subscribe to filesystem events (Linux-specific) */
+
+/* File descriptor flags */
+#define FD_CLOEXEC      1   /* close-on-exec flag */
+
+/*
+ * fcntl() - perform various operations on a file descriptor
+ *
+ * Parameters:
+ *   int fd       : file descriptor to operate on
+ *   int cmd      : operation to perform. Common values include:
+ *     F_DUPFD      : duplicate the file descriptor using the lowest available descriptor
+ *                    greater than or equal to the third argument (int arg).
+ *     F_DUPFD_CLOEXEC : like F_DUPFD, but sets the close-on-exec flag on the new descriptor.
+ *     F_GETFD      : get the file descriptor flags. Returns the close-on-exec flag (FD_CLOEXEC).
+ *     F_SETFD      : set the file descriptor flags. Uses int arg to set FD_CLOEXEC.
+ *     F_GETFL      : get the file status flags and access modes (O_RDONLY, O_WRONLY, O_RDWR, O_NONBLOCK, etc.).
+ *     F_SETFL      : set the file status flags. Uses int arg to set flags (O_APPEND, O_NONBLOCK, etc.).
+ *     F_GETLK      : get the record locking information (advisory locks). Uses struct flock *arg.
+ *     F_SETLK      : set or clear a record lock (non-blocking). Uses struct flock *arg.
+ *     F_SETLKW     : set or clear a record lock (blocking). Uses struct flock *arg.
+ *     F_GETOWN     : get the process ID or process group currently receiving SIGIO and SIGURG signals.
+ *     F_SETOWN     : set the process ID or process group to receive SIGIO and SIGURG signals. Uses int arg.
+ *     F_GETSIG     : get the signal sent when I/O is possible (Linux-specific).
+ *     F_SETSIG     : set the signal sent when I/O is possible (Linux-specific). Uses int arg.
+ *   ...          : optional argument depending on cmd (int or struct flock* usually)
+ *
+ * Returns:
+ *   - On success: a non-negative value (meaning depends on cmd)
+ *   - On error  : -1 and sets errno appropriately
+ *
+ * Errors (examples):
+ *   EBADF   : fd is not a valid file descriptor
+ *   EINVAL  : cmd is invalid or argument is inappropriate
+ *   ENOLCK  : cannot acquire lock (for F_SETLK/F_SETLKW)
+ */
+int __fcntl(int fd, int cmd);
+inline static int fcntl(int fd, int cmd, ...) {
+    return __fcntl(fd, cmd);
+}
+
 #ifdef __cplusplus
 }
 #endif

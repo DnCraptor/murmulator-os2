@@ -8,7 +8,7 @@
 
 #include "ff.h"
 #define NULL 0
-#include "../../api/m-os-api-c-list.h"
+#include "../../api/m-os-api-c-array.h"
 
 
 #include <time.h>
@@ -68,13 +68,23 @@ static time_t fatfs_to_time_t(WORD fdate, WORD ftime) {
 }
 
 // TODO: per process context
-static list_t* pfiles_list = 0;
+static array_t* pfiles = 0;
 
 static void* alloc_file(void) {
     return pvPortMalloc(sizeof(FIL));
 }
+
 static void dealloc_file(void* p) {
     return vPortFree(p);
+}
+
+static void init_pfiles() {
+    if (pfiles) return;
+    pfiles = new_array_v(alloc_file, dealloc_file, NULL);
+    FIL* pf = (FIL*)alloc_file(); // TODO: how to process
+    array_push_back(pfiles, pf); // 0 - stdin
+    array_push_back(pfiles, alloc_file()); // 1 - stdout
+    array_push_back(pfiles, alloc_file()); // 2 - stdin
 }
 
 static BYTE map_flags_to_ff_mode(int flags) {
@@ -136,16 +146,13 @@ static int map_ff_fresult_to_errno(FRESULT fr) {
     }
 }
 
-static FIL* list_lookup_first_closed(list_t* lst) {
-    node_t* i = lst->first;
-    size_t n = 0;
-    while (i) {
-        FIL* fp = (FIL*)i->data;
+static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
+    for (size_t i = 3; i < arr->size; ++i) {
+        FIL* fp = (FIL*)array_get_at(arr, i);
         if (fp->obj.fs == 0) { // closed
+            *pn = i;
             return fp;
         }
-        i = i->next;
-        ++n;
     }
     return NULL;
 }
@@ -162,8 +169,13 @@ int __open(const char *path, int flags, mode_t mode) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    if (!pfiles_list) pfiles_list = new_list_v(alloc_file, dealloc_file, 0);
-    FIL* pf = (FIL*)alloc_file();
+    init_pfiles();
+    size_t n;
+    FIL* pf = array_lookup_first_closed(pfiles, &n);
+    if (!pf) {
+        pf = (FIL*)alloc_file();
+        n = array_push_back(pfiles, pf);
+    }
     BYTE ff_mode = map_flags_to_ff_mode(flags);
     fr = f_open(pf, path, ff_mode);
     if (fr != FR_OK) {
@@ -172,19 +184,18 @@ int __open(const char *path, int flags, mode_t mode) {
     }
     pf->ctime = fatfs_to_time_t(fno.fdate, fno.ftime);
     errno = 0;
-    return (int)pf; // just address (always less than 0x30000000) as descriptor
+    return (int)n;
 }
 
 int __close(int fd) {
-    if (fd <= 0) {
+    if (!pfiles || fd <= STDERR_FILENO) {
         goto e;
     }
-    node_t* n = list_lookup(pfiles_list, (void*)fd);
-    if (n == 0) {
+    FIL* fp = (FIL*)array_get_at(pfiles, fd);
+    if (fp == 0 || fp->obj.fs == 0) {
         goto e;
     }
-    FRESULT fr = f_close((FIL*)n->data);
-    list_erase_node(pfiles_list, n);
+    FRESULT fr = f_close(fp);
     errno = map_ff_fresult_to_errno(fr);
     return errno == 0 ? 0 : -1;
 e:
@@ -197,6 +208,7 @@ int __stat(const char *path, struct stat *buf) {
         errno = EFAULT;
         return -1;
     }
+    // TODO: devices, links, etc...
     FILINFO fno;
     FRESULT fr = f_stat(path, &fno);
     if (fr != FR_OK) {
@@ -205,23 +217,17 @@ int __stat(const char *path, struct stat *buf) {
     }
     buf->st_dev   = 0;                    // no device differentiation in FAT
     buf->st_ino   = 0;                    // FAT has no inode numbers
-    buf->st_mode  = 0;
+    // FAT does not track UNIX-style permissions; set all to readable/writable/exec
+    if (fno.fattrib & AM_DIR) {
+        buf->st_mode = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH | S_IFDIR;
+    } else {
+        buf->st_mode = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH | S_IFREG;
+    }
     buf->st_nlink = 1;                    // FAT does not support hard links
     buf->st_uid   = 0;                    // no UID/GID in FAT
     buf->st_gid   = 0;
     buf->st_rdev  = 0;                    // no special device info
     buf->st_size  = fno.fsize;            // file size in bytes
-
-    // set file type
-    if (fno.fattrib & AM_DIR) {
-        buf->st_mode |= S_IFDIR;
-    } else {
-        buf->st_mode |= S_IFREG;
-    }
-
-    // FAT does not track UNIX-style permissions; set all to readable/writable/exec
-    buf->st_mode |= S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH;
-
     // timestamps (FatFs has date/time in local format)
     buf->st_atime = 0;                     // FAT does not track last access reliably
     // convert FAT timestamps to time_t
@@ -237,35 +243,36 @@ int __fstat(int fildes, struct stat *buf) {
         errno = EFAULT;
         return -1;
     }
-    if (fildes <= 0) {
+    if (fildes < 0) {
         goto e;
     }
-    node_t* n = list_lookup(pfiles_list, (void*)fildes);
-    if (n == 0) {
-        // TODO: directories
-        goto e;
+    memset(buf, 0, sizeof(struct stat));
+    if (fildes == STDIN_FILENO) { // stdin
+        buf->st_mode  = S_IFCHR | S_IRUSR | S_IRGRP | S_IROTH;
+        goto ok;
     }
-    FIL* fp = (FIL*)n->data;
-    if (fp->obj.fs == 0) { // closed
+    if (fildes <= STDERR_FILENO) { // stdout/stderr
+        buf->st_mode  = S_IFCHR | S_IWUSR | S_IWGRP | S_IWOTH;
+        goto ok;
+    }
+    FIL* fp = (FIL*)array_get_at(pfiles, fildes);
+    if (fp == 0 || fp->obj.fs == 0) {
         goto e;
     }
     buf->st_dev   = 0;                    // no device differentiation in FAT
     buf->st_ino   = 0;                    // FAT has no inode numbers
-    buf->st_mode  = 0;
+    buf->st_mode  = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH | S_IFREG;
     buf->st_nlink = 1;                    // FAT does not support hard links
     buf->st_uid   = 0;                    // no UID/GID in FAT
     buf->st_gid   = 0;
     buf->st_rdev  = 0;                    // no special device info
     buf->st_size  = f_size(fp);           // file size in bytes
-
-    // FAT does not track UNIX-style permissions; set all to readable/writable/exec
-    buf->st_mode |= S_IFREG | S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH;
-
     // timestamps (FatFs has date/time in local format)
     buf->st_atime = 0;                     // FAT does not track last access reliably
     // convert FAT timestamps to time_t
     buf->st_mtime = fp->ctime;
     buf->st_ctime = fp->ctime;
+ok:
     errno = 0;
     return 0;
 e:
@@ -283,16 +290,15 @@ int __read(int fildes, void *buf, size_t count) {
         errno = EFAULT;
         return -1;
     }
-    if (fildes <= 0) {
+    if (fildes < 0) {
         goto e;
     }
-    node_t* n = list_lookup(pfiles_list, (void*)fildes);
-    if (n == 0) {
+    FIL* fp = (FIL*)array_get_at(pfiles, fildes);
+    if (fp == 0 || fp->obj.fs == 0) {
         goto e;
     }
-    FIL* fd = (FIL*)n->data;
     UINT br;
-    FRESULT fr = f_read(fd, buf, count, &br);
+    FRESULT fr = f_read(fp, buf, count, &br);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
@@ -312,13 +318,16 @@ int __write(int fildes, const void *buf, size_t count) {
     if (fildes <= 0) {
         goto e;
     }
-    node_t* n = list_lookup(pfiles_list, (void*)fildes);
-    if (n == 0) {
+    if (fildes <= STDERR_FILENO) { // stdout/stderr
+        // TODO:
         goto e;
     }
-    FIL* fd = (FIL*)n->data;
+    FIL* fp = (FIL*)array_get_at(pfiles, fildes);
+    if (fp == 0 || fp->obj.fs == 0) {
+        goto e;
+    }
     UINT br;
-    FRESULT fr = f_write(fd, buf, count, &br);
+    FRESULT fr = f_write(fp, buf, count, &br);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
@@ -328,4 +337,39 @@ int __write(int fildes, const void *buf, size_t count) {
 e:
     errno = EBADF;
     return -1;
+}
+
+int __dup(int oldfd) {
+    if (oldfd <= 0) {
+        goto e;
+    }
+    FIL* fp = (FIL*)array_get_at(pfiles, oldfd);
+    if (fp == 0 || fp->obj.fs == 0) {
+        goto e;
+    }
+    errno = 0;
+    return (int)array_push_back(pfiles, fp);
+e:
+    errno = EBADF;
+    return -1;
+}
+
+int __dup2(int oldfd, int newfd) {
+    if (oldfd < 0) goto e;
+    FIL* fp0 = (FIL*)array_get_at(pfiles, oldfd);
+    if (fp0 == 0 || fp0->obj.fs == 0) goto e;
+    FIL* fp1 = (FIL*)array_get_at(pfiles, newfd);
+    if (fp1 == 0 || fp1->obj.fs == 0) goto e;
+    int r = __close(newfd);
+    if (r < 0) return r;
+    pfiles->p[newfd] = fp0;
+    errno = 0;
+    return newfd;
+e:
+    errno = EBADF;
+    return -1;
+}
+
+int __fcntl(int fd, int cmd) {
+    // TODO:
 }
