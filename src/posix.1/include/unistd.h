@@ -35,10 +35,12 @@ inline static int close(int fildes) {
     return __close(fildes);
 }
 
+#include <stddef.h>
+
+int __read(int fildes, void *buf, size_t count);
+int __write(int fildes, const void *buf, size_t count);
+
 /* TODO:
-#include <stddef.h> для size_t и off_t, если планируешь их использовать.
-int read(int fd, void *buf, size_t count);
-int write(int fd, const void *buf, size_t count);
 off_t lseek(int fd, off_t offset, int whence);
 pid_t fork(void);
 int execve(const char *pathname, char *const argv[], char *const envp[]);

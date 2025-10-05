@@ -277,3 +277,55 @@ int __lstat(const char *path, struct stat *buf) {
     // no symlinl supported on FatFS
     return __stat(path, buf);
 }
+
+int __read(int fildes, void *buf, size_t count) {
+    if (!buf) {
+        errno = EFAULT;
+        return -1;
+    }
+    if (fildes <= 0) {
+        goto e;
+    }
+    node_t* n = list_lookup(pfiles_list, (void*)fildes);
+    if (n == 0) {
+        goto e;
+    }
+    FIL* fd = (FIL*)n->data;
+    UINT br;
+    FRESULT fr = f_read(fd, buf, count, &br);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    errno = 0;
+    return br;
+e:
+    errno = EBADF;
+    return -1;
+}
+
+int __write(int fildes, const void *buf, size_t count) {
+    if (!buf) {
+        errno = EFAULT;
+        return -1;
+    }
+    if (fildes <= 0) {
+        goto e;
+    }
+    node_t* n = list_lookup(pfiles_list, (void*)fildes);
+    if (n == 0) {
+        goto e;
+    }
+    FIL* fd = (FIL*)n->data;
+    UINT br;
+    FRESULT fr = f_write(fd, buf, count, &br);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    errno = 0;
+    return br;
+e:
+    errno = EBADF;
+    return -1;
+}

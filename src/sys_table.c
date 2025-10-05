@@ -362,6 +362,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __stat, // 267
     __fstat, // 268
     __lstat, // 269
+    __read, // 270
+    __write, // 271
     // TODO:
     0
 };
