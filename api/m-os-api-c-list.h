@@ -115,6 +115,19 @@ static node_t* list_get_node_at(list_t* lst, size_t idx) {
     return NULL;
 }
 
+static node_t* list_lookup(list_t* lst, void* data) {
+    node_t* i = lst->first;
+    size_t n = 0;
+    while (i) {
+        if (i->data == data) {
+            return i;
+        }
+        i = i->next;
+        ++n;
+    }
+    return NULL;
+}
+
 static size_t list_count(list_t* lst) {
     return lst->size;
 }

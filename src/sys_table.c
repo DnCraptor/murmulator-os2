@@ -29,6 +29,7 @@
 #include <math.h>
 
 #include "sys/fcntl.h"
+#include "unistd.h"
 
 // TODO: think about it
 //extern int __cxa_pure_virtual();
@@ -356,6 +357,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __aeabi_uldivmod, // 264
     // API v.27 POSIX.1 (Base)
     __open, // 265
+    __close, // 266
     // TODO:
     0
 };

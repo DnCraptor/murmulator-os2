@@ -24,16 +24,16 @@ typedef unsigned int mode_t;
 #define O_TRUNC     0x0200  /* truncate file to zero length */
 #define O_APPEND    0x0400  /* append on each write */
 #define O_NONBLOCK  0x0800  /* non-blocking mode */
-#define O_SYNC      0x101000/* write according to synchronized I/O file integrity completion */
-#define O_NOFOLLOW  0x20000 /* do not follow symbolic links */
+#define O_SYNC      0x1000  /* write according to synchronized I/O file integrity completion */
+#define O_NOFOLLOW  0x2000  /* do not follow symbolic links */
 
 /**
  * Opens a file and returns a file descriptor for subsequent I/O operations.
  *
- * @param pathname
+ * @param path
  *     Path to the file to be opened. Can be absolute or relative.
  *
- * @param flags
+ * @param oflag
  *     File access mode and options. Must include exactly one of:
  *       - O_RDONLY : open for reading only
  *       - O_WRONLY : open for writing only
@@ -63,17 +63,17 @@ typedef unsigned int mode_t;
  *     ENFILE  - System-wide limit of open files reached.
  *     EINVAL  - Invalid flags.
  */
-int __open(const char *pathname, int flags, mode_t mode);
-inline static int open(const char *pathname, int flags, ...) {
+int __open(const char *path, int oflag, mode_t mode);
+inline static int open(const char *path, int oflag, ...) {
     va_list ap;
     mode_t mode = 0;
-    va_start(ap, flags);
+    va_start(ap, oflag);
     /* mode only if O_CREAT */
-    if (flags & O_CREAT) {
+    if (oflag & O_CREAT) {
         mode = va_arg(ap, mode_t);
     }
     va_end(ap);
-    return __open(pathname, flags, mode);
+    return __open(path, oflag, mode);
 }
 
 #ifdef __cplusplus

@@ -4,11 +4,13 @@
 #include "sys/fcntl.h"
 #include "sys/stat.h"
 #include "errno.h"
+#include "unistd.h"
 
 #include "ff.h"
 #define NULL 0
 #include "../../api/m-os-api-c-list.h"
 
+// TODO: per process context
 static list_t* pfiles_list = 0;
 
 static void* alloc_file(void) {
@@ -77,6 +79,20 @@ static int map_ff_fresult_to_errno(FRESULT fr) {
     }
 }
 
+static FIL* list_lookup_first_closed(list_t* lst) {
+    node_t* i = lst->first;
+    size_t n = 0;
+    while (i) {
+        FIL* fp = (FIL*)i->data;
+        if (fp->obj.fs == 0) { // closed
+            return i;
+        }
+        i = i->next;
+        ++n;
+    }
+    return NULL;
+}
+
 int __open(const char *pathname, int flags, mode_t mode) {
     if (!pathname) {
         errno = ENOTDIR;
@@ -84,8 +100,11 @@ int __open(const char *pathname, int flags, mode_t mode) {
     }
     // TODO: /dev/... , /proc/...
     if (!pfiles_list) pfiles_list = new_list_v(alloc_file, dealloc_file, 0);
-    FIL* pf = (FIL*)alloc_file();
-    list_push_back(pfiles_list, pf);
+    FIL* pf = list_lookup_first_closed(pfiles_list);
+    if (pf == 0) {
+        pf = (FIL*)alloc_file();
+        list_push_back(pfiles_list, pf);
+    }
     BYTE ff_mode = map_flags_to_ff_mode(flags);
     FRESULT fr = f_open(pf, pathname, ff_mode);
     if (fr != FR_OK) {
@@ -94,4 +113,23 @@ int __open(const char *pathname, int flags, mode_t mode) {
     }
     errno = 0;
     return (int)pf; // just address (always less than 0x30000000) as descriptor
+}
+
+int __close(int fd) {
+    if (fd <= 0) {
+        goto e;
+    }
+    node_t* n = list_lookup(pfiles_list, (void*)fd);
+    if (n == 0) {
+        goto e;
+    }
+    FIL* fp = (FIL*)n->data;
+    if (fp->obj.fs == 0) { // closed
+        goto e;
+    }
+    errno = map_ff_fresult_to_errno(f_close(fp));
+    return errno == 0 ? 0 : -1;
+e:
+    errno = -1;
+    return EBADF;
 }
