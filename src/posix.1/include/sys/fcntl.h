@@ -128,7 +128,7 @@ inline static int open(const char *path, int oflag, ...) {
  *   EINVAL  : cmd is invalid or argument is inappropriate
  *   ENOLCK  : cannot acquire lock (for F_SETLK/F_SETLKW)
  */
-int __fcntl(int fd, int cmd);
+int __fcntl(int fd, int cmd, ...);
 inline static int fcntl(int fd, int cmd, ...) {
     return __fcntl(fd, cmd);
 }

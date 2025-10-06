@@ -106,8 +106,49 @@ int __dup(int oldfd);
  */
 int __dup2(int oldfd, int newfd);
 
+#define SEEK_SET 0  /* Set file offset to 'offset' bytes from the beginning */
+#define SEEK_CUR 1  /* Set file offset to current position plus 'offset' */
+#define SEEK_END 2  /* Set file offset to file size plus 'offset' */
+
+/**
+ * Repositions the file offset of an open file descriptor.
+ *
+ * @param fd
+ *     The file descriptor referring to an open file. Must have been obtained 
+ *     from open(), creat(), pipe(), or a similar function.
+ *
+ * @param offset
+ *     The number of bytes to offset the file position. Its interpretation 
+ *     depends on the value of 'whence':
+ *       - SEEK_SET: set the file offset to 'offset' bytes from the beginning.
+ *       - SEEK_CUR: set the file offset to its current location plus 'offset'.
+ *       - SEEK_END: set the file offset to the size of the file plus 'offset'.
+ *
+ * @param whence
+ *     One of SEEK_SET, SEEK_CUR, or SEEK_END, indicating how the offset should be applied.
+ *
+ * @return
+ *     On success: returns the resulting file offset (non-negative).
+ *     On failure: returns (off_t)-1 and sets errno to indicate the error.
+ *
+ * @errors
+ *     EBADF  - 'fd' is not an open file descriptor.
+ *     EINVAL - 'whence' is invalid, or resulting offset would be negative.
+ *     EOVERFLOW - The resulting file offset cannot be represented in off_t.
+ *     ESPIPE - 'fd' refers to a pipe, FIFO, or socket (which do not support seeking).
+ *
+ * @notes
+ *     - The new file position affects subsequent read() and write() operations.
+ *     - If the file is shared (via dup() or fork()), all descriptors that share
+ *       the same open file description will see the new offset.
+ *     - Seeking past the end of the file does not extend it until data is written.
+ */
+off_t __lseek(int fd, off_t offset, int whence);
+inline static off_t lseek(int fd, off_t offset, int whence) {
+    return __lseek(fd, offset, whence);
+}
+
 /* TODO:
-off_t lseek(int fd, off_t offset, int whence);
 pid_t fork(void);
 int execve(const char *pathname, char *const argv[], char *const envp[]);
 */

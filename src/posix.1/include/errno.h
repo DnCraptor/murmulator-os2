@@ -12,6 +12,7 @@ extern "C" {
 #define EINTR     4   /* Interrupted system call */
 #define EIO       5   /* I/O error */
 #define EBADF     9   /* Bad file descriptor */
+#define ENOMEM    12  /* Not enough memory */
 #define EACCES    13  /* Permission denied */
 #define EFAULT    14  /* Bad address: pointer points outside accessible memory */
 #define EEXIST    17  /* File exists */
@@ -21,6 +22,8 @@ extern "C" {
 #define ENFILE    23  /* Too many open files in system */
 #define EMFILE    24  /* Too many open files per process */
 #define ENOSPC    28  /* No space left on device */
+#define ESPIPE    29  /* Illegal seek */
+#define EOVERFLOW 75  /* Value too large for defined data type */
 
 /* You can define other standard POSIX errors here as needed */
 int* __errno_location();

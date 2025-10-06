@@ -224,6 +224,7 @@ typedef struct FIL {
     struct FIL* chained;
 	// injected for posix.1 support fstat
 	unsigned long ctime;
+	unsigned long pending_descriptors;
 } FIL;
 
 

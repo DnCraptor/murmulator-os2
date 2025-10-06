@@ -70,21 +70,46 @@ static time_t fatfs_to_time_t(WORD fdate, WORD ftime) {
 // TODO: per process context
 static array_t* pfiles = 0;
 
+typedef struct FDESC_s {
+    FIL* fp;
+    unsigned int flags;
+} FDESC;
+
 static void* alloc_file(void) {
-    return pvPortMalloc(sizeof(FIL));
+    FDESC* d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    if (!d) return NULL;
+    d->fp = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!d->fp) {
+        vPortFree(d);
+        return NULL;
+    }
+    d->flags = 0;
+    return d;
 }
 
 static void dealloc_file(void* p) {
-    return vPortFree(p);
+    FDESC* d = (FDESC*)p;
+    vPortFree(d->fp);
+    vPortFree(p);
 }
 
 static void init_pfiles() {
     if (pfiles) return;
     pfiles = new_array_v(alloc_file, dealloc_file, NULL);
-    FIL* pf = (FIL*)alloc_file(); // TODO: how to process
-    array_push_back(pfiles, pf); // 0 - stdin
-    array_push_back(pfiles, alloc_file()); // 1 - stdout
-    array_push_back(pfiles, alloc_file()); // 2 - stdin
+    // W/A for predefined file descriptors:
+    FDESC* d;
+    d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    d->fp = 0;
+    d->flags = 0;
+    array_push_back(pfiles, d); // 0 - stdin
+    d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    d->fp = 1;
+    d->flags = 0;
+    array_push_back(pfiles, d); // 1 - stdout
+    d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    d->fp = 2;
+    d->flags = 0;
+    array_push_back(pfiles, d); // 2 - stdin
 }
 
 static BYTE map_flags_to_ff_mode(int flags) {
@@ -148,10 +173,10 @@ static int map_ff_fresult_to_errno(FRESULT fr) {
 
 static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
     for (size_t i = 3; i < arr->size; ++i) {
-        FIL* fp = (FIL*)array_get_at(arr, i);
-        if (fp->obj.fs == 0) { // closed
+        FDESC* fd = (FDESC*)array_get_at(arr, i);
+        if (fd->fp->obj.fs == 0) { // closed
             *pn = i;
-            return fp;
+            return fd->fp;
         }
     }
     return NULL;
@@ -169,13 +194,15 @@ int __open(const char *path, int flags, mode_t mode) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    init_pfiles();
     size_t n;
     FIL* pf = array_lookup_first_closed(pfiles, &n);
     if (!pf) {
-        pf = (FIL*)alloc_file();
-        n = array_push_back(pfiles, pf);
+        FDESC* fd = (FDESC*)alloc_file();
+        if (!fd) { errno = ENOMEM; return -1; }
+        pf = fd->fp;
+        n = array_push_back(pfiles, fd);
     }
+    pf->pending_descriptors = 0;
     BYTE ff_mode = map_flags_to_ff_mode(flags);
     fr = f_open(pf, path, ff_mode);
     if (fr != FR_OK) {
@@ -187,13 +214,19 @@ int __open(const char *path, int flags, mode_t mode) {
     return (int)n;
 }
 
-int __close(int fd) {
-    if (!pfiles || fd <= STDERR_FILENO) {
+int __close(int fildes) {
+    if (!pfiles || fildes <= STDERR_FILENO) {
         goto e;
     }
-    FIL* fp = (FIL*)array_get_at(pfiles, fd);
-    if (fp == 0 || fp->obj.fs == 0) {
+    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    if (fd == 0 || fd->fp->obj.fs == 0) {
         goto e;
+    }
+    FIL* fp = fd->fp;
+    if (fp->pending_descriptors) {
+        --fp->pending_descriptors;
+        errno = 0;
+        return 0;
     }
     FRESULT fr = f_close(fp);
     errno = map_ff_fresult_to_errno(fr);
@@ -208,6 +241,7 @@ int __stat(const char *path, struct stat *buf) {
         errno = EFAULT;
         return -1;
     }
+    init_pfiles();
     // TODO: devices, links, etc...
     FILINFO fno;
     FRESULT fr = f_stat(path, &fno);
@@ -255,10 +289,12 @@ int __fstat(int fildes, struct stat *buf) {
         buf->st_mode  = S_IFCHR | S_IWUSR | S_IWGRP | S_IWOTH;
         goto ok;
     }
-    FIL* fp = (FIL*)array_get_at(pfiles, fildes);
-    if (fp == 0 || fp->obj.fs == 0) {
+    init_pfiles();
+    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    if (fd == 0 || fd->fp->obj.fs == 0) {
         goto e;
     }
+    FIL* fp = fd->fp;
     buf->st_dev   = 0;                    // no device differentiation in FAT
     buf->st_ino   = 0;                    // FAT has no inode numbers
     buf->st_mode  = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH | S_IFREG;
@@ -293,10 +329,12 @@ int __read(int fildes, void *buf, size_t count) {
     if (fildes < 0) {
         goto e;
     }
-    FIL* fp = (FIL*)array_get_at(pfiles, fildes);
-    if (fp == 0 || fp->obj.fs == 0) {
+    init_pfiles();
+    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    if (fd == 0 || fd->fp->obj.fs == 0) {
         goto e;
     }
+    FIL* fp = fd->fp;
     UINT br;
     FRESULT fr = f_read(fp, buf, count, &br);
     if (fr != FR_OK) {
@@ -318,14 +356,12 @@ int __write(int fildes, const void *buf, size_t count) {
     if (fildes <= 0) {
         goto e;
     }
-    if (fildes <= STDERR_FILENO) { // stdout/stderr
-        // TODO:
+    init_pfiles();
+    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    if (fd == 0 || fd->fp->obj.fs == 0) {
         goto e;
     }
-    FIL* fp = (FIL*)array_get_at(pfiles, fildes);
-    if (fp == 0 || fp->obj.fs == 0) {
-        goto e;
-    }
+    FIL* fp = fd->fp;
     UINT br;
     FRESULT fr = f_write(fp, buf, count, &br);
     if (fr != FR_OK) {
@@ -340,29 +376,42 @@ e:
 }
 
 int __dup(int oldfd) {
-    if (oldfd <= 0) {
+    if (oldfd < 0) {
         goto e;
     }
-    FIL* fp = (FIL*)array_get_at(pfiles, oldfd);
-    if (fp == 0 || fp->obj.fs == 0) {
+    init_pfiles();
+    FDESC* fd = (FDESC*)array_get_at(pfiles, oldfd);
+    if (fd == 0 || fd->fp->obj.fs == 0) {
         goto e;
     }
+    FIL* fp = fd->fp;
+    ++fp->pending_descriptors;
+    fd = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    if (!fd) { errno = ENOMEM; return -1; }
+    fd->fp = fp;
+    fd->flags = 0;
     errno = 0;
-    return (int)array_push_back(pfiles, fp);
+    return (int)array_push_back(pfiles, fd);
 e:
     errno = EBADF;
     return -1;
 }
 
 int __dup2(int oldfd, int newfd) {
-    if (oldfd < 0) goto e;
-    FIL* fp0 = (FIL*)array_get_at(pfiles, oldfd);
-    if (fp0 == 0 || fp0->obj.fs == 0) goto e;
-    FIL* fp1 = (FIL*)array_get_at(pfiles, newfd);
-    if (fp1 == 0 || fp1->obj.fs == 0) goto e;
-    int r = __close(newfd);
-    if (r < 0) return r;
-    pfiles->p[newfd] = fp0;
+    if (oldfd < 0 || newfd < 0) goto e;
+    init_pfiles();
+    FDESC* fd0 = (FDESC*)array_get_at(pfiles, oldfd);
+    if (fd0 == 0 || fd0->fp->obj.fs == 0) goto e;
+    FDESC* fd1 = (FDESC*)array_get_at(pfiles, newfd);
+    if (fd1 == 0 || fd1->fp->obj.fs == 0) goto e;
+    __close(newfd);
+    ++fd0->fp->pending_descriptors;
+    if (fd1->fp > 2 && !fd1->fp->pending_descriptors) { // not in use by other descriptors, remove it
+        vPortFree(fd1->fp);
+    }
+    fd1->fp = fd0->fp;
+    fd1->flags = 0;
+    pfiles->p[newfd] = fd1;
     errno = 0;
     return newfd;
 e:
@@ -370,6 +419,108 @@ e:
     return -1;
 }
 
-int __fcntl(int fd, int cmd) {
-    // TODO:
+/*
+ * Minimal POSIX.1-like fcntl() implementation.
+ *
+ * Supported commands:
+ *   F_GETFD   - get descriptor flags (e.g., FD_CLOEXEC)
+ *   F_SETFD   - set descriptor flags
+ *   F_GETFL   - get file status flags (e.g., O_APPEND, O_NONBLOCK)
+ *   F_SETFL   - set file status flags
+ *
+ * Unimplemented commands will return -1 and set errno = EINVAL.
+ */
+int __fcntl(int fd, int cmd, ...) {
+    if (fd < 0) goto e;
+    init_pfiles();
+    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+    if (!fdesc || !fdesc->fp || fdesc->fp->obj.fs == 0) goto e;
+
+    int ret = 0;
+    va_list ap;
+    va_start(ap, cmd);
+
+    switch (cmd) {
+        case F_GETFD:
+            ret = fdesc->flags & FD_CLOEXEC;
+            break;
+
+        case F_SETFD: {
+            int flags = va_arg(ap, int);
+            fdesc->flags = (fdesc->flags & ~FD_CLOEXEC) | (flags & FD_CLOEXEC);
+            break;
+        }
+
+        case F_GETFL:
+            ret = fdesc->flags;
+            break;
+
+        case F_SETFL: {
+            int flags = va_arg(ap, int);
+            /* Only allow O_APPEND, O_NONBLOCK, etc. — silently ignore unsupported bits */
+            fdesc->flags = (fdesc->flags & ~(O_APPEND | O_NONBLOCK)) | (flags & (O_APPEND | O_NONBLOCK));
+            break;
+        }
+
+        default:
+            va_end(ap);
+            errno = EINVAL;
+            return -1;
+    }
+
+    va_end(ap);
+    
+    errno = 0;
+    return 0;
+e:
+    errno = EBADF;
+    return -1;
+}
+
+off_t __lseek(int fd, off_t offset, int whence) {
+    if (fd < 0) goto e;
+    init_pfiles();
+    // Standard descriptors cannot be seeked
+    if (fd <= STDERR_FILENO) {
+        errno = ESPIPE; // Illegal seek
+        return -1;
+    }
+    
+    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+    if (!fdesc || !fdesc->fp || fdesc->fp->obj.fs == 0) goto e;
+
+    FIL* fp = fdesc->fp;
+    FSIZE_t new_pos;
+
+    switch (whence) {
+        case SEEK_SET:
+            new_pos = offset;
+            break;
+        case SEEK_CUR:
+            new_pos = fp->fptr + offset;
+            break;
+        case SEEK_END:
+            new_pos = f_size(fp) + offset;
+            break;
+        default:
+            errno = EINVAL;
+            return -1;
+    }
+
+    if (new_pos < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    FRESULT fr = f_lseek(fp, new_pos);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+
+    errno = 0;
+    return fp->fptr;
+e:
+    errno = EBADF;
+    return -1;
 }
