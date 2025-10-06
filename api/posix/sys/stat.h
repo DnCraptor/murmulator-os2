@@ -6,6 +6,11 @@
 extern "C" {
 #endif
 
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
+
 /* Type for file modes (permissions) */
 #ifndef _MODE_T_DECLARED
 typedef unsigned int mode_t;
@@ -125,13 +130,20 @@ struct stat {
  *     - This function does not follow symbolic links when using lstat().
  *     - Use fstat() for already opened file descriptors.
  */
-int __stat(const char *path, struct stat *buf);
 inline static int stat(const char *path, struct stat *buf) {
-    return __stat(path, buf);
+    typedef int (*fn_ptr_t)(const char, struct stat*);
+    return ((fn_ptr_t)_sys_table_ptrs[267])(path, buf);
 }
 
-int __fstat(int fildes, struct stat *buf);
-int __lstat(const char *path, struct stat *buf); // for symbolic links
+inline static int fstat(int fildes, struct stat *buf) {
+    typedef int (*fn_ptr_t)(int, struct stat*);
+    return ((fn_ptr_t)_sys_table_ptrs[268])(fildes, buf);
+}
+
+inline static int lstat(const char *path, struct stat *buf) {
+    typedef int (*fn_ptr_t)(const char, struct stat*);
+    return ((fn_ptr_t)_sys_table_ptrs[269])(path, buf);
+}
 
 #ifdef __cplusplus
 }

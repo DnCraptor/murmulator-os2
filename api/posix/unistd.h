@@ -119,7 +119,10 @@ inline static int dup(int oldfd) {
  *     EBADF  - oldfd is not valid.
  *     EMFILE - newfd is out of available range.
  */
-int __dup2(int oldfd, int newfd);
+inline static int dup2(int oldfd, int newfd) {
+    typedef int (*fn_ptr_t)(int, int);
+    return ((fn_ptr_t)_sys_table_ptrs[274])(oldfd, newfd);
+}
 
 #define SEEK_SET 0  /* Set file offset to 'offset' bytes from the beginning */
 #define SEEK_CUR 1  /* Set file offset to current position plus 'offset' */
