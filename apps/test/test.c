@@ -110,7 +110,6 @@ int main() {
     log_write("close fd succeeded\n");
 
     log_write("POSIX test completed successfully\n");
-    return 0;
 
 fail:
     log_write("errno: ");

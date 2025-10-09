@@ -101,17 +101,17 @@ static void init_pfiles() {
     // W/A for predefined file descriptors:
     FDESC* d;
     d = (FDESC*)pvPortMalloc(sizeof(FDESC));
-    d->fp = 0;
+    d->fp = (void*)STDIN_FILENO;
     d->flags = 0;
     array_push_back(pfiles, d); // 0 - stdin
     d = (FDESC*)pvPortMalloc(sizeof(FDESC));
-    d->fp = 1;
+    d->fp = (void*)STDOUT_FILENO;
     d->flags = 0;
     array_push_back(pfiles, d); // 1 - stdout
     d = (FDESC*)pvPortMalloc(sizeof(FDESC));
-    d->fp = 2;
+    d->fp = (void*)STDERR_FILENO;
     d->flags = 0;
-    array_push_back(pfiles, d); // 2 - stdin
+    array_push_back(pfiles, d); // 2 - stderr
 }
 
 static BYTE map_flags_to_ff_mode(int flags) {
@@ -173,11 +173,15 @@ static int map_ff_fresult_to_errno(FRESULT fr) {
     }
 }
 
+inline static bool is_closed_desc(const FDESC* fd) {
+    return fd && fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
+}
+
 static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
     for (size_t i = 3; i < arr->size; ++i) {
         FDESC* fd = (FDESC*)array_get_at(arr, i);
         if (!fd || !fd->fp) continue;
-        if (fd->fp->obj.fs == 0) { // closed
+        if (is_closed_desc(fd)) {
             *pn = i;
             return fd->fp;
         }
@@ -219,15 +223,18 @@ int __open(const char *path, int flags, mode_t mode) {
 }
 
 int __close(int fildes) {
-    if (!pfiles || fildes <= STDERR_FILENO) {
+    if (fildes <= STDERR_FILENO) {
         goto e;
     }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
-    if (fd == 0 || fd->fp->obj.fs == 0) {
+    if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
     FIL* fp = fd->fp;
+    if (fp <= STDERR_FILENO) {
+        goto e;
+    }
     if (fp->pending_descriptors) {
         --fp->pending_descriptors;
         errno = 0;
@@ -296,7 +303,7 @@ int __fstat(int fildes, struct stat *buf) {
     }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
-    if (fd == 0 || fd->fp->obj.fs == 0) {
+    if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
     FIL* fp = fd->fp;
@@ -336,7 +343,7 @@ int __read(int fildes, void *buf, size_t count) {
     }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
-    if (fd == 0 || fd->fp->obj.fs == 0) {
+    if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
     FIL* fp = fd->fp;
@@ -363,7 +370,7 @@ int __write(int fildes, const void *buf, size_t count) {
     }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
-    if (fd == 0 || fd->fp->obj.fs == 0) {
+    if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
     FIL* fp = fd->fp;
@@ -386,7 +393,7 @@ int __dup(int oldfd) {
     }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, oldfd);
-    if (fd == 0 || fd->fp->obj.fs == 0) {
+    if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
     FIL* fp = fd->fp;
@@ -404,14 +411,29 @@ e:
 
 int __dup2(int oldfd, int newfd) {
     if (oldfd < 0 || newfd < 0) goto e;
+    if (oldfd == newfd) {
+        errno = 0;
+        return newfd;
+    }
     init_pfiles();
     FDESC* fd0 = (FDESC*)array_get_at(pfiles, oldfd);
-    if (fd0 == 0 || fd0->fp->obj.fs == 0) goto e;
+    if (fd0 == 0 || is_closed_desc(fd0)) goto e;
     FDESC* fd1 = (FDESC*)array_get_at(pfiles, newfd);
-    if (fd1 == 0 || fd1->fp->obj.fs == 0) goto e;
-    __close(newfd);
+    if (fd1 == 0) {
+        if (array_resize(pfiles, newfd + 1) < 0) {
+            errno = ENOMEM;
+            return -1;
+        }
+        fd1 = (FDESC*)array_get_at(pfiles, newfd);
+        if (fd1 == 0) {
+            errno = ENOMEM;
+            return -1;
+        }
+    } else {
+        __close(newfd);
+    }
     ++fd0->fp->pending_descriptors;
-    if (fd1->fp > 2 && !fd1->fp->pending_descriptors) { // not in use by other descriptors, remove it
+    if (fd1->fp > STDERR_FILENO && !fd1->fp->pending_descriptors) { // not STD and not in use by other descriptors, so we can remove it
         vPortFree(fd1->fp);
     }
     fd1->fp = fd0->fp;
@@ -439,7 +461,7 @@ int __fcntl(int fd, int cmd, ...) {
     if (fd < 0) goto e;
     init_pfiles();
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
-    if (!fdesc || !fdesc->fp || fdesc->fp->obj.fs == 0) goto e;
+    if (!fdesc || is_closed_desc(fdesc)) goto e;
 
     int ret = 0;
     va_list ap;
@@ -492,7 +514,7 @@ off_t __lseek(int fd, off_t offset, int whence) {
     }
     
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
-    if (!fdesc || !fdesc->fp || fdesc->fp->obj.fs == 0) goto e;
+    if (!fdesc || is_closed_desc(fdesc)) goto e;
 
     FIL* fp = fdesc->fp;
     FSIZE_t new_pos;
