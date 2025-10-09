@@ -83,13 +83,15 @@ static void* alloc_file(void) {
         vPortFree(d);
         return NULL;
     }
+    memset(d->fp, 0, sizeof(FIL));
     d->flags = 0;
     return d;
 }
 
 static void dealloc_file(void* p) {
+    if (!p) return;
     FDESC* d = (FDESC*)p;
-    vPortFree(d->fp);
+    if (d->fp > 2) vPortFree(d->fp);
     vPortFree(p);
 }
 
@@ -174,6 +176,7 @@ static int map_ff_fresult_to_errno(FRESULT fr) {
 static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
     for (size_t i = 3; i < arr->size; ++i) {
         FDESC* fd = (FDESC*)array_get_at(arr, i);
+        if (!fd || !fd->fp) continue;
         if (fd->fp->obj.fs == 0) { // closed
             *pn = i;
             return fd->fp;

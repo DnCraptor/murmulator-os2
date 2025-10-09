@@ -38,7 +38,7 @@ int main() {
     int fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (fd < 0) { log_write("open failed\n"); goto fail; }
     log_write("open succeeded\n");
-/*
+
     // 2. fstat
     struct stat st;
     ret = fstat(fd, &st);
@@ -110,7 +110,8 @@ int main() {
     log_write("close fd succeeded\n");
 
     log_write("POSIX test completed successfully\n");
-*/
+    return 0;
+
 fail:
     log_write("errno: ");
     buf[1] = 0;
@@ -120,5 +121,5 @@ fail:
     log_write(buf);
     log_write("\n");
     log_close();
-    return 0;
+    return -1;
 }
