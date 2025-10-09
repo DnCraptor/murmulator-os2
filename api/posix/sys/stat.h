@@ -131,7 +131,7 @@ struct stat {
  *     - Use fstat() for already opened file descriptors.
  */
 inline static int stat(const char *path, struct stat *buf) {
-    typedef int (*fn_ptr_t)(const char, struct stat*);
+    typedef int (*fn_ptr_t)(const char*, struct stat*);
     return ((fn_ptr_t)_sys_table_ptrs[267])(path, buf);
 }
 
@@ -141,7 +141,7 @@ inline static int fstat(int fildes, struct stat *buf) {
 }
 
 inline static int lstat(const char *path, struct stat *buf) {
-    typedef int (*fn_ptr_t)(const char, struct stat*);
+    typedef int (*fn_ptr_t)(const char*, struct stat*);
     return ((fn_ptr_t)_sys_table_ptrs[269])(path, buf);
 }
 

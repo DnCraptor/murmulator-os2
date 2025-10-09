@@ -77,7 +77,7 @@ inline static int open(const char *path, int oflag, ...) {
         mode = va_arg(ap, mode_t);
     }
     va_end(ap);
-    typedef int (*fn_ptr_t)(const char, int, mode_t);
+    typedef int (*fn_ptr_t)(const char*, int, mode_t);
     return ((fn_ptr_t)_sys_table_ptrs[265])(path, oflag, mode);
 }
 
