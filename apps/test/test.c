@@ -4,30 +4,22 @@
 #include <errno.h>
 
 /// TODO:
-#include "../m-os-api.h"
 int __aeabi_idiv(int x, int y) {
     typedef int (*fn)(int, int);
     return ((fn)_sys_table_ptrs[217])(x, y);
 }
 
-static FIL log_file;
-
-static void log_init() {
-    f_open(&log_file, "posix_test.log", FA_WRITE | FA_CREATE_ALWAYS);
+inline static size_t strlen(const char* msg) {
+    const char* msg0 = msg;
+    while(*msg) ++msg;
+    return msg - msg0;
 }
 
 static void log_write(const char* msg) {
-    UINT bw;
-    f_lseek(&log_file, f_size(&log_file)); // move to end
-    f_write(&log_file, msg, strlen(msg), &bw);
-}
-
-static void log_close() {
-    f_close(&log_file);
+    write(STDOUT_FILENO, msg, strlen(msg));
 }
 
 int main() {
-    log_init();
     log_write("Starting POSIX test\n");
 
     const char* test_file = "test_posix_file.txt";
@@ -119,6 +111,5 @@ fail:
     buf[0] = '0' + (errno - (errno / 10) * 10);
     log_write(buf);
     log_write("\n");
-    log_close();
     return -1;
 }

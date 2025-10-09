@@ -402,8 +402,13 @@ int __dup(int oldfd) {
     if (!fd) { errno = ENOMEM; return -1; }
     fd->fp = fp;
     fd->flags = 0;
+    int res = array_push_back(pfiles, fd);
+    if (!res) {
+        errno = ENOMEM;
+        return -1;
+    }
     errno = 0;
-    return (int)array_push_back(pfiles, fd);
+    return res;
 e:
     errno = EBADF;
     return -1;
