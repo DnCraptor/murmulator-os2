@@ -188,13 +188,8 @@ int __open(const char *path, int flags, mode_t mode) {
         return -1;
     }
     // TODO: /dev/... , /proc/..., symlink
-    FILINFO fno;
-    FRESULT fr = f_stat(path, &fno);
-    if (fr != FR_OK) {
-        errno = map_ff_fresult_to_errno(fr);
-        return -1;
-    }
     size_t n;
+    init_pfiles();
     FIL* pf = array_lookup_first_closed(pfiles, &n);
     if (!pf) {
         FDESC* fd = (FDESC*)alloc_file();
@@ -204,7 +199,13 @@ int __open(const char *path, int flags, mode_t mode) {
     }
     pf->pending_descriptors = 0;
     BYTE ff_mode = map_flags_to_ff_mode(flags);
-    fr = f_open(pf, path, ff_mode);
+    FRESULT fr = f_open(pf, path, ff_mode);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    FILINFO fno;
+    fr = f_stat(path, &fno);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
@@ -218,6 +219,7 @@ int __close(int fildes) {
     if (!pfiles || fildes <= STDERR_FILENO) {
         goto e;
     }
+    init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
     if (fd == 0 || fd->fp->obj.fs == 0) {
         goto e;

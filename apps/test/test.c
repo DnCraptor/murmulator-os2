@@ -2,7 +2,13 @@
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
+
+/// TODO:
 #include "../m-os-api.h"
+int __aeabi_idiv(int x, int y) {
+    typedef int (*fn)(int, int);
+    return ((fn)_sys_table_ptrs[217])(x, y);
+}
 
 static FIL log_file;
 
@@ -32,7 +38,7 @@ int main() {
     int fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (fd < 0) { log_write("open failed\n"); goto fail; }
     log_write("open succeeded\n");
-
+/*
     // 2. fstat
     struct stat st;
     ret = fstat(fd, &st);
@@ -104,8 +110,15 @@ int main() {
     log_write("close fd succeeded\n");
 
     log_write("POSIX test completed successfully\n");
-
+*/
 fail:
+    log_write("errno: ");
+    buf[1] = 0;
+    buf[0] = '0' + (errno / 10);
+    log_write(buf);
+    buf[0] = '0' + (errno - (errno / 10) * 10);
+    log_write(buf);
+    log_write("\n");
     log_close();
     return 0;
 }

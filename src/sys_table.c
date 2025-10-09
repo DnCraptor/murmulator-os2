@@ -31,6 +31,7 @@
 #include "sys/fcntl.h"
 #include "sys/stat.h"
 #include "unistd.h"
+#include "errno.h"
 
 // TODO: think about it
 //extern int __cxa_pure_virtual();
@@ -368,6 +369,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __dup, // 273
     __dup2, // 274
     __lseek,// 275
+    __errno_location, // 276
     // TODO:
     0
 };

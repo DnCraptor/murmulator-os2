@@ -26,7 +26,10 @@ extern "C" {
 #define EOVERFLOW 75  /* Value too large for defined data type */
 
 /* You can define other standard POSIX errors here as needed */
-int* __errno_location();
+inline static int* __errno_location() {
+    typedef int* (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[276])();
+}
 #define errno (*__errno_location())
 
 #ifdef __cplusplus
