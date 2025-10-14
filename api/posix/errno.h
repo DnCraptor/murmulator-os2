@@ -25,6 +25,11 @@ extern "C" {
 #define ESPIPE    29  /* Illegal seek */
 #define EOVERFLOW 75  /* Value too large for defined data type */
 
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
+
 /* You can define other standard POSIX errors here as needed */
 inline static int* __errno_location() {
     typedef int* (*fn_ptr_t)();

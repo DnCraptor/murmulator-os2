@@ -1,22 +1,15 @@
+/// POSIX.1
 #include <unistd.h>
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
-
-/// TODO:
-int __aeabi_idiv(int x, int y) {
-    typedef int (*fn)(int, int);
-    return ((fn)_sys_table_ptrs[217])(x, y);
-}
-
-inline static size_t strlen(const char* msg) {
-    const char* msg0 = msg;
-    while(*msg) ++msg;
-    return msg - msg0;
-}
+/// libc
+#include <stdio.h>
+#include <string.h>
 
 static void log_write(const char* msg) {
-    write(STDOUT_FILENO, msg, strlen(msg));
+    ///write(STDOUT_FILENO, msg, strlen(msg));
+    printf(msg);
 }
 
 int main() {
