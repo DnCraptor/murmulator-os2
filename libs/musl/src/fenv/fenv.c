@@ -1,6 +1,6 @@
 #include <fenv.h>
 
-/* Dummy functions for archs lacking fenv implementation */
+/* Dummy functions for archs lacking fenv implementation 
 
 int feclearexcept(int mask)
 {
@@ -36,3 +36,4 @@ int fesetenv(const fenv_t *envp)
 {
 	return 0;
 }
+*/
