@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #include <wchar.h>
 #include "stdio_impl.h"
 #include "locale_impl.h"

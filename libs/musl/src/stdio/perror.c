@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>

@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>

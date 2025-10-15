@@ -4,6 +4,10 @@
 #include <limits.h>
 #include "syscall.h"
 
+#ifndef NZERO
+#define NZERO 20
+#endif
+
 int nice(int inc)
 {
 	int prio = inc;

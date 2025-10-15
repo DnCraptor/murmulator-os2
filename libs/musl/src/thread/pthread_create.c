@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #define _GNU_SOURCE
 #include "pthread_impl.h"
 #include "stdio_impl.h"

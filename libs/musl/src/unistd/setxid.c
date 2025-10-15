@@ -24,6 +24,10 @@ static void do_setxid(void *p)
 	c->ret = ret;
 }
 
+#ifndef EAGAIN
+#define EAGAIN          11
+#endif
+
 int __setxid(int nr, int id, int eid, int sid)
 {
 	/* ret is initially nonzero so that failure of the first thread does not

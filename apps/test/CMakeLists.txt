@@ -83,7 +83,7 @@ target_link_options(${PROJECT_NAME} PRIVATE
     -Xlinker
     --print-memory-usage
     -r
-    --allow-multiple-definition
+    -Wl,--allow-multiple-definition
 )
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")

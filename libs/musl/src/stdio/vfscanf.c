@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #include <stdlib.h>
 #include <stdarg.h>
 #include <ctype.h>

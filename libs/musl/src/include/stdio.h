@@ -17,4 +17,8 @@ extern hidden FILE __stderr_FILE;
 #define stdout (&__stdout_FILE)
 #define stderr (&__stderr_FILE)
 
+#ifndef P_tmpdir
+#define P_tmpdir "/tmp"
+#endif
+
 #endif

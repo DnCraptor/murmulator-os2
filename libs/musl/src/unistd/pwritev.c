@@ -4,6 +4,14 @@
 #include <fcntl.h>
 #include "syscall.h"
 
+#ifndef ENOSYS
+#define ENOSYS          38
+#endif
+
+#ifndef EOPNOTSUPP
+#define EOPNOTSUPP      95
+#endif
+
 ssize_t pwritev(int fd, const struct iovec *iov, int count, off_t ofs)
 {
 	if (ofs == -1) ofs--;
