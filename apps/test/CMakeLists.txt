@@ -40,7 +40,7 @@ foreach (SRC_FILE IN LISTS SRC)
 endforeach ()
 message(STATUS "")
 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/libc" "${CMAKE_CURRENT_BINARY_DIR}/libc")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl" "${CMAKE_CURRENT_BINARY_DIR}/libc")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/runtime" "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 
 add_executable(${PROJECT_NAME}
@@ -48,9 +48,20 @@ add_executable(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
+    # workarounds
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/wa
+    # MUSL
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/arch/arm
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/arch/generic
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/internal
+    # POSIX.1
     ${CMAKE_CURRENT_SOURCE_DIR}/../../api/posix
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/libc
+    # GCC toolchain
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/gcc/toolchain/14_2_Rel1/arm-none-eabi/include
+    # for your program
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 configure_file(memmap.ld.in memmap.ld @ONLY)
@@ -72,6 +83,7 @@ target_link_options(${PROJECT_NAME} PRIVATE
     -Xlinker
     --print-memory-usage
     -r
+    --allow-multiple-definition
 )
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
@@ -92,7 +104,18 @@ target_compile_options(${PROJECT_NAME} PUBLIC
 )
 endif ()
 
-#target_compile_definitions(${PROJECT_NAME} PRIVATE ELF_MODE)
+
+#| Значение `_POSIX_C_SOURCE` | Версия стандарта | Основные возможности                                |
+#| -------------------------- | ---------------- | --------------------------------------------------- |
+#| `1`                        | POSIX.1-1990     | Базовые функции (`read`, `write`, `stat`, `fork` …) |
+#| `199309L`                  | POSIX.1b-1993    | Реальное время, `sched_*`, `sem_*`                  |
+#| `199506L`                  | POSIX.1c-1995    | Потоки (`pthread_*`)                                |
+#| `200112L`                  | POSIX.1-2001     | Совместимость с SUSv3                               |
+#| `200809L`                  | POSIX.1-2008     | Совместимость с SUSv4                               |
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    _POSIX_SOURCE
+    _POSIX_C_SOURCE=1
+)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
