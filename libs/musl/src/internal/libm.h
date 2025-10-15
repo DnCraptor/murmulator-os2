@@ -230,6 +230,10 @@ do {                                              \
   (d) = asfloat(w);                               \
 } while (0)
 
+#ifndef M_PI_2
+#define M_PI_2          1.57079632679489661923  /* pi/2 */
+#endif
+
 hidden int    __rem_pio2_large(double*,double*,int,int,int);
 
 hidden int    __rem_pio2(double,double*);

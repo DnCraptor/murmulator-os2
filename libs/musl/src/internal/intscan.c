@@ -1,3 +1,5 @@
+#define _OWN_IO_FILE 
+
 #include <limits.h>
 #include <errno.h>
 #include <ctype.h>
