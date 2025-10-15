@@ -8,6 +8,8 @@
 static void dummy(void) { }
 weak_alias(dummy, __vm_wait);
 
+typedef long syscall_arg_t;
+
 #define UNIT SYSCALL_MMAP2_UNIT
 #define OFF_MASK ((-0x2000ULL << (8*sizeof(syscall_arg_t)-1)) | (UNIT-1))
 

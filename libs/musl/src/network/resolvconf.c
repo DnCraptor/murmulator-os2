@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #include "lookup.h"
 #include "stdio_impl.h"
 #include <ctype.h>

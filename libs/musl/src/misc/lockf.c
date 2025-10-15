@@ -2,6 +2,13 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#ifndef F_ULOCK
+#define F_ULOCK 0
+#define F_LOCK  1
+#define F_TLOCK 2
+#define F_TEST  3
+#endif
+
 int lockf(int fd, int op, off_t size)
 {
 	struct flock l = {

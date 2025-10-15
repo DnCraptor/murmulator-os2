@@ -518,5 +518,70 @@
 #define SYS_flistxattr 0xFF25
 #define SYS_lremovexattr 0xFF26
 #define SYS_fremovexattr 0xFF27
+#define SYS_getpriority 0xFF28
+#define SYS_getresuid 0xFF29
+#define SYS_getresgid 0xFF2A
+#define SYS_ioctl 0xFF2B
+#define SYS_getrusage 0xFF2C
+#define SYS_setdomainname 0xFF2D
+#define SYS_setpriority 0xFF2E
+#define SYS_mlockall 0xFF2F
+#define SYS_madvise 0xFF30
+#define SYS_uname 0xFF31
+#define SYS_mincore 0xFF32
+#define SYS_mremap 0xFF33
+#define SYS_mprotect 0xFF34
+#define SYS_munlock 0xFF35
+#define SYS_munmap 0xFF36
+#define SYS_msync 0xFF37
+#define SYS_munlockall 0xFF38
+#define SYS_mq_notify 0xFF39
+#define SYS_mq_open 0xFF3A
+#define SYS_mq_timedsend 0xFF3B
+#define SYS_mq_unlink 0xFF3C
+#define SYS_mq_timedreceive 0xFF3D
+#define SYS_mq_getsetattr 0xFF3E
+#define SYS_recvmmsg 0xFF3F
+#define SYS_sendmmsg 0xFF40
+#define SYS_clone 0xFF41
+#define SYS_execve 0xFF42
+#define SYS_execveat 0xFF43
+#define SYS_dup3 0xFF44
+#define SYS_setsid 0xFF45
+#define SYS_setpgid 0xFF46
+#define SYS_setgid 0xFF47
+#define SYS_getgid 0xFF48
+#define SYS_setuid 0xFF49
+#define SYS_getuid 0xFF4A
+#define SYS_dup 0xFF4B
+#define SYS_chdir 0xFF4C
+#define SYS_fchdir 0xFF4D
+#define SYS_write 0xFF4E
+#define SYS_getcpu 0xFF4F
+#define SYS_sched_get_priority_max 0xFF50
+#define SYS_sched_get_priority_min 0xFF51
+#define SYS_sched_setaffinity 0xFF52
+#define SYS_sched_yield 0xFF53
+#define SYS_sched_rr_get_interval 0xFF54
+#define SYS_pselect6 0xFF55
+#define SYS_ppoll 0xFF56
+#define SYS_getitimer 0xFF57
+#define SYS_setitimer 0xFF58
+#define SYS_sigaltstack 0xFF59
 
 #define SYSCALL_RLIM_INFINITY (~0L)
+#define SYSCALL_MMAP2_UNIT 4096
+#ifndef SO_RCVTIMEO_OLD
+#define SO_RCVTIMEO_OLD  20
+#endif
+#ifndef SO_SNDTIMEO_OLD
+#define SO_SNDTIMEO_OLD  21
+#endif
+#define SO_TIMESTAMP_OLD    29
+#define SO_TIMESTAMPNS_OLD  35
+#define SO_TIMESTAMPING_OLD 37
+#define SCM_TIMESTAMP_OLD    SO_TIMESTAMP_OLD
+#define SCM_TIMESTAMPNS_OLD  SO_TIMESTAMPNS_OLD
+#define SCM_TIMESTAMPING_OLD SO_TIMESTAMPING_OLD
+
+typedef long syscall_arg_t;

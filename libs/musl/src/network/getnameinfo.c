@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #include <netdb.h>
 #include <limits.h>
 #include <string.h>

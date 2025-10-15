@@ -1,3 +1,4 @@
+#define _OWN_IO_FILE 
 #define _BSD_SOURCE
 #include <unistd.h>
 #include <wchar.h>
