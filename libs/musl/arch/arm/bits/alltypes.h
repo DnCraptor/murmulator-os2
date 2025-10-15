@@ -94,7 +94,9 @@ TYPEDEF struct { unsigned __attr; } pthread_condattr_t;
 TYPEDEF struct { unsigned __attr; } pthread_barrierattr_t;
 TYPEDEF struct { unsigned __attr[2]; } pthread_rwlockattr_t;
 
+#ifndef _OWN_IO_FILE 
 STRUCT _IO_FILE { char __x; };
+#endif
 TYPEDEF struct _IO_FILE FILE;
 
 TYPEDEF __builtin_va_list va_list;

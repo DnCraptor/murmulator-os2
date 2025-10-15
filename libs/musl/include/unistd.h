@@ -478,6 +478,8 @@ pid_t gettid(void);
 #define _CS_POSIX_V7_THREADS_CFLAGS	1150
 #define _CS_POSIX_V7_THREADS_LDFLAGS	1151
 
+extern char **__environ;
+
 #ifdef __cplusplus
 }
 #endif

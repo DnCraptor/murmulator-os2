@@ -25,6 +25,15 @@
 
 #define RLIM(x) (-32768|(RLIMIT_ ## x))
 
+/// TODO:
+#ifndef NZERO
+#define NZERO 20
+#endif
+#ifndef SYS_sched_getaffinity
+#define SYS_sched_getaffinity 0xFFFD
+#endif
+
+
 long sysconf(int name)
 {
 	static const short values[] = {

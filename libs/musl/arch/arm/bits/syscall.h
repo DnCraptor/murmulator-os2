@@ -413,3 +413,26 @@
 #define __ARM_NR_set_tls	0x0f0005
 #define __ARM_NR_get_tls	0x0f0006
 
+/// TODO:
+#define SYS_futex_time64 0xFFFF
+#define SYS_rt_sigqueueinfo 0xFFFE
+#define SYS_sched_getaffinity 0xFFFD
+#define SYS_getdents 0xFFFC
+#define SYS_close 0xFFFB
+#define SYS_set_tid_address 0xFFFA
+#define SYS_mmap 0xFFF9
+#define SYS_poll 0xFFF8
+#define SYS_exit_group  0xFFF7
+#define SYS_exit  0xFFF6
+#define SYS_rt_sigaction 0xFFF5
+#define SYS_tkill 0xFFF4
+#define SYS_rt_sigprocmask 0xFFF3
+#define SYS_fcntl 0xFFF2
+#define SYS_fallocate 0xFFF1
+#define SYS_fadvise 0xFFF0
+#define SYS_ppoll_time64 0xFFEF
+#define SYS_openat 0xFFEE
+#define SYS_waitid 0xFFED
+#define SYS_msgrcv 0xFFEC
+#define SYS_msgctl 0xFFEB
+#define SYS_msgget 0xFFEA

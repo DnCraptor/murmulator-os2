@@ -17,6 +17,8 @@ weak_alias(dummy1, __init_ssp);
 
 #define AUX_CNT 38
 
+extern char **__environ;
+
 #ifdef __GNUC__
 __attribute__((__noinline__))
 #endif

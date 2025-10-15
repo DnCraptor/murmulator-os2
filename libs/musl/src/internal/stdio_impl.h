@@ -1,6 +1,8 @@
 #ifndef _STDIO_IMPL_H
 #define _STDIO_IMPL_H
 
+#define _OWN_IO_FILE 
+
 #include <stdio.h>
 #include "syscall.h"
 

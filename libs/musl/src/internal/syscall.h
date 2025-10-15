@@ -313,6 +313,10 @@ static inline long __alt_socketcall(int sys, int sock, int cp, syscall_arg_t a, 
 #endif
 
 #ifndef SYS_futex
+#ifndef SYS_futex_time64
+// TODO:
+#define SYS_futex_time64 0xFFFF
+#endif
 #define SYS_futex SYS_futex_time64
 #endif
 

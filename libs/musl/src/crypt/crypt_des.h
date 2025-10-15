@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/// TODO:
+#ifndef hidden
+#define hidden __attribute__((__visibility__("hidden")))
+#endif
+
 struct expanded_key {
 	uint32_t l[16], r[16];
 };

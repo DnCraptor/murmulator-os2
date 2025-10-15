@@ -84,3 +84,11 @@ typedef struct __ucontext {
 #define SIGUNUSED SIGSYS
 
 #define _NSIG 65
+
+/// TODO:
+#ifndef MINSIGSTKSZ
+#define MINSIGSTKSZ 0
+#endif
+#ifndef SIGSTKSZ
+#define SIGSTKSZ 2048
+#endif

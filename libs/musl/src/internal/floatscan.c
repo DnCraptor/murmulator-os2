@@ -1,3 +1,5 @@
+#define _OWN_IO_FILE 
+
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
