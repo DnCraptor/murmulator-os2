@@ -87,12 +87,25 @@ unsigned __aeabi_f2uiz(float x) { // float → unsigned (truncate)
     return ((fn)_sys_table_ptrs[230])(x);
 }
 
-// Missing analogs
-float __aeabi_l2f(long long x);         // long long → float
-float __aeabi_ul2f(unsigned long long x); // unsigned long long → float
-long long __aeabi_f2lz(float x);        // float → long long
-unsigned long long __aeabi_f2ulz(float x); // float → unsigned long long
+float __aeabi_l2f(long long x) {         // long long → float
+    typedef float (*fn)(long long);
+    return ((fn)_sys_table_ptrs[284])(x);
+}
 
+float __aeabi_ul2f(unsigned long long x) { // unsigned long long → float
+    typedef float (*fn)(unsigned long long);
+    return ((fn)_sys_table_ptrs[285])(x);
+}
+
+long long __aeabi_f2lz(float x) {        // float → long long
+    typedef long long (*fn)(float);
+    return ((fn)_sys_table_ptrs[286])(x);
+}
+
+unsigned long long __aeabi_f2ulz(float x) { // float → unsigned long long
+    typedef unsigned long long (*fn)(float);
+    return ((fn)_sys_table_ptrs[287])(x);
+}
 
 // ============================================================================
 // === DOUBLE-PRECISION ARITHMETIC OPERATIONS
@@ -135,18 +148,24 @@ int __aeabi_dcmpge(double x, double y) { // >=
 }
 
 int __aeabi_dcmplt(double x, double y) { // <
-    typedef double (*fn)(double, double);
+    typedef int (*fn)(double, double);
     return ((fn)_sys_table_ptrs[251])(x, y);
 }
 
 int __aeabi_dcmpgt(double x, double y) { // >
-    typedef double (*fn)(double, double);
+    typedef int (*fn)(double, double);
     return ((fn)_sys_table_ptrs[251])(y, x);
 }
 
-// Missing analogs
-int __aeabi_dcmple(double x, double y); // <=
-int __aeabi_dcmpun(double x, double y); // unordered
+int __aeabi_dcmple(double x, double y) { // <=
+    typedef int (*fn)(double, double);
+    return ((fn)_sys_table_ptrs[227])(y, x);
+}
+
+int __aeabi_dcmpun(double x, double y) {  // unordered
+    typedef int (*fn)(double, double);
+    return ((fn)_sys_table_ptrs[277])(x, y);
+}
 
 
 // ============================================================================
@@ -186,11 +205,25 @@ unsigned __aeabi_d2uiz(double x) {
     return ((fn)_sys_table_ptrs[256])(x);
 }
 
-// Missing analogs
-double __aeabi_l2d(long long x);
-double __aeabi_ul2d(unsigned long long x);
-long long __aeabi_d2lz(double x);
-unsigned long long __aeabi_d2ulz(double x);
+double __aeabi_l2d(long long x) {
+    typedef double (*fn)(long long);
+    return ((fn)_sys_table_ptrs[280])(x);
+}
+
+double __aeabi_ul2d(unsigned long long x) {
+    typedef double (*fn)(unsigned long long);
+    return ((fn)_sys_table_ptrs[281])(x);
+}
+
+long long __aeabi_d2lz(double x) {
+    typedef long long (*fn)(double);
+    return ((fn)_sys_table_ptrs[282])(x);
+}
+
+unsigned long long __aeabi_d2ulz(double x) {
+    typedef unsigned long long (*fn)(double);
+    return ((fn)_sys_table_ptrs[283])(x);
+}
 
 
 // ============================================================================
@@ -230,9 +263,30 @@ unsigned long long __aeabi_uldivmod(unsigned long long x, unsigned long long y) 
     return ((fn)_sys_table_ptrs[264])(x, y);
 }
 
-// Missing analogs
-long long __aeabi_ldivmod(long long x, long long y);
+long long __aeabi_ldivmod(long long x, long long y) {
+    typedef long long (*fn)(long long, long long);
+    return ((fn)_sys_table_ptrs[279])(x, y);
+}
 
+unsigned long long __aeabi_llsr(unsigned long long value, int shift) {
+    typedef unsigned long long (*fn)(unsigned long long, int);
+    return ((fn)_sys_table_ptrs[278])(value, shift);
+}
+
+/* 64-bit logical and arithmetic shifts */
+unsigned long long __aeabi_llsl(unsigned long long value, int shift) {
+    typedef unsigned long long (*fn)(unsigned long long, int);
+    return ((fn)_sys_table_ptrs[296])(value, shift);
+}
+signed long long   __aeabi_lasr(signed long long value, int shift) {
+    typedef signed long long (*fn)(signed long long, int);
+    return ((fn)_sys_table_ptrs[297])(value, shift);
+}
+/* 64-bit comparison */
+int __aeabi_lcmp(signed long long a, signed long long b) {
+    typedef int (*fn)(signed long long, signed long long);
+    return ((fn)_sys_table_ptrs[298])(a, b);
+}
 
 // ============================================================================
 // === BIT MANIPULATION AND MISC
@@ -242,6 +296,46 @@ int __clzsi2(unsigned int a) {
     return ((fn)_sys_table_ptrs[258])(a);
 }
 
-// Missing analogs
-int __ctzsi2(unsigned int a); // count trailing zeros
-int __popcountsi2(unsigned int a); // population count
+int __ctzsi2(unsigned int a) { // count trailing zeros
+    typedef int (*fn)(unsigned int);
+    return ((fn)_sys_table_ptrs[292])(a);
+}
+
+int __popcountsi2(unsigned int a) { // population count
+    typedef int (*fn)(unsigned int);
+    return ((fn)_sys_table_ptrs[293])(a);
+}
+
+// ============================================================================
+// === COMPLEX
+// ============================================================================
+/* Complex-multiply helpers */
+double _Complex __muldc3(double a, double b, double c, double d) {
+    typedef double _Complex (*fn)(double, double, double, double);
+    return ((fn)_sys_table_ptrs[288])(a, b, c, d);
+}
+float _Complex __mulsc3(float a, float b, float c, float d) {
+    typedef float _Complex (*fn)(float, float, float, float);
+    return ((fn)_sys_table_ptrs[290])(a, b, c, d);
+}
+
+/* Complex-divide helpers */
+double _Complex __divdc3(double a, double b, double c, double d) {
+    typedef double _Complex (*fn)(double, double, double, double);
+    return ((fn)_sys_table_ptrs[289])(a, b, c, d);
+}
+float _Complex __divsc3(float a, float b, float c, float d) {
+    typedef float _Complex (*fn)(float, float, float, float);
+    return ((fn)_sys_table_ptrs[291])(a, b, c, d);
+}
+
+/* Integer-power helpers */
+float        __powisf2 (float a, int b) {
+    typedef float (*fn)(float, int);
+    return ((fn)_sys_table_ptrs[294])(a, b);
+}
+double       __powidf2 (double a, int b) {
+    typedef double (*fn)(double, int);
+    return ((fn)_sys_table_ptrs[295])(a, b);
+}
+

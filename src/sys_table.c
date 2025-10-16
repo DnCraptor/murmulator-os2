@@ -370,6 +370,29 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __dup2, // 274
     __lseek,// 275
     __errno_location, // 276
+    // missed gcc math
+    __aeabi_dcmpun, // 277
+    __aeabi_llsr, // 278
+    __aeabi_ldivmod, // 279
+    __aeabi_l2d, // 280
+    __aeabi_ul2d, // 281
+    __aeabi_d2lz, // 282
+    __aeabi_d2ulz, // 283
+    __aeabi_l2f, // 284
+    __aeabi_ul2f, // 285
+    __aeabi_f2lz, // 286
+    __aeabi_f2ulz, // 287
+    __muldc3, // 288
+    __divdc3, // 289
+    __mulsc3, // 290
+    __divsc3, // 291
+    __ctzsi2, // 292
+    __popcountsi2, // 293
+    __powisf2, // 294
+    __powidf2, // 295
+    __aeabi_llsl, // 296
+    __aeabi_lasr, // 297
+    __aeabi_lcmp, // 298
     // TODO:
     0
 };
