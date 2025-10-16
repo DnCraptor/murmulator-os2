@@ -41,6 +41,7 @@ endforeach ()
 message(STATUS "")
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl" "${CMAKE_CURRENT_BINARY_DIR}/libc")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/runtime" "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 
 add_executable(${PROJECT_NAME}
     libc.c
@@ -66,6 +67,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     murmulator_stdlib
+    murmulator_runtime
 )
 
 #family_configure_device_example(${PROJECT_NAME} noos)
