@@ -497,6 +497,10 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
     uint8_t* real_ram_addr = 0;
     uint8_t* del_addr = 0;
     elf32_shdr* psh = (elf32_shdr*)pvPortMalloc(sizeof(elf32_shdr));
+    if (!psh) {
+        gouta("Not enough RAM\n");
+        return prg_addr;
+    }
     if (f_lseek(c->f2, c->pehdr->sh_offset + sizeof(elf32_shdr) * sec_num) == FR_OK &&
         f_read(c->f2, psh, sizeof(elf32_shdr), &rb) == FR_OK && rb == sizeof(elf32_shdr)
     ) {
@@ -659,12 +663,17 @@ e2:
 }
 
 static uint32_t __in_hfa() load_sec2mem_wrapper(load_sec_ctx* pctx, uint32_t req_idx, bool try_to_use_flash) {
+    if (!pctx || !pctx->f2) return 0;
     if (req_idx != 0xFFFFFFFF) {
         #if DEBUG_APP_LOAD
         goutf("Loading .symtab section #%d\n", req_idx);
         #endif
         UINT rb;
         elf32_sym* psym = pvPortMalloc(sizeof(elf32_sym));
+        if (!psym) {
+            gouta("Not enough RAM\n");
+            goto e3;
+        }
         if (f_lseek(pctx->f2, pctx->symtab_off + req_idx * sizeof(elf32_sym)) != FR_OK ||
             f_read(pctx->f2, psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)
         ) {
@@ -692,9 +701,18 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
     char * fn = ctx->orig_cmd;
     cleanup_bootb_ctx(ctx);
     ctx->pboot_ctx = (bootb_ctx_t*)pvPortMalloc(sizeof(bootb_ctx_t));
+    if (!ctx->pboot_ctx) {
+a:
+        gouta("Not enough RAM\n");
+        ctx->ret_code = -1;
+        return false;
+    }
     bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
     memset(bootb_ctx, 0, sizeof(bootb_ctx_t)); // ensure context is empty
     FIL* f = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!f) {
+        goto a;
+    }
     if (f_open(f, fn, FA_READ) != FR_OK) {
         vPortFree(f);
         goutf("Unable to open file: '%s'\n", fn);
@@ -714,25 +732,42 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
         gouta("Attempt to use flash (Alt+Enter)\n");
     }
     elf32_header* pehdr = (elf32_header*)pvPortMalloc(sizeof(elf32_header));
+    if (!pehdr) {
+a1:
+        f_close(f);
+        vPortFree(f);
+        goto a;
+    }
     UINT rb;
     if (f_read(f, pehdr, sizeof(elf32_header), &rb) != FR_OK) {
         goutf("Unable to read an ELF file header: '%s'\n", fn);
         goto e1;
     }
     elf32_shdr* psh = (elf32_shdr*)pvPortMalloc(sizeof(elf32_shdr));
+    if (!psh) {
+a2:
+        vPortFree(pehdr);
+        goto a1;
+    }
     bool ok = f_lseek(f, pehdr->sh_offset + sizeof(elf32_shdr) * pehdr->sh_str_index) == FR_OK;
     if (!ok || f_read(f, psh, sizeof(elf32_shdr), &rb) != FR_OK || rb != sizeof(elf32_shdr)) {
         goutf("Unable to read .shstrtab section header @ %d+%d (read: %d)\n", f_tell(f), sizeof(elf32_shdr), rb);
         goto e11;
     }
     char* symtab = (char*)pvPortMalloc(psh->sh_size);
+    if (!symtab) {
+a3:
+        vPortFree(psh);
+        goto a2;
+    }
     ok = f_lseek(f, psh->sh_offset) == FR_OK;
     if (!ok || f_read(f, symtab, psh->sh_size, &rb) != FR_OK || rb != psh->sh_size) {
         goutf("Unable to read .shstrtab section @ %d+%d (read: %d)\n", f_tell(f), psh->sh_size, rb);
         goto e2;
     }
     f_lseek(f, pehdr->sh_offset);
-    int symtab_off, strtab_off = -1;
+    int symtab_off = -1;
+    int strtab_off = -1;
     UINT symtab_len, strtab_len = 0;
     while ((symtab_off < 0 || strtab_off < 0) && f_read(f, psh, sizeof(elf32_shdr), &rb) == FR_OK && rb == sizeof(elf32_shdr)) { 
         if(psh->sh_type == 2 && 0 == strcmp(symtab + psh->sh_name, ".symtab")) {
@@ -750,21 +785,34 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
     }
     f_lseek(f, strtab_off);
     char* strtab = (char*)pvPortMalloc(strtab_len);
+    if (!strtab) {
+a4:
+        vPortFree(symtab);
+        goto a3;
+    }
     if (f_read(f, strtab, strtab_len, &rb) != FR_OK || rb != strtab_len) {
         goutf("Unable to read .strtab section\n");
         goto e3;
     }
     f_lseek(f, symtab_off);
     elf32_sym* psym = pvPortMalloc(sizeof(elf32_sym));;
+    if (!psym) {
+a5:
+        vPortFree(strtab);
+        goto a4;
+    }
     uint32_t _init_idx = 0xFFFFFFFF;
     uint32_t _fini_idx = 0xFFFFFFFF;
     uint32_t main_idx = 0xFFFFFFFF;
     uint32_t req_idx = 0xFFFFFFFF;
     uint32_t sig_idx = 0xFFFFFFFF;
-    // TODO: precalc req. size
-    uint16_t max_sects = pehdr->sh_num - 10; // dynamic, initial val (euristic based on ehdr.sh_num)
     bootb_ctx->sections = new_list_v(0, sect_entry_deallocator, 0);
     load_sec_ctx* pctx = (load_sec_ctx*)pvPortMalloc(sizeof(load_sec_ctx));
+    if (!pctx) {
+a6:
+        vPortFree(psym);
+        goto a5;
+    }
     pctx->f2 = f;
     pctx->pehdr = pehdr;
     pctx->symtab_off = symtab_off;
@@ -818,12 +866,26 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
             goto e8;
         }
         char* alloc = (char*)pvPortCalloc(1, FLASH_SECTOR_SIZE + 511);
+        if (!alloc) {
+    a7:
+            vPortFree(pctx);
+            goto a6;
+        }
         char* buffer = (char*)((uint32_t)(alloc + 511) & 0xFFFFFE00); // align 512
         char* tmp = get_ctx_var(get_cmd_startup_ctx(), TEMP);
         if(!tmp) tmp = "";
         size_t cdl = strlen(tmp);
         char * flash_me_file = concat(tmp, _flash_me);
+        if (!flash_me_file) {
+    a8:
+            vPortFree(alloc);
+            goto a7;
+        }
         FIL* f = (FIL*)pvPortMalloc(sizeof(FIL));
+        if (!f) {
+            vPortFree(flash_me_file);
+            goto a8;
+        }
         if ( FR_OK != f_open(f, flash_me_file, FA_READ) ) {
             goutf("Unable to open file '%s'\n", flash_me_file);
             goto e5;
@@ -837,7 +899,7 @@ bool __in_hfa() load_app(cmd_ctx_t* ctx) {
             }
             UINT br;
             // goutf("read %d bytes from file '%s'\n", FLASH_SECTOR_SIZE, flash_me_file);
-            if ( FR_OK != f_read(f, buffer, FLASH_SECTOR_SIZE, &br) && !br ) {
+            if ( FR_OK != f_read(f, buffer, FLASH_SECTOR_SIZE, &br) || !br ) {
                 goutf("Unable to read %d bytes from file '%s'\n", FLASH_SECTOR_SIZE, flash_me_file);
                 goto e4;
             }

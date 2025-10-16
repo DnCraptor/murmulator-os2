@@ -8,8 +8,8 @@
 #include <string.h>
 
 static void log_write(const char* msg) {
-    ///write(STDOUT_FILENO, msg, strlen(msg));
-    printf(msg);
+    write(STDOUT_FILENO, msg, strlen(msg));
+    ///printf(msg);
 }
 
 int main() {

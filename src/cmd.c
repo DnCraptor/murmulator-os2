@@ -165,6 +165,7 @@ char* __in_hfa() next_token(char* t) {
 char* __in_hfa() concat(const char* s1, const char* s2) {
     size_t s = strlen(s1);
     char* res = (char*)pvPortMalloc(s + strlen(s2) + 2);
+    if (!res) return res;
     strcpy(res, s1);
     res[s] = '/';
     strcpy(res + s + 1, s2);
@@ -172,6 +173,7 @@ char* __in_hfa() concat(const char* s1, const char* s2) {
 }
 char* __in_hfa() concat2(const char* s1, size_t s, const char* s2) {
     char* res = (char*)pvPortMalloc(s + strlen(s2) + 2);
+    if (!res) return res;
     strncpy(res, s1, s);
     res[s] = '/';
     strcpy(res + s + 1, s2);
