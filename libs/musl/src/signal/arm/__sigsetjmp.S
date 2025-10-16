@@ -5,6 +5,9 @@
 .type __sigsetjmp,%function
 sigsetjmp:
 __sigsetjmp:
+#if (__ARM_ARCH_6M__)
+    bx lr
+#else
 	tst r1,r1
 	bne 1f
 	b setjmp
@@ -19,6 +22,7 @@ __sigsetjmp:
 	mov r0,r4
 	ldr lr,[r0,#256]
 	ldr r4,[r0,#260+8]
+#endif
 
 .hidden __sigsetjmp_tail
 	b __sigsetjmp_tail

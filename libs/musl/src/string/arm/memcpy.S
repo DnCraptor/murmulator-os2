@@ -43,6 +43,8 @@
  * building as thumb 2 and big-endian.
  */
 
+#if !(__ARM_ARCH_6M__)
+
 .syntax unified
 
 .global memcpy
@@ -477,3 +479,4 @@ copy_last_3_and_return:
 	ldmfd   sp!, {r0, r4, lr}
 	bx      lr
 
+#endif

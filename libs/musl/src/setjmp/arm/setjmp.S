@@ -8,6 +8,9 @@
 __setjmp:
 _setjmp:
 setjmp:
+#if (__ARM_ARCH_6M__)
+    bx lr
+#else
 	mov ip,r0
 	stmia ip!,{v1,v2,v3,v4,v5,v6,sl,fp}
 	mov r2,sp
@@ -46,6 +49,7 @@ setjmp:
 #endif
 2:
 3:	bx lr
+#endif
 
 .hidden __hwcap
 .align 2

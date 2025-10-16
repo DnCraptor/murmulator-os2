@@ -5,6 +5,9 @@
 .type longjmp,%function
 _longjmp:
 longjmp:
+#if (__ARM_ARCH_6M__)
+    bx lr
+#else
 	mov ip,r0
 	movs r0,r1
 	moveq r0,#1
@@ -44,6 +47,7 @@ longjmp:
 #endif
 2:
 3:	bx lr
+#endif
 
 .hidden __hwcap
 .align 2
