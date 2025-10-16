@@ -11,6 +11,9 @@ __a_barrier_dummy:
 .hidden __a_barrier_oldkuser
 .type __a_barrier_oldkuser,%function
 __a_barrier_oldkuser:
+#if (__ARM_ARCH_6M__)
+	bx lr
+#else
 	push {r0,r1,r2,r3,ip,lr}
 	mov r1,r0
 	mov r2,sp
@@ -19,6 +22,7 @@ __a_barrier_oldkuser:
 	pop {r0,r1,r2,r3,ip,lr}
 	bx lr
 1:	bx ip
+#endif
 
 .global __a_barrier_v6
 .hidden __a_barrier_v6
@@ -32,8 +36,10 @@ __a_barrier_v6:
 .hidden __a_barrier_v7
 .type __a_barrier_v7,%function
 __a_barrier_v7:
+#if !(__ARM_ARCH_6M__)
 	.arch armv7-a
 	dmb ish
+#endif
 	bx lr
 
 .global __a_cas_dummy
@@ -43,6 +49,9 @@ __a_cas_dummy:
 	mov r3,r0
 	ldr r0,[r2]
 	subs r0,r3,r0
+#if (__ARM_ARCH_6M__)
+	it eq
+#endif
 	streq r1,[r2]
 	bx lr
 
@@ -55,7 +64,13 @@ __a_cas_v6:
 	mcr p15,0,r0,c7,c10,5
 1:	ldrex r0,[r2]
 	subs r0,r3,r0
+#if (__ARM_ARCH_6M__)
+	it eq
+#endif
 	strexeq r0,r1,[r2]
+#if (__ARM_ARCH_6M__)
+	it eq
+#endif
 	teqeq r0,#1
 	beq 1b
 	mcr p15,0,r0,c7,c10,5
@@ -70,7 +85,13 @@ __a_cas_v7:
 	dmb ish
 1:	ldrex r0,[r2]
 	subs r0,r3,r0
+#if (__ARM_ARCH_6M__)
+	it eq
+#endif
 	strexeq r0,r1,[r2]
+#if (__ARM_ARCH_6M__)
+	it eq
+#endif
 	teqeq r0,#1
 	beq 1b
 	dmb ish

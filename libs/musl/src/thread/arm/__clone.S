@@ -1,3 +1,4 @@
+#if !(__ARM_ARCH_6M__)
 .syntax unified
 .text
 .global __clone
@@ -27,3 +28,4 @@ __clone:
 	b 2b
 
 3:	bx r5
+#endif
