@@ -77,9 +77,21 @@ static inline void a_barrier()
 }
 #endif
 
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
+
+inline static void gouta(char* string) {
+    typedef void (*t_ptr_t)(char*);
+    ((t_ptr_t)_sys_table_ptrs[127])(string);
+}
+
 #define a_crash a_crash
 static inline void a_crash()
 {
+	/// TODO:
+	gouta("a_crash\n");
 	__asm__ __volatile__(
 #ifndef __thumb__
 		".word 0xe7f000f0"

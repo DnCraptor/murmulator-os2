@@ -1084,9 +1084,9 @@ static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
     }
     if (bootb_ctx->bootb[1]) {
         int x = bootb_ctx->bootb[1]();
-///        #if DEBUG_APP_LOAD
+        #if DEBUG_APP_LOAD
         goutf("_init done: %p\n", x);
-///        #endif
+        #endif
     }
     #if DEBUG_APP_LOAD
     goutf("EXEC main: [%p]\n", bootb_ctx->bootb[2]);

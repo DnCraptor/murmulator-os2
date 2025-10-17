@@ -81,7 +81,7 @@ target_link_options(${PROJECT_NAME} PRIVATE
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
         -fno-jump-tables  # suppress __gnu_thumb1_case_uni symbol generation
-#        -Werror=implicit-function-declaration
+        -Werror=implicit-function-declaration
         -Wno-error=suggest-attribute=format
         -Wno-error=cast-qual
         -Wno-error=unused-parameter
@@ -90,7 +90,7 @@ target_compile_options(${PROJECT_NAME} PUBLIC
         -Wno-error=sign-compare
         -Wno-error=missing-field-initializers
         -Wno-error=switch
-        -Wno-error=implicit-fallthrough=
+#        -Wno-error=implicit-fallthrough=
         -Wno-error=stringop-truncation
         -Wno-error=restrict
         -w

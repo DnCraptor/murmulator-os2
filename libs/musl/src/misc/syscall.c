@@ -11,14 +11,14 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 #endif
 
 typedef void (*goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
-#define printf(...) ((goutf_ptr_t)_sys_table_ptrs[41])(__VA_ARGS__)
+#define kprintf(...) ((goutf_ptr_t)_sys_table_ptrs[41])(__VA_ARGS__)
 
 typedef syscall_arg_t (*fn_ptr_t)(syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t, syscall_arg_t);
 
 /// W/A's TODO:
 long __syscall(long n, ...) {
-	if (n >= 300) {
-		printf("__syscall(%ph, ...)", n);
+	if (n >= 512 || !_sys_table_ptrs[n]) {
+		kprintf("__syscall(%ph, ...)\n", n);
 		return 0;
 	}
 	va_list ap;
@@ -36,8 +36,8 @@ long __syscall(long n, ...) {
 
 long syscall(long n, ...)
 {
-	if (n >= 300) {
-		printf("syscall(%ph, ...)", n);
+	if (n >= 512 || !_sys_table_ptrs[n]) {
+		kprintf("syscall(%ph, ...)\n", n);
 		return 0;
 	}
 	va_list ap;
@@ -55,8 +55,8 @@ long syscall(long n, ...)
 }
 
 long syscall_cp(long n, ...) {
-	if (n >= 300) {
-		printf("syscall_cp(%ph, ...)", n);
+	if (n >= 512 || !_sys_table_ptrs[n]) {
+		kprintf("syscall_cp(%ph, ...)\n", n);
 		return 0;
 	}
 	va_list ap;

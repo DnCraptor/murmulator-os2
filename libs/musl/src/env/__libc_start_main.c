@@ -51,10 +51,14 @@ void __init_libc(char **envp, char *pn)
 #else
 	__syscall(SYS_ppoll, pfd, 3, &(struct timespec){0}, 0, _NSIG/8);
 #endif
-	if (r<0) a_crash();
-	for (i=0; i<3; i++) if (pfd[i].revents&POLLNVAL)
-		if (__sys_open("/dev/null", O_RDWR, 0)<0)
-			a_crash();
+	if (r < 0) a_crash();
+	for (i = 0; i < 3; ++i) {
+		if (pfd[i].revents & POLLNVAL) {
+			if (__sys_open("/dev/null", O_RDWR, 0) < 0) {
+				a_crash();
+			}
+		}
+	}
 	libc.secure = 1;
 }
 

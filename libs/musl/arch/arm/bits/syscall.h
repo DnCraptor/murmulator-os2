@@ -424,7 +424,7 @@
 #define SYS_close 0xFFFB
 #define SYS_set_tid_address 0xFFFA
 #define SYS_mmap 0xFFF9
-#define SYS_poll 0xFFF8
+#define SYS_poll 299
 #define SYS_exit_group  0xFFF7
 #define SYS_exit  0xFFF6
 #define SYS_rt_sigaction 0xFFF5
@@ -524,7 +524,7 @@
 #define SYS_getpriority 0xFF28
 #define SYS_getresuid 0xFF29
 #define SYS_getresgid 0xFF2A
-#define SYS_ioctl 0xFF2B
+#define SYS_ioctl 300
 #define SYS_getrusage 0xFF2C
 #define SYS_setdomainname 0xFF2D
 #define SYS_setpriority 0xFF2E

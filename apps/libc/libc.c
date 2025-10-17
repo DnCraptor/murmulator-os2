@@ -29,12 +29,8 @@ int sys_open(const char* n, int opt1, int opt2) {
     return open(n, opt1, opt2);
 }
 
-static void log_write(const char* msg) {
-    ///write(STDOUT_FILENO, msg, strlen(msg));
-    printf(msg);
-}
-
-int main() {
-    log_write("It is libc.\n");
+int main(int argc, char **argv) {
+//    __init_libc(envp, argv[0]);
+    printf("It is libc.\n");
     return -1;
 }

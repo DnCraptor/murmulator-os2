@@ -29,9 +29,11 @@
 #include <math.h>
 
 #include "sys/fcntl.h"
+#include "sys/ioctl.h"
 #include "sys/stat.h"
 #include "unistd.h"
 #include "errno.h"
+#include "poll.h"
 
 // TODO: think about it
 //extern int __cxa_pure_virtual();
@@ -393,6 +395,9 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __aeabi_llsl, // 296
     __aeabi_lasr, // 297
     __aeabi_lcmp, // 298
+    // POSIX
+    __poll, // 299
+    __ioctl, // 300
     // TODO:
     0
 };
