@@ -586,7 +586,7 @@
 #define SYS_readv 0xFF66
 #define SYS_read 0xFF67
 #define SYS_writev 0xFF68
-#define SYS_write 0xFF69
+#define SYS_write 271
 #define SYS_unlinkat 0xFF6A
 #define SYS_readlinkat 0xFF6B
 #define SYS_set_robust_list 0xFF6C

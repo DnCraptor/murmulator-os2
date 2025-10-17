@@ -19,7 +19,7 @@ typedef syscall_arg_t (*fn_ptr_t)(syscall_arg_t, syscall_arg_t, syscall_arg_t, s
 long __syscall(long n, ...) {
 	if (n >= 512 || !_sys_table_ptrs[n]) {
 		kprintf("__syscall(%ph, ...)\n", n);
-		return 0;
+		return -1;
 	}
 	va_list ap;
 	syscall_arg_t a,b,c,d,e,f;

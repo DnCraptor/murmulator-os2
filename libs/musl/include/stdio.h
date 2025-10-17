@@ -106,6 +106,7 @@ char *gets(char *);
 int fputs(const char *__restrict, FILE *__restrict);
 int puts(const char *);
 
+int printf0(const char *__restrict, ...);
 int printf(const char *__restrict, ...);
 int fprintf(FILE *__restrict, const char *__restrict, ...);
 int sprintf(char *__restrict, const char *__restrict, ...);

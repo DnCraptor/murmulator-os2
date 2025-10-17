@@ -4,7 +4,6 @@
 #include <sys/stat.h>
 /// libc
 #include <stdio.h>
-#include <string.h>
 
 // W/A TODO: some support for MOS:
 const long _DYNAMIC[1] = { 0 };
@@ -30,7 +29,6 @@ int sys_open(const char* n, int opt1, int opt2) {
 }
 
 int main(int argc, char **argv) {
-//    __init_libc(envp, argv[0]);
     printf("It is libc.\n");
     return -1;
 }
