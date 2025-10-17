@@ -99,8 +99,10 @@ typedef struct {
 #define STR_TAB_FUNC 2
 
 #define STR_TAB_GLOBAL 1
+#define STR_TAB_WEAK 2
 
 #define STR_TAB_GLOBAL_FUNC ((STR_TAB_GLOBAL << 4) | STR_TAB_FUNC)
+#define STR_TAB_WEAK_FUNC ((STR_TAB_WEAK << 4) | STR_TAB_FUNC)
 
 #define REL_SEC 9
 

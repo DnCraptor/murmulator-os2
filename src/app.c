@@ -892,6 +892,9 @@ a5:
     uint32_t main_idx = 0xFFFFFFFF;
     uint32_t req_idx = 0xFFFFFFFF;
     uint32_t sig_idx = 0xFFFFFFFF;
+    uint32_t w_init_idx = 0xFFFFFFFF;
+    uint32_t w_fini_idx = 0xFFFFFFFF;
+
     bootb_ctx->sections = new_list_v(0, sect_entry_deallocator, 0);
     load_sec_ctx* pctx = (load_sec_ctx*)pvPortMalloc(sizeof(load_sec_ctx));
     if (!pctx) {
@@ -924,10 +927,20 @@ a6:
                 sig_idx = i;
             }
         }
+        if (psym->st_info == STR_TAB_WEAK_FUNC) {
+            char* gfn = strtab + psym->st_name;
+            if (0 == strcmp("_init", gfn)) {
+                w_init_idx = i;
+            } else if (0 == strcmp("_fini", gfn)) {
+                w_fini_idx = i;
+            }
+        }
     }
     if(try_to_use_flash && !lst) {
         lst = new_list_v(0, 0, 0);
     }
+    if (_init_idx == 0xFFFFFFFF && w_init_idx != 0xFFFFFFFF) _init_idx = w_init_idx;
+    if (_fini_idx == 0xFFFFFFFF && w_fini_idx != 0xFFFFFFFF) _fini_idx = w_fini_idx;
     bootb_ctx->bootb[0] = load_sec2mem_wrapper(pctx, req_idx, try_to_use_flash);
     bootb_ctx->bootb[1] = load_sec2mem_wrapper(pctx, _init_idx, try_to_use_flash);
     bootb_ctx->bootb[2] = load_sec2mem_wrapper(pctx, main_idx, try_to_use_flash);
@@ -1070,10 +1083,10 @@ static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
         return;
     }
     if (bootb_ctx->bootb[1]) {
-        bootb_ctx->bootb[1]();
-        #if DEBUG_APP_LOAD
-        gouta("_init done\n");
-        #endif
+        int x = bootb_ctx->bootb[1]();
+///        #if DEBUG_APP_LOAD
+        goutf("_init done: %p\n", x);
+///        #endif
     }
     #if DEBUG_APP_LOAD
     goutf("EXEC main: [%p]\n", bootb_ctx->bootb[2]);
