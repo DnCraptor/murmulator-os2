@@ -9,6 +9,9 @@
 // W/A TODO: some support for MOS:
 const long _DYNAMIC[1] = { 0 };
 
+const void (*__init_array_start[])(void) __attribute__((section(".init_array"))) = {};
+const void * __init_array_end __attribute__((section(".init_array_end"))) = (const void *)__init_array_start;
+
 int __sys_open(const char* n, int opt1, int opt2) {
     return open(n, opt1, opt2);
 }
