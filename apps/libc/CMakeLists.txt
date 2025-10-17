@@ -73,8 +73,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 #family_configure_device_example(${PROJECT_NAME} noos)
 # -fPIC -shared
 target_link_options(${PROJECT_NAME} PRIVATE
-    -Xlinker
-    --print-memory-usage
+    -Xlinker --print-memory-usage
     -r
     -Wl,--allow-multiple-definition
 )
