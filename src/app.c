@@ -288,6 +288,82 @@ void __in_hfa() resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t 
     *addr   = (0b11100 << 11) | (J1 << 13) | (J2 << 11) | imm11;
 }
 
+// вставить где-то рядом с resolve_thm_pc22/resolve_thm_jump24
+// value -- (A + S) — итоговое 32-битное значение, которое нужно вставить (MOVW/MOVT берут 16 бит)
+void __in_hfa() resolve_thm_alu_abs_g0_nc(uint16_t* addr, uint32_t value) {
+    // addr указывает на первые два halfword'а 32-bit thumb инструкции (little-endian)
+    uint16_t instr0 = addr[0];
+    uint16_t instr1 = addr[1];
+
+    // Выделяем imm части по формату imm4:i:imm3:imm8 -> K = imm4<<12 | i<<11 | imm3<<8 | imm8
+    // извлечь существующий imm (addend A в инструкции)
+    uint32_t imm4 = instr0 & 0x000F;             // bits [3:0] of first halfword
+    uint32_t i_bit = (instr0 >> 10) & 0x1;       // 'i' bit commonly at bit10 of instr0
+    uint32_t imm3 = (instr1 >> 12) & 0x7;        // bits [14:12] of second halfword
+    uint32_t imm8 = instr1 & 0x00FF;             // bits [7:0] of second halfword
+
+    uint32_t addend = (imm4 << 12) | (i_bit << 11) | (imm3 << 8) | imm8;
+    // В спецификации для MOVW/MOVT addend интерпретируется как 16-bit signed в ряде случаев;
+    // но для ABS (MOVW/MOVT) обычно рассматриваем как 16-bit unsigned/appropriate.
+    // Мы формируем новое imm16 из (value & 0xFFFF).
+    uint32_t new_imm16 = value & 0xFFFF;
+
+    // Разложить new_imm16 обратно в поля
+    uint32_t new_imm4 = (new_imm16 >> 12) & 0xF;
+    uint32_t new_i   = (new_imm16 >> 11) & 0x1;
+    uint32_t new_imm3= (new_imm16 >> 8) & 0x7;
+    uint32_t new_imm8= new_imm16 & 0xFF;
+
+    // Теперь нужно быть уверенным, что инcтрукция действительно MOVW/MOVT (T3)
+    // Проверяем шаблон первых битов (32-bit Thumb инструкции имеют первые полусловa с 11110/11111)
+    // и базовую опкодовую маску для MOVW/MOVT (приближённая проверка):
+    //
+    // MOVW T3 has top halfword bits: 11110 0 10 0 ... (примерно 0xF2? / 0xF240)
+    // MOVT T3 has top halfword bits: 11110 0 10 1 ... (примерно 0xF2C0)
+    //
+    // Мы делаем негрубую проверку маской; если не совпадает — логируем и вернёмся.
+    uint16_t hi5 = instr0 >> 11; // top 5 bits
+    if (!(hi5 == 0x1F || hi5 == 0x1E)) {
+        // не похоже на 32-bit thumb первую половину; это неожиданный случай
+        goutf("WARN: resolve_thm_alu_abs_g0_nc: unexpected thumb first halfword: %04X %04X\n", instr0, instr1);
+        return;
+    }
+
+    // Более точное различение MOVW/MOVT: смотреть биты опкода в instr0/instr1.
+    // Упрощённая маска: проверим, что instr0 имеет формат 11110x10xx...... (типично для MOVW/MOVT)
+    if (((instr0 & 0xF800) != 0xF200) && ((instr0 & 0xF800) != 0xF000) && ((instr0 & 0xF800) != 0xF000)) {
+        // не уверены, что это MOVW/MOVT — но пытаемся anyway (логи).
+        // это лишь предупреждение — реальные проверки можно расширить по нужде.
+        // goutf("NOTE: resolve_thm_alu_abs_g0_nc: operand doesn't match MOVW/MOVT mask: %04X\n", instr0);
+    }
+
+    // Перезаписать поля imm
+    // Удаляем старые поля и вставляем новые — аккуратно с остальными битами в полусловах.
+    // instr0: сохраняем все биты кроме imm4 (bits [3:0]) и i (bit10)
+    uint16_t new_instr0 = instr0;
+    new_instr0 &= ~(0x000F);                // clear imm4 (bits 3:0)
+    new_instr0 |= (uint16_t)(new_imm4 & 0xF);
+    new_instr0 &= ~(1u << 10);              // clear i bit
+    new_instr0 |= (uint16_t)((new_i & 0x1) << 10);
+
+    // instr1: clear imm3 (bits [14:12]) and imm8 (bits [7:0])
+    uint16_t new_instr1 = instr1;
+    new_instr1 &= ~(0x7000);                // clear imm3 (bits 14..12)
+    new_instr1 |= (uint16_t)((new_imm3 & 0x7) << 12);
+    new_instr1 &= ~(0x00FF);                // clear imm8
+    new_instr1 |= (uint16_t)(new_imm8 & 0xFF);
+
+    // Записать обратно
+    addr[0] = new_instr0;
+    addr[1] = new_instr1;
+
+    //Dbg:
+    #if DEBUG_APP_LOAD
+    goutf("Resolved MOVW/MOVT: old_addend=%04X new_imm16=%04X -> %04X %04X\n",
+          addend & 0xFFFF, new_imm16, addr[0], addr[1]);
+    #endif
+}
+
 static const char* __in_hfa() st_predef(const char* v) {
     if(strlen(v) == 2) {
         if (v[0] == '$' && v[1] == 't') {
@@ -585,18 +661,28 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                                 // goutf("rel_type: %d; *rel_addr += A: %ph + S: %ph\n", rel_type, A, S);
                                 *rel_addr_real += S + A;
                                 break;
-                          //  case 3: //R_ARM_REL32:
-                          //      *rel_addr = S - P + A; // todo: signed?
-                          //      break;
+                            //case 3: //R_ARM_REL32:
+                                //*rel_addr_real = S - P + A; // todo: signed?
+                                // break;
                             case 10: //R_ARM_THM_PC22:
                                 resolve_thm_pc22(rel_addr_real, rel_addr_ref, A + S);
                                 break;
+                                /*
                             case 30: // R_ARM_THM_JUMP24
                                 gouta("WARN: Untested REL type: R_ARM_THM_JUMP24\n");
                                 resolve_thm_jump24(rel_addr_real, rel_addr_ref, A + S);
                                 break;
+                            case 102: // R_ARM_THM_ALU_ABS_G0_NC
+                                gouta("WARN: Untested REL type: R_ARM_THM_ALU_ABS_G0_NC\n");
+                                if (((uintptr_t)rel_addr_real & 0x1) || ((uintptr_t)rel_addr_real & 0x2)) {
+                                    goutf("WARN: REL type 102 misaligned addr: %p\n", rel_addr_real);
+                                    goutf("REL type %d -> symbol: %s\n", rel_type, c->pstrtab + c->psym->st_name);
+                                    break;
+                                }
+                                resolve_thm_alu_abs_g0_nc((uint16_t*)rel_addr_real, S + A);
+                                break;*/
                             default:
-                                goutf("Unsupported REL type: %d\n", rel_type);
+                                goutf("WARN: Unsupported REL type %d -> symbol: %s\n", rel_type, c->pstrtab + c->psym->st_name);
                                 goto e1;
                         }
                         //goutf("= %ph\n", *rel_addr);

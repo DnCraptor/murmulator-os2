@@ -59,7 +59,8 @@ ssize_t recvmsg(int fd, struct msghdr *msg, int flags)
 		msg = &h;
 	}
 #endif
-	r = socketcall_cp(recvmsg, fd, msg, flags, 0, 0, 0);
+	r = ///socketcall_cp(recvmsg, fd, msg, flags, 0, 0, 0);
+	-1;
 	if (r >= 0) __convert_scm_timestamps(msg, orig_controllen);
 #if LONG_MAX > INT_MAX
 	if (orig) *orig = h;

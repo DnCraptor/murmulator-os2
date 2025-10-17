@@ -14,9 +14,7 @@ int ppoll(struct pollfd *fds, nfds_t n, const struct timespec *to, const sigset_
 #ifdef SYS_ppoll_time64
 	int r = -ENOSYS;
 	if (SYS_ppoll == SYS_ppoll_time64 || !IS32BIT(s))
-		r = __syscall_cp(SYS_ppoll_time64, fds, n,
-			to ? ((long long[]){s, ns}) : 0,
-			mask, _NSIG/8);
+		r = __syscall_cp(SYS_ppoll_time64, fds, n, to ? ((long long[]){s, ns}) : 0, mask, _NSIG/8, 0);
 	if (SYS_ppoll == SYS_ppoll_time64 || r != -ENOSYS)
 		return __syscall_ret(r);
 	s = CLAMP(s);

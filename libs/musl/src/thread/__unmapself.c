@@ -4,6 +4,8 @@
 /* cheat and reuse CRTJMP macro from dynlink code */
 #include "dynlink.h"
 
+#ifndef __ARM_ARCH_6M__
+
 static void *unmap_base;
 static size_t unmap_size;
 static char shared_stack[256];
@@ -22,3 +24,5 @@ void __unmapself(void *base, size_t size)
 	unmap_size = size;
 	CRTJMP(do_unmap, stack);
 }
+
+#endif

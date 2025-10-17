@@ -5,12 +5,12 @@
 
 int socketpair(int domain, int type, int protocol, int fd[2])
 {
-	int r = socketcall(socketpair, domain, type, protocol, fd, 0, 0);
+	int r = ///socketcall(socketpair, domain, type, protocol, fd, 0, 0);
+	-1;
 	if (r<0 && (errno==EINVAL || errno==EPROTONOSUPPORT)
 	    && (type&(SOCK_CLOEXEC|SOCK_NONBLOCK))) {
-		r = socketcall(socketpair, domain,
-			type & ~(SOCK_CLOEXEC|SOCK_NONBLOCK),
-			protocol, fd, 0, 0);
+		r = ///socketcall(socketpair, domain, type & ~(SOCK_CLOEXEC|SOCK_NONBLOCK), protocol, fd, 0, 0);
+		-1;
 		if (r < 0) return r;
 		if (type & SOCK_CLOEXEC) {
 			__syscall(SYS_fcntl, fd[0], F_SETFD, FD_CLOEXEC);

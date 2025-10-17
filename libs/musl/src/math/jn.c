@@ -38,6 +38,11 @@
 
 static const double invsqrtpi = 5.64189583547756279280e-01; /* 0x3FE20DD7, 0x50429B6D */
 
+double j0(double);
+double j1(double);
+double y0(double);
+double y1(double);
+
 double jn(int n, double x)
 {
 	uint32_t ix, lx;

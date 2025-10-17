@@ -1,3 +1,6 @@
+#ifndef __SYSCALL_ARCH_H
+#define __SYSCALL_ARCH_H
+
 #define __SYSCALL_LL_E(x) \
 ((union { long long ll; long l[2]; }){ .ll = x }).l[0], \
 ((union { long long ll; long l[2]; }){ .ll = x }).l[1]
@@ -108,3 +111,13 @@ static inline long __syscall6(long n, long a, long b, long c, long d, long e, lo
 #define VDSO_CGT_SYM "__vdso_clock_gettime64"
 #define VDSO_CGT_VER "LINUX_2.6"
 #define VDSO_CGT_WORKAROUND 1
+
+long syscall(long n, ...);
+long __syscall(long n, ...);
+long __syscall_ret(unsigned long r);
+int __sys_open(const char* n, int opt1, int opt2);
+long __syscall_cp(syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t);
+int __sys_open_cp(const char* n, int opt1, int opt2);
+long syscall_cp(long n, ...);
+
+#endif

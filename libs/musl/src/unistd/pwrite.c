@@ -12,6 +12,10 @@
 #define EOPNOTSUPP      95
 #endif
 
+#ifndef __SYSCALL_LL_PRW
+#define __SYSCALL_LL_PRW(x) __SYSCALL_LL_O(x)
+#endif
+
 ssize_t pwrite(int fd, const void *buf, size_t size, off_t ofs)
 {
 	if (ofs == -1) ofs--;

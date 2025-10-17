@@ -45,6 +45,9 @@ static inline void a_barrier()
 #define a_cas a_cas
 static inline int a_cas(volatile int *p, int t, int s)
 {
+#if (__ARM_ARCH_6M__)
+	return 0;
+#else
 	for (;;) {
 		register int r0 __asm__("r0") = t;
 		register int r1 __asm__("r1") = s;
@@ -58,6 +61,7 @@ static inline int a_cas(volatile int *p, int t, int s)
 		if (!r0) return t;
 		if ((old=*p)!=t) return old;
 	}
+#endif
 }
 
 #endif
@@ -66,8 +70,10 @@ static inline int a_cas(volatile int *p, int t, int s)
 #define a_barrier a_barrier
 static inline void a_barrier()
 {
+#ifndef __ARM_ARCH_6M__
 	register uintptr_t ip __asm__("ip") = __a_barrier_ptr;
 	__asm__ __volatile__( BLX " ip" : "+r"(ip) : : "memory", "cc", "lr" );
+#endif
 }
 #endif
 

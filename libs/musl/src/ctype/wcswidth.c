@@ -1,5 +1,7 @@
 #include <wchar.h>
 
+int wcwidth(wchar_t wc);
+
 int wcswidth(const wchar_t *wcs, size_t n)
 {
 	int l=0, k=0;

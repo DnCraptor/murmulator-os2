@@ -49,6 +49,10 @@ longjmp:
 3:	bx lr
 #endif
 
+#if (__ARM_ARCH_6M__)
+1:
+#else
 .hidden __hwcap
 .align 2
 1:	.word __hwcap-1b
+#endif

@@ -24,5 +24,8 @@ __sigsetjmp:
 	ldr r4,[r0,#260+8]
 #endif
 
+#if (__ARM_ARCH_6M__)
+#else
 .hidden __sigsetjmp_tail
 	b __sigsetjmp_tail
+#endif

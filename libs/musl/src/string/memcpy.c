@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <endian.h>
 
+#ifndef __ARM_ARCH_6M__
+
 void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 {
 	unsigned char *d = dest;
@@ -122,3 +124,5 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 	for (; n; n--) *d++ = *s++;
 	return dest;
 }
+
+#endif

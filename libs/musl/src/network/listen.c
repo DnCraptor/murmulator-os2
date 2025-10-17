@@ -3,5 +3,6 @@
 
 int listen(int fd, int backlog)
 {
-	return socketcall(listen, fd, backlog, 0, 0, 0, 0);
+/// TODO:	return socketcall(listen, fd, backlog, 0, 0, 0, 0);
+	return -1;
 }

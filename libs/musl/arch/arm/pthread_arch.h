@@ -18,10 +18,14 @@ static inline uintptr_t __get_tp()
 
 static inline uintptr_t __get_tp()
 {
+/// TODO:	#if __ARM_ARCH_6M__
+	static uint32_t tp = 0;
+/*	#else
 	extern hidden uintptr_t __a_gettp_ptr;
 	register uintptr_t tp __asm__("r0");
 	__asm__ ( BLX " %1" : "=r"(tp) : "r"(__a_gettp_ptr) : "cc", "lr" );
-	return tp;
+	#endif*/
+	return (uintptr_t)&tp;
 }
 
 #endif

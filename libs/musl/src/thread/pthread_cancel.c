@@ -16,7 +16,10 @@ long __cancel()
 
 long __syscall_cp_asm(volatile void *, syscall_arg_t,
                       syscall_arg_t, syscall_arg_t, syscall_arg_t,
-                      syscall_arg_t, syscall_arg_t, syscall_arg_t);
+                      syscall_arg_t, syscall_arg_t, syscall_arg_t) {
+						/// TODO:
+						return -1;
+					  }
 
 long __syscall_cp_c(syscall_arg_t nr,
                     syscall_arg_t u, syscall_arg_t v, syscall_arg_t w,
@@ -43,7 +46,8 @@ static void _sigaddset(sigset_t *set, int sig)
 	set->__bits[s/8/sizeof *set->__bits] |= 1UL<<(s&8*sizeof *set->__bits-1);
 }
 
-extern hidden const char __cp_begin[1], __cp_end[1], __cp_cancel[1];
+/// TODO: extern
+ hidden const char __cp_begin[1], __cp_end[1], __cp_cancel[1];
 
 static void cancel_handler(int sig, siginfo_t *si, void *ctx)
 {

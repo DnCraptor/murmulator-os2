@@ -75,12 +75,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 target_link_options(${PROJECT_NAME} PRIVATE
     -Xlinker --print-memory-usage
     -r
-    -Wl,--allow-multiple-definition
+#    -Wl,--allow-multiple-definition
 )
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
         -fno-jump-tables  # suppress __gnu_thumb1_case_uni symbol generation
+#        -Werror=implicit-function-declaration
         -Wno-error=suggest-attribute=format
         -Wno-error=cast-qual
         -Wno-error=unused-parameter

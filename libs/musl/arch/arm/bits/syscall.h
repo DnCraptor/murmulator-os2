@@ -1,3 +1,6 @@
+#ifndef __SYSCALL_H
+#define __SYSCALL_H
+
 /// TODO:
 #define __NR_restart_syscall	0
 #define __NR_exit	1
@@ -556,7 +559,7 @@
 #define SYS_dup 0xFF4B
 #define SYS_chdir 0xFF4C
 #define SYS_fchdir 0xFF4D
-#define SYS_write 0xFF4E
+//#define SYS_write 0xFF4E
 #define SYS_getcpu 0xFF4F
 #define SYS_sched_get_priority_max 0xFF50
 #define SYS_sched_get_priority_min 0xFF51
@@ -633,6 +636,7 @@
 #define SYS_truncate 0xFF98
 #define SYS_symlinkat 0xFF99
 #define SYS_sync 0xFF9A
+#define SYS_set_thread_area 0xFF9B
 
 #define SYSCALL_RLIM_INFINITY (~0L)
 #define SYSCALL_MMAP2_UNIT 4096
@@ -655,3 +659,14 @@
 #define SS_FLAG_BITS SS_AUTODISARM
 
 typedef long syscall_arg_t;
+
+#include <syscall_arch.h>
+// TODO: cleanup
+#ifndef __SYSCALL_LL_O
+#define __SYSCALL_LL_E(x) \
+((union { long long ll; long l[2]; }){ .ll = x }).l[0], \
+((union { long long ll; long l[2]; }){ .ll = x }).l[1]
+#define __SYSCALL_LL_O(x) 0, __SYSCALL_LL_E((x))
+#endif
+
+#endif

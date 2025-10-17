@@ -65,10 +65,12 @@ __tlsdesc_dynamic:
 	pop {r2,r3,ip,lr}
 	bx lr
 #endif
-
-#if ((__ARM_ARCH_6K__ || __ARM_ARCH_6KZ__ || __ARM_ARCH_6ZK__) && !__thumb__) \
+/* TODO:
+#if ((__ARM_ARCH_6M__ || __ARM_ARCH_6K__ || __ARM_ARCH_6KZ__ || __ARM_ARCH_6ZK__) && !__thumb__) \
  || __ARM_ARCH_7A__ || __ARM_ARCH_7R__ || __ARM_ARCH >= 7
 #else
 	.align 2
 1:	.word __a_gettp_ptr - 2b
 #endif
+*/
+1:

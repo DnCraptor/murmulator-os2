@@ -28,5 +28,6 @@ ssize_t sendmsg(int fd, const struct msghdr *msg, int flags)
 		}
 	}
 #endif
-	return socketcall_cp(sendmsg, fd, msg, flags, 0, 0, 0);
+	return ///socketcall_cp(sendmsg, fd, msg, flags, 0, 0, 0);
+	-1;
 }
