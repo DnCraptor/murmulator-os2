@@ -210,7 +210,7 @@ void vPortHeapResetState( void ) PRIVILEGED_FUNCTION;
  *
  * This hook function is called when allocation failed.
  */
-    void vApplicationMallocFailedHook( void );
+    void vApplicationMallocFailedHook( size_t );
 #endif
 
 /*

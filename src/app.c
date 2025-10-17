@@ -1057,15 +1057,17 @@ void __in_hfa() exec(cmd_ctx_t* ctx) {
     } while(ctx);
 }
 
-void __in_hfa() mallocFailedHandler() {
+void __in_hfa() mallocFailedHandler(size_t sz) {
     gouta("WARN: malloc failed\n");
     {
         HeapStats_t stat;
         vPortGetHeapStats(&stat);
         goutf(
+            "Requested: %d (%dK)\n"
             "Heap memory: %d (%dK)\n"
             " available bytes total: %d (%dK)\n"
             "         largets block: %d (%dK)\n",
+            sz, sz >> 10,
             configTOTAL_HEAP_SIZE, configTOTAL_HEAP_SIZE >> 10,
             stat.xAvailableHeapSpaceInBytes, stat.xAvailableHeapSpaceInBytes >> 10,
             stat.xSizeOfLargestFreeBlockInBytes, stat.xSizeOfLargestFreeBlockInBytes >> 10

@@ -75,14 +75,14 @@ void setApplicationMallocFailedHookPtr(vApplicationMallocFailedHookPtr ptr) {
 }
 
 /*-----------------------------------------------------------*/
-void vApplicationMallocFailedHook( void )
+void vApplicationMallocFailedHook( size_t xWantedSize )
 {
     /* Called if a call to pvPortMalloc() fails because there is insufficient
     free memory available in the FreeRTOS heap.  pvPortMalloc() is called
     internally by FreeRTOS API functions that create tasks, queues, software
     timers, and semaphores.  The size of the FreeRTOS heap is set by the
     configTOTAL_HEAP_SIZE configuration constant in FreeRTOSConfig.h. */
-    if (_vApplicationMallocFailedHookPtr) _vApplicationMallocFailedHookPtr();
+    if (_vApplicationMallocFailedHookPtr) _vApplicationMallocFailedHookPtr(xWantedSize);
     else {
         // TODO: draw_window
     }

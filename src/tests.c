@@ -22,7 +22,7 @@ void vTask2(void *pv) {
 
 static vApplicationMallocFailedHookPtr mh = NULL;
 
-void mallocFailedHandler() {
+void mallocFailedHandler(size_t sz) {
     draw_text("vApplicationMallocFailedHook", 0, 5, 13, 1);
     if (mh) mh();
 }

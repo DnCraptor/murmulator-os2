@@ -338,13 +338,14 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
         ( void ) xAllocatedBlockSize;
     }
     ( void ) xTaskResumeAll();
-    if( pvReturn == NULL && butter_psram_size > 0 )
+    if( pvReturn == NULL && butter_psram_size > 0 ) {
         return pvPortMallocPsram(xWantedSize);
+    } else
     #if ( configUSE_MALLOC_FAILED_HOOK == 1 )
     {
         if( pvReturn == NULL )
         {
-            vApplicationMallocFailedHook();
+            vApplicationMallocFailedHook(xWantedSize);
         }
         else
         {
@@ -352,7 +353,7 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
         }
     }
     #endif /* if ( configUSE_MALLOC_FAILED_HOOK == 1 ) */
-
+    {}
     configASSERT( ( ( ( size_t ) pvReturn ) & ( size_t ) portBYTE_ALIGNMENT_MASK ) == 0 );
     return pvReturn;
 }

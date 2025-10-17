@@ -1,4 +1,4 @@
-typedef void (*vApplicationMallocFailedHookPtr)( void );
+typedef void (*vApplicationMallocFailedHookPtr)( size_t );
 
 vApplicationMallocFailedHookPtr getApplicationMallocFailedHookPtr();
 void setApplicationMallocFailedHookPtr(vApplicationMallocFailedHookPtr ptr);

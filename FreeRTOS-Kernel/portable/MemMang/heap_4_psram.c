@@ -334,7 +334,7 @@ void * __in_hfa() pvPortMallocPsram( size_t xWantedSize )
     {
         if( pvReturn == NULL )
         {
-            vApplicationMallocFailedHook();
+            vApplicationMallocFailedHook(xWantedSize);
         }
         else
         {
