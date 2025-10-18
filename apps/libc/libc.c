@@ -29,6 +29,13 @@ int sys_open(const char* n, int opt1, int opt2) {
     return open(n, opt1, opt2);
 }
 
+/// TODO: automatic _init
+extern FILE *ofl_head;
+void _init() {
+    ofl_head = 0;
+/// TODO:   libc.
+}
+
 int main(int argc, char **argv) {
     printf(
         "It is libc and not a regular MOS-program.\n"
@@ -49,9 +56,16 @@ int main(int argc, char **argv) {
         return errno;
     }
     printf("fopen: PASSED\n");
+    if (4 != fwrite("TEST", 4, 1, f)) {
+        printf("fwrite: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fwrite: PASSED\n");
+m1:
     if(fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);
         return errno;
     }
+    printf("fclose: PASSED\n");
     return 0;
 }

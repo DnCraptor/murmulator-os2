@@ -251,37 +251,27 @@ int __open(const char *path, int flags, mode_t mode) {
 }
 
 int __close(int fildes) {
-    gouta("1\n");
     if (fildes <= STDERR_FILENO) {
         goto e;
     }
-    gouta("2\n");
     init_pfiles();
-    gouta("3\n");
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
-    gouta("4\n");
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
-    gouta("5\n");
     FIL* fp = fd->fp;
     if (fp <= STDERR_FILENO) {
         goto e;
     }
-    gouta("6\n");
     if (fp->pending_descriptors) {
         --fp->pending_descriptors;
         errno = 0;
         return 0;
     }
-    gouta("7\n");
     FRESULT fr = f_close(fp);
-    gouta("8\n");
     errno = map_ff_fresult_to_errno(fr);
-    gouta("9\n");
     return errno == 0 ? 0 : -1;
 e:
-    gouta("0\n");
     errno = EBADF;
     return -1;
 }

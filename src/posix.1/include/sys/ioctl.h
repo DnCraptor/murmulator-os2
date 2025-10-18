@@ -24,7 +24,7 @@ extern "C" {
  *
  * Returns: 0 on success, -1 on error (errno set)
  */
-int __ioctl(int fd, unsigned long request, ...);
+int __ioctl(int fd, unsigned long request, void*);
 
 /* -------------------------------------------------------------
  * Terminal window size (TIOCGWINSZ / TIOCSWINSZ)

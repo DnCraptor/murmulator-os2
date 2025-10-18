@@ -588,20 +588,24 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
         bool write_access = try_to_use_flash ? (psh->sh_flags & 1) : true; // required to provide write access
         prg_addr = sec_align(psh->sh_size, &del_addr, &real_ram_addr, psh->sh_addralign, write_access);
         new_flash_addr = flash_addr;
-        bool alloc_enough = psh->sh_flags & 2; // file may not contain such section, just allocation is enough
-        FRESULT r = f_lseek(c->f2, psh->sh_offset);
-        if (!alloc_enough && r != FR_OK) {
-            goutf("f_lseek->[%d] failed: %d\n", psh->sh_offset, r);
-            goto e1;
-        }
-        r = f_read(c->f2, real_ram_addr, psh->sh_size, &rb);
-        if (!alloc_enough && r != FR_OK) {
-            goutf("f_read->[%p](%d) failed: %d (sz: %d)\n", real_ram_addr, psh->sh_size, r, rb);
-            goto e1;
-        }
-        if (!alloc_enough && rb != psh->sh_size) {
-            goutf("f_read->[%p](%d) passed: %d but sz: %d\n", real_ram_addr, psh->sh_size, r, rb);
-            goto e1;
+        bool alloc_enough = psh->sh_flags & SHF_ALLOC; // file may not contain such section, just allocation is enough
+        if (psh->sh_type == SHT_NOBITS) {
+            memset(real_ram_addr, 0, psh->sh_size);
+        } else {
+            FRESULT r = f_lseek(c->f2, psh->sh_offset);
+            if (!alloc_enough && r != FR_OK) {
+                goutf("f_lseek->[%d] failed: %d\n", psh->sh_offset, r);
+                goto e1;
+            }
+            r = f_read(c->f2, real_ram_addr, psh->sh_size, &rb);
+            if (!alloc_enough && r != FR_OK) {
+                goutf("f_read->[%p](%d) failed: %d (sz: %d)\n", real_ram_addr, psh->sh_size, r, rb);
+                goto e1;
+            }
+            if (!alloc_enough && rb != psh->sh_size) {
+                goutf("f_read->[%p](%d) passed: %d but sz: %d\n", real_ram_addr, psh->sh_size, r, rb);
+                goto e1;
+            }
         }
         #if DEBUG_APP_LOAD
             goutf("Program section #%d (%d bytes) allocated into %ph\n", sec_num, psh->sh_size, prg_addr);
