@@ -695,7 +695,9 @@ int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
 		f->buf_size = 0;
 		f->wpos = f->wbase = f->wend = 0;
 	}
-	if (ferror(f)) ret = -1;
+	if (ferror(f)) {
+		ret = -1;
+	}
 	f->flags |= olderr;
 	FUNLOCK(f);
 	va_end(ap2);

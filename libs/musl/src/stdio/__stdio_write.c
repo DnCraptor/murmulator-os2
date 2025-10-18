@@ -1,8 +1,19 @@
 #include "stdio_impl.h"
 #include <sys/uio.h>
 
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
+
+inline static void gouta(char* string) {
+    typedef void (*t_ptr_t)(char*);
+    ((t_ptr_t)_sys_table_ptrs[127])(string);
+}
+
 size_t __stdio_write(FILE *f, const unsigned char *buf, size_t len)
 {
+	gouta("__stdio_write\n");
 	struct iovec iovs[2] = {
 		{ .iov_base = f->wbase, .iov_len = f->wpos-f->wbase },
 		{ .iov_base = (void *)buf, .iov_len = len }
