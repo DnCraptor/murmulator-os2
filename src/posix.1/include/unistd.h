@@ -75,6 +75,13 @@ int __read(int fildes, void *buf, size_t count);
  */
 int __write(int fildes, const void *buf, size_t count);
 
+struct iovec {
+    void  *iov_base;  /* pointer to data buffer */
+    size_t iov_len;   /* length of buffer */
+};
+
+size_t __writev(int fd, const struct iovec *iov, int iovcnt);
+
 /**
  * Duplicates a file descriptor
  *

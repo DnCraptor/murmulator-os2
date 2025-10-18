@@ -387,6 +387,19 @@ e:
     return -1;
 }
 
+size_t __writev(int fd, const struct iovec *iov, int iovcnt) {
+    size_t res = 0;
+    for (int i = 0; i < iovcnt; ++i, ++iov) {
+        int sz = __write(fd, iov->iov_base, iov->iov_len);
+        if (sz < 0) {
+            return res;
+        }
+        res += sz;
+    }
+    return res;
+}
+
+
 int __dup(int oldfd) {
     if (oldfd < 0) {
         goto e;

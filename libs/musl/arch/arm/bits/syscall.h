@@ -585,7 +585,7 @@
 #define SYS_fstatfs 0xFF65
 #define SYS_readv 0xFF66
 #define SYS_read 0xFF67
-#define SYS_writev 0xFF68
+#define SYS_writev 301
 #define SYS_write 271
 #define SYS_unlinkat 0xFF6A
 #define SYS_readlinkat 0xFF6B

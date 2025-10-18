@@ -398,6 +398,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // POSIX
     __poll, // 299
     __ioctl, // 300
+    __writev, // 301
     // TODO:
     0
 };
