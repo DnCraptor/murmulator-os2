@@ -174,6 +174,22 @@ PRIVILEGED_DATA static size_t xNumberOfSuccessfulFrees = ( size_t ) 0U;
 /*-----------------------------------------------------------*/
 #define __in_hfa(group) __attribute__((section(".high_flash" group)))
 
+void * __in_hfa() pvPortRealloc(void *ptr, size_t new_size)
+{
+    if (ptr == NULL) return pvPortMalloc(new_size);
+    if (new_size == 0) {
+        vPortFree(ptr);
+        return NULL;
+    }
+
+    void *new_ptr = pvPortMalloc(new_size);
+    if (new_ptr == NULL) return NULL;
+
+    memcpy(new_ptr, ptr, new_size); /// TODO: old_size? may be out of RAM space
+    vPortFree(ptr);
+    return new_ptr;
+}
+
 void * __in_hfa() pvPortMallocPsram( size_t xWantedSize );
 void * __in_hfa() pvPortMalloc( size_t xWantedSize )
 {

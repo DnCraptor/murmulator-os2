@@ -176,4 +176,31 @@ long double strtold_l(const char *__restrict, char **__restrict, struct __locale
 }
 #endif
 
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
+
+inline static void* pvPortMalloc(size_t xWantedSize) {
+    typedef void* (*pvPortMalloc_ptr_t)( size_t );
+    return ((pvPortMalloc_ptr_t)_sys_table_ptrs[32])(xWantedSize);
+}
+inline static void vPortFree(void * pv) {
+    typedef void (*vPortFree_ptr_t)( void * pv );
+    ((vPortFree_ptr_t)_sys_table_ptrs[33])(pv);
+}
+inline static void* pvPortCalloc(size_t cnt, size_t sz) {
+    typedef char* (*pvPortCalloc_ptr_t)( size_t cnt, size_t sz );
+    return ((pvPortCalloc_ptr_t)_sys_table_ptrs[166])(cnt, sz);
+}
+inline static void* pvPortRealloc(void *ptr, size_t new_size) {
+    typedef void* (*pvPortMalloc_ptr_t)( void*, size_t );
+    return ((pvPortMalloc_ptr_t)_sys_table_ptrs[303])(ptr, new_size);
+}
+
+#ifndef kprintf
+typedef void (*goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
+#define kprintf(...) ((goutf_ptr_t)_sys_table_ptrs[41])(__VA_ARGS__)
+#endif
+
 #endif

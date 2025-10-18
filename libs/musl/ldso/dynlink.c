@@ -32,10 +32,10 @@ static size_t ldso_page_size;
 #define PAGE_SIZE ldso_page_size
 #endif
 
-#define malloc __libc_malloc
-#define calloc __libc_calloc
-#define realloc __libc_realloc
-#define free __libc_free
+#define malloc pvPortMalloc
+#define calloc pvPortCalloc
+#define realloc pvPortRealloc
+#define free vPortFree
 
 static void error_impl(const char *, ...);
 static void error_noop(const char *, ...);

@@ -399,6 +399,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __poll, // 299
     __ioctl, // 300
     __writev, // 301
+    __openat, // 302
+    pvPortRealloc, // 303
     // TODO:
     0
 };

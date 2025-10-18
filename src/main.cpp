@@ -707,6 +707,7 @@ void __in_hfa() info(bool with_sd) {
             }
         }
     }
+    goutf("MOS API v.%d (min v.%d)\n", M_API_VERSION, MIN_API_VERSION);
     if (!with_sd) {
         goutf("\n");
         return;

@@ -3,7 +3,7 @@
 #include "locale_impl.h"
 #include "libc.h"
 
-#define malloc __libc_malloc
+#define malloc pvPortMalloc
 #define calloc undef
 #define realloc undef
 #define free undef

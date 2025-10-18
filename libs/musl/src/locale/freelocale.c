@@ -4,7 +4,7 @@
 #define malloc undef
 #define calloc undef
 #define realloc undef
-#define free __libc_free
+#define free vPortFree
 
 void freelocale(locale_t l)
 {

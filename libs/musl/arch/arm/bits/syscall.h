@@ -416,25 +416,29 @@
 #define __ARM_NR_set_tls	0x0f0005
 #define __ARM_NR_get_tls	0x0f0006
 
+#define SYS_open 265
+#define SYS_close 266
+#define SYS_write 271
+#define SYS_fcntl 272
+#define SYS_poll 299
+#define SYS_ioctl 300
+#define SYS_writev 301
+#define SYS_openat 302
 /// TODO:
 #define SYS_futex_time64 0xFFFF
 #define SYS_rt_sigqueueinfo 0xFFFE
 #define SYS_sched_getaffinity 0xFFFD
 #define SYS_getdents 0xFFFC
-#define SYS_close 0xFFFB
 #define SYS_set_tid_address 0xFFFA
 #define SYS_mmap 0xFFF9
-#define SYS_poll 299
 #define SYS_exit_group  0xFFF7
 #define SYS_exit  0xFFF6
 #define SYS_rt_sigaction 0xFFF5
 #define SYS_tkill 0xFFF4
 #define SYS_rt_sigprocmask 0xFFF3
-#define SYS_fcntl 0xFFF2
 #define SYS_fallocate 0xFFF1
 #define SYS_fadvise 0xFFF0
 #define SYS_ppoll_time64 0xFFEF
-#define SYS_openat 0xFFEE
 #define SYS_waitid 0xFFED
 #define SYS_msgrcv 0xFFEC
 #define SYS_msgctl 0xFFEB
@@ -524,7 +528,6 @@
 #define SYS_getpriority 0xFF28
 #define SYS_getresuid 0xFF29
 #define SYS_getresgid 0xFF2A
-#define SYS_ioctl 300
 #define SYS_getrusage 0xFF2C
 #define SYS_setdomainname 0xFF2D
 #define SYS_setpriority 0xFF2E
@@ -559,7 +562,6 @@
 #define SYS_dup 0xFF4B
 #define SYS_chdir 0xFF4C
 #define SYS_fchdir 0xFF4D
-//#define SYS_write 0xFF4E
 #define SYS_getcpu 0xFF4F
 #define SYS_sched_get_priority_max 0xFF50
 #define SYS_sched_get_priority_min 0xFF51
@@ -585,8 +587,6 @@
 #define SYS_fstatfs 0xFF65
 #define SYS_readv 0xFF66
 #define SYS_read 0xFF67
-#define SYS_writev 301
-#define SYS_write 271
 #define SYS_unlinkat 0xFF6A
 #define SYS_readlinkat 0xFF6B
 #define SYS_set_robust_list 0xFF6C

@@ -128,10 +128,31 @@ inline static int open(const char *path, int oflag, ...) {
  *   EINVAL  : cmd is invalid or argument is inappropriate
  *   ENOLCK  : cannot acquire lock (for F_SETLK/F_SETLKW)
  */
-int __fcntl(int fd, int cmd, ...);
+int __fcntl(int fd, int cmd, int flags);
 inline static int fcntl(int fd, int cmd, ...) {
-    return __fcntl(fd, cmd);
+    return __fcntl(fd, cmd, 0);
 }
+
+
+/*
+ * openat() — open a file relative to a directory file descriptor
+ *
+ * Parameters:
+ *   dfd   – directory file descriptor (use AT_FDCWD for current directory)
+ *   path  – pathname of the file to open
+ *   flags – file status flags and access modes (see below)
+ *   mode  – permissions to use if a new file is created
+ *
+ * Returns:
+ *   On success: a new file descriptor (non-negative)
+ *   On error:  -1 and errno is set appropriately
+ */
+int __openat(int dfd, const char *path, int flags, mode_t mode);
+
+/* Directory file descriptor special value */
+#ifndef AT_FDCWD
+#define AT_FDCWD        -100    /* Use current working directory */
+#endif
 
 #ifdef __cplusplus
 }

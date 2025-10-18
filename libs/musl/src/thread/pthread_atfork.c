@@ -3,7 +3,7 @@
 #include "libc.h"
 #include "lock.h"
 
-#define malloc __libc_malloc
+#define malloc pvPortMalloc
 #define calloc undef
 #define realloc undef
 #define free undef

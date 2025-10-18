@@ -189,7 +189,31 @@ static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
     return NULL;
 }
 
-int __open(const char *path, int flags, mode_t mode) {
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
+
+inline static void gouta(char* string) {
+    typedef void (*t_ptr_t)(char*);
+    ((t_ptr_t)_sys_table_ptrs[127])(string);
+}
+
+/*
+ * openat() — open a file relative to a directory file descriptor
+ *
+ * Parameters:
+ *   dfd   – directory file descriptor (use AT_FDCWD for current directory)
+ *   path  – pathname of the file to open
+ *   flags – file status flags and access modes (see below)
+ *   mode  – permissions to use if a new file is created
+ *
+ * Returns:
+ *   On success: a new file descriptor (non-negative)
+ *   On error:  -1 and errno is set appropriately
+ */
+int __openat(int dfd, const char *path, int flags, mode_t mode) {
+    // TODO: dfd
     if (!path) {
         errno = ENOTDIR;
         return -1;
@@ -222,28 +246,42 @@ int __open(const char *path, int flags, mode_t mode) {
     return (int)n;
 }
 
+int __open(const char *path, int flags, mode_t mode) {
+    return __openat(AT_FDCWD, path, flags, mode);
+}
+
 int __close(int fildes) {
+    gouta("1\n");
     if (fildes <= STDERR_FILENO) {
         goto e;
     }
+    gouta("2\n");
     init_pfiles();
+    gouta("3\n");
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    gouta("4\n");
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
+    gouta("5\n");
     FIL* fp = fd->fp;
     if (fp <= STDERR_FILENO) {
         goto e;
     }
+    gouta("6\n");
     if (fp->pending_descriptors) {
         --fp->pending_descriptors;
         errno = 0;
         return 0;
     }
+    gouta("7\n");
     FRESULT fr = f_close(fp);
+    gouta("8\n");
     errno = map_ff_fresult_to_errno(fr);
+    gouta("9\n");
     return errno == 0 ? 0 : -1;
 e:
+    gouta("0\n");
     errno = EBADF;
     return -1;
 }
@@ -475,49 +513,53 @@ e:
  *
  * Unimplemented commands will return -1 and set errno = EINVAL.
  */
-int __fcntl(int fd, int cmd, ...) {
+int __fcntl(int fd, int cmd, int flags) {
+gouta("__fcntl 0\n");
     if (fd < 0) goto e;
     init_pfiles();
+gouta("__fcntl 1\n");
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+gouta("__fcntl 2\n");
     if (!fdesc || is_closed_desc(fdesc)) goto e;
+gouta("__fcntl 3\n");
 
     int ret = 0;
-    va_list ap;
-    va_start(ap, cmd);
-
     switch (cmd) {
         case F_GETFD:
+gouta("__fcntl 40\n");
             ret = fdesc->flags & FD_CLOEXEC;
             break;
 
         case F_SETFD: {
-            int flags = va_arg(ap, int);
+gouta("__fcntl 41\n");
             fdesc->flags = (fdesc->flags & ~FD_CLOEXEC) | (flags & FD_CLOEXEC);
             break;
         }
 
         case F_GETFL:
+gouta("__fcntl 42\n");
             ret = fdesc->flags;
             break;
 
         case F_SETFL: {
-            int flags = va_arg(ap, int);
+gouta("__fcntl 43\n");
             /* Only allow O_APPEND, O_NONBLOCK, etc. — silently ignore unsupported bits */
             fdesc->flags = (fdesc->flags & ~(O_APPEND | O_NONBLOCK)) | (flags & (O_APPEND | O_NONBLOCK));
             break;
         }
 
         default:
-            va_end(ap);
             errno = EINVAL;
+gouta("__fcntl 4d\n");
             return -1;
     }
 
-    va_end(ap);
-    
+   
+gouta("__fcntl 5\n");
     errno = 0;
     return 0;
 e:
+gouta("__fcntl 6\n");
     errno = EBADF;
     return -1;
 }

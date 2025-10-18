@@ -6,8 +6,10 @@
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
 #endif
 
+#ifndef kprintf
 typedef void (*goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
 #define kprintf(...) ((goutf_ptr_t)_sys_table_ptrs[41])(__VA_ARGS__)
+#endif
 
 #define __SYSCALL_LL_E(x) \
 ((union { long long ll; long l[2]; }){ .ll = x }).l[0], \
@@ -51,6 +53,7 @@ static inline long __syscall3(long n, long a, long b, long c)
 		return -1;
 	}
     typedef long (*t_ptr_t)(long, long, long);
+		kprintf("__syscall3(%ph, %ph, %ph, %ph)\n", n, a, b, c);
 	return ((t_ptr_t)_sys_table_ptrs[n])(a, b, c);
 }
 
