@@ -56,6 +56,17 @@ int main(int argc, char **argv) {
     }
     printf("fwrite: PASSED\n");
 
+    if (fputc(0, f) != 0) {
+        printf("fputc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fputc: PASSED\n");
+    if (putc(0, f) != 0) {
+        printf("putc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("putc: PASSED\n");
+
     if (fflush(f) != 0) {
         printf("fflush: FAILED errno: %d\n", errno);
         goto m1;
@@ -74,6 +85,11 @@ int main(int argc, char **argv) {
         goto m1;
     }
     printf("getc: PASSED\n");
+    if (ungetc('E', f) != 'E') {
+        printf("ungetc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("ungetc: PASSED\n");
 
     rewind(f);
     char b[4];
