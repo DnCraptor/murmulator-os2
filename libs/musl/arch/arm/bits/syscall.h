@@ -428,7 +428,9 @@
 #define SYS_openat 302
 #define SYS_readv 304
 #define SYS__llseek 305
+#define SYS_dup2 274
 /// TODO:
+#define SYS_dup3 0xFF44
 #define SYS_futex_time64 0xFFFF
 #define SYS_rt_sigqueueinfo 0xFFFE
 #define SYS_sched_getaffinity 0xFFFD
@@ -556,7 +558,6 @@
 #define SYS_clone 0xFF41
 #define SYS_execve 0xFF42
 #define SYS_execveat 0xFF43
-#define SYS_dup3 0xFF44
 #define SYS_setsid 0xFF45
 #define SYS_setpgid 0xFF46
 #define SYS_setgid 0xFF47

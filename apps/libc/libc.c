@@ -111,5 +111,13 @@ m1:
         return errno;
     }
     printf("fclose: PASSED\n");
+
+    if(!freopen("/libc.test", "r", stdin)) {
+        printf("freopen: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("freopen: PASSED\n");
+    
+m2:
     return 0;
 }
