@@ -50,8 +50,7 @@ long syscall(long n, ...)
 	e=va_arg(ap, syscall_arg_t);
 	f=va_arg(ap, syscall_arg_t);
 	va_end(ap);
-	return ((fn_ptr_t)_sys_table_ptrs[n])(a,b,c,d,e,f);
-//	return __syscall_ret(__syscall(n,a,b,c,d,e,f));
+	return __syscall_ret(((fn_ptr_t)_sys_table_ptrs[n])(a,b,c,d,e,f));
 }
 
 long syscall_cp(long n, ...) {
