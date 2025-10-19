@@ -391,6 +391,7 @@ e:
 int __readv(int fd, const struct iovec *iov, int iovcnt) {
     int res = 0;
     for (int i = 0; i < iovcnt; ++i, ++iov) {
+        if (iov->iov_len == 0) continue;
         int sz = __read(fd, iov->iov_base, iov->iov_len);
         if (sz < 0) {
             return -1;
@@ -430,6 +431,7 @@ e:
 int __writev(int fd, const struct iovec *iov, int iovcnt) {
     int res = 0;
     for (int i = 0; i < iovcnt; ++i, ++iov) {
+        if (iov->iov_len == 0) continue;
         int sz = __write(fd, iov->iov_base, iov->iov_len);
         if (sz < 0) {
             return -1;
