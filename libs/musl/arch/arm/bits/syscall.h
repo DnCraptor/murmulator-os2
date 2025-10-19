@@ -429,6 +429,7 @@
 #define SYS_readv 304
 #define SYS__llseek 305
 #define SYS_dup2 274
+#define SYS_unlinkat 306
 /// TODO:
 #define SYS_dup3 0xFF44
 #define SYS_futex_time64 0xFFFF
@@ -590,7 +591,6 @@
 #define SYS_utimensat 0xFF63
 #define SYS_umask 0xFF64
 #define SYS_fstatfs 0xFF65
-#define SYS_unlinkat 0xFF6A
 #define SYS_readlinkat 0xFF6B
 #define SYS_set_robust_list 0xFF6C
 #define SYS_sched_setscheduler 0xFF6D

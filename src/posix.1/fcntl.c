@@ -657,3 +657,14 @@ e:
     errno = EBADF;
     return -1;
 }
+
+int __unlinkat(int dirfd, const char *pathname, int flags) {
+    // TODO: dirfd, flags
+    FRESULT fr = f_unlink(pathname);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    errno = 0;
+    return 0;
+}

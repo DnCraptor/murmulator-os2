@@ -403,6 +403,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     pvPortRealloc, // 303
     __readv, // 304
     __llseek, // 305
+    __unlinkat, // 306
     // TODO:
     0
 };

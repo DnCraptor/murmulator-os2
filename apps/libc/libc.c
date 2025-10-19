@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
     printf("fsetpos: PASSED\n");
 
 m1:
-    if(fclose(f) < 0) {
+    if (fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);
         return errno;
     }
@@ -117,7 +117,12 @@ m1:
         goto m2;
     }
     printf("freopen: PASSED\n");
-    
+
+    if (remove("/libc.test") < 0) {
+        printf("remove: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("remove: PASSED\n");
 m2:
     return 0;
 }
