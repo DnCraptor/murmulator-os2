@@ -430,8 +430,10 @@
 #define SYS__llseek 305
 #define SYS_dup2 274
 #define SYS_unlinkat 306
+#define SYS_rename 307
 /// TODO:
 #define SYS_dup3 0xFF44
+#define SYS_renameat2 0xFF08
 #define SYS_futex_time64 0xFFFF
 #define SYS_rt_sigqueueinfo 0xFFFE
 #define SYS_sched_getaffinity 0xFFFD
@@ -500,7 +502,6 @@
 #define SYS_sendfile 0xFF05
 #define SYS_brk 0xFF06
 #define SYS_setfsgid 0xFF07
-#define SYS_renameat2 0xFF08
 #define SYS_sethostname 0xFF09
 #define SYS_setgroups 0xFF0A
 #define SYS_kill 0xFF0B

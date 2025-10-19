@@ -63,11 +63,17 @@ int main(int argc, char **argv) {
     printf("fflush: PASSED\n");
 
     rewind(f);
+    printf("rewind: PASSED\n");
     if (fgetc(f) != 'T') {
         printf("fgetc: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fgetc: PASSED\n");
+    if (getc(f) != 'E') {
+        printf("getc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("getc: PASSED\n");
 
     rewind(f);
     char b[4];
@@ -105,6 +111,18 @@ int main(int argc, char **argv) {
     }
     printf("fsetpos: PASSED\n");
 
+    // just to ensure not hanged
+    feof(f);
+    ferror(f);
+    clearerr(f);
+    printf("feof/ferror/clearerr: PASSED\n");
+
+    if (ftell(f) != 2) {
+        printf("ftell: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("ftell: PASSED\n");
+
 m1:
     if (fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);
@@ -118,7 +136,19 @@ m1:
     }
     printf("freopen: PASSED\n");
 
-    if (remove("/libc.test") < 0) {
+    if (getchar() != 'T') {
+        printf("getchar: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("getchar: PASSED\n");
+
+    if (rename("/libc.test", "/libc.test2") < 0) {
+        printf("rename: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("rename: PASSED\n");
+
+    if (remove("/libc.test2") < 0) {
         printf("remove: FAILED errno: %d\n", errno);
         goto m2;
     }

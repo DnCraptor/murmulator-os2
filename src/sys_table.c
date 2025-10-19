@@ -404,6 +404,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __readv, // 304
     __llseek, // 305
     __unlinkat, // 306
+    __rename, // 307
     // TODO:
     0
 };

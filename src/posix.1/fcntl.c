@@ -668,3 +668,13 @@ int __unlinkat(int dirfd, const char *pathname, int flags) {
     errno = 0;
     return 0;
 }
+
+int __rename(const char * f1, const char * f2) {
+    FRESULT fr = f_rename(f1, f2);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    errno = 0;
+    return 0;
+}
