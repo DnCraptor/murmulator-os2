@@ -2,7 +2,7 @@
 #include "lock.h"
 #include "fork_impl.h"
 
-FILE *ofl_head;
+static FILE *ofl_head = 0;
 static volatile int ofl_lock[1];
 volatile int *const __stdio_ofl_lockptr = ofl_lock;
 

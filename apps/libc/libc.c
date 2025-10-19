@@ -29,13 +29,6 @@ int sys_open(const char* n, int opt1, int opt2) {
     return open(n, opt1, opt2);
 }
 
-/// TODO: automatic _init
-extern FILE *ofl_head;
-void _init() {
-    ofl_head = 0;
-/// TODO:   libc.
-}
-
 int main(int argc, char **argv) {
     printf(
         "It is libc and not a regular MOS-program.\n"
@@ -63,14 +56,52 @@ int main(int argc, char **argv) {
     }
     printf("fwrite: PASSED\n");
 
-    rewind(f);
+    if (fflush(f) != 0) {
+        printf("fflush: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fflush: PASSED\n");
 
+    rewind(f);
+    if (fgetc(f) != 'T') {
+        printf("fgetc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fgetc: PASSED\n");
+
+    rewind(f);
     char b[4];
     if (4 != fread(b, 1, 4, f)) {
         printf("fread: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fread: PASSED\n");
+
+    rewind(f);
+    if (strcmp(fgetln(f), "TEST") != 0) {
+        printf("fgetln: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fgetln: PASSED\n");
+
+    if (fseek(f, 2, SEEK_SET) != 0) {
+        printf("fseek: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fseek: PASSED\n");
+
+    fpos_t pos;
+    if (fgetpos(f, &pos) != 0) {
+        printf("fgetpos: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fgetpos: PASSED\n");
+
+    if (fsetpos(f, &pos) != 0) {
+        printf("fsetpos: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fsetpos: PASSED\n");
 
 m1:
     if(fclose(f) < 0) {
