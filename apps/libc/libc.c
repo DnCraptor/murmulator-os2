@@ -56,11 +56,22 @@ int main(int argc, char **argv) {
         return errno;
     }
     printf("fopen: PASSED\n");
-    if (4 != fwrite("TEST", 4, 1, f)) {
+
+    if (4 != fwrite("TEST", 1, 4, f)) {
         printf("fwrite: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fwrite: PASSED\n");
+
+    rewind(f);
+
+    char b[4];
+    if (4 != fread(b, 1, 4, f)) {
+        printf("fread: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fread: PASSED\n");
+
 m1:
     if(fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);

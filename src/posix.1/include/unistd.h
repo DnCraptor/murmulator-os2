@@ -2,7 +2,6 @@
 #ifndef _UNISTD_H_
 #define _UNISTD_H_
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -10,6 +9,8 @@ extern "C" {
 #define STDIN_FILENO  0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
+
+#include <stddef.h>
 
 /**
  * Closes a file descriptor, releasing any resources associated with it.
@@ -38,8 +39,6 @@ inline static int close(int fildes) {
     return __close(fildes);
 }
 
-#include <stddef.h>
-
 /**
  * Reads from a file descriptor.
  *
@@ -57,6 +56,39 @@ inline static int close(int fildes) {
  *     EINTR  - Interrupted by signal.
  */
 int __read(int fildes, void *buf, size_t count);
+
+struct iovec {
+    void  *iov_base;  /* pointer to data buffer */
+    size_t iov_len;   /* length of buffer */
+};
+
+/**
+ * readv - read data from a file descriptor into multiple buffers
+ *
+ * @fd:    the file descriptor to read from
+ * @iov:   pointer to an array of iovec structures describing buffers
+ * @iovcnt: number of elements in the iov array
+ *
+ * This function attempts to read data from the file descriptor @fd
+ * into multiple buffers described by @iov. It performs a single
+ * system call to read into all the buffers in order.  
+ *
+ * Returns:
+ *   On success, returns the total number of bytes read (sum of all
+ *   bytes placed into buffers).  
+ *   On error, returns -1 and sets errno appropriately.
+ *
+ * Notes:
+ *   - Partial reads are possible; fewer bytes than requested may
+ *     be read.  
+ *   - The iovec structure is defined as:
+ *       struct iovec {
+ *           void  *iov_base; // starting address of buffer
+ *           size_t iov_len;  // length of buffer
+ *       };
+ */
+int __readv(int fd, const struct iovec *iov, int iovcnt);
+
 /**
  * Writes to a file descriptor.
  *
@@ -75,12 +107,7 @@ int __read(int fildes, void *buf, size_t count);
  */
 int __write(int fildes, const void *buf, size_t count);
 
-struct iovec {
-    void  *iov_base;  /* pointer to data buffer */
-    size_t iov_len;   /* length of buffer */
-};
-
-size_t __writev(int fd, const struct iovec *iov, int iovcnt);
+int __writev(int fd, const struct iovec *iov, int iovcnt);
 
 /**
  * Duplicates a file descriptor

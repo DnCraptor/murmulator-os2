@@ -53,7 +53,6 @@ static inline long __syscall3(long n, long a, long b, long c)
 		return -1;
 	}
     typedef long (*t_ptr_t)(long, long, long);
-		kprintf("__syscall3(%ph, %ph, %ph, %ph)\n", n, a, b, c);
 	return ((t_ptr_t)_sys_table_ptrs[n])(a, b, c);
 }
 

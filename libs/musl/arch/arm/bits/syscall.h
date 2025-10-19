@@ -418,12 +418,15 @@
 
 #define SYS_open 265
 #define SYS_close 266
+#define SYS_read 270
 #define SYS_write 271
 #define SYS_fcntl 272
+#define SYS_lseek 275
 #define SYS_poll 299
 #define SYS_ioctl 300
 #define SYS_writev 301
 #define SYS_openat 302
+#define SYS_readv 304
 /// TODO:
 #define SYS_futex_time64 0xFFFF
 #define SYS_rt_sigqueueinfo 0xFFFE
@@ -585,8 +588,6 @@
 #define SYS_utimensat 0xFF63
 #define SYS_umask 0xFF64
 #define SYS_fstatfs 0xFF65
-#define SYS_readv 0xFF66
-#define SYS_read 0xFF67
 #define SYS_unlinkat 0xFF6A
 #define SYS_readlinkat 0xFF6B
 #define SYS_set_robust_list 0xFF6C
@@ -624,7 +625,6 @@
 #define SYS_getpgid 0xFF8C
 #define SYS_getsid 0xFF8D
 #define SYS_getppid 0xFF8E
-#define SYS_lseek 0xFF8F
 #define SYS_linkat 0xFF90
 #define SYS_pipe2 0xFF91
 #define SYS_pread 0xFF92

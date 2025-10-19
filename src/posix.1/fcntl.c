@@ -388,6 +388,18 @@ e:
     return -1;
 }
 
+int __readv(int fd, const struct iovec *iov, int iovcnt) {
+    int res = 0;
+    for (int i = 0; i < iovcnt; ++i, ++iov) {
+        int sz = __read(fd, iov->iov_base, iov->iov_len);
+        if (sz < 0) {
+            return -1;
+        }
+        res += sz;
+    }
+    return res;
+}
+
 int __write(int fildes, const void *buf, size_t count) {
     if (!buf) {
         errno = EFAULT;
@@ -415,12 +427,12 @@ e:
     return -1;
 }
 
-size_t __writev(int fd, const struct iovec *iov, int iovcnt) {
-    size_t res = 0;
+int __writev(int fd, const struct iovec *iov, int iovcnt) {
+    int res = 0;
     for (int i = 0; i < iovcnt; ++i, ++iov) {
         int sz = __write(fd, iov->iov_base, iov->iov_len);
         if (sz < 0) {
-            return res;
+            return -1;
         }
         res += sz;
     }
