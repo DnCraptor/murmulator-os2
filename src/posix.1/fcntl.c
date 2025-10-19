@@ -518,35 +518,27 @@ e:
  * Unimplemented commands will return -1 and set errno = EINVAL.
  */
 int __fcntl(int fd, int cmd, int flags) {
-gouta("__fcntl 0\n");
     if (fd < 0) goto e;
     init_pfiles();
-gouta("__fcntl 1\n");
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
-gouta("__fcntl 2\n");
     if (!fdesc || is_closed_desc(fdesc)) goto e;
-gouta("__fcntl 3\n");
 
     int ret = 0;
     switch (cmd) {
         case F_GETFD:
-gouta("__fcntl 40\n");
             ret = fdesc->flags & FD_CLOEXEC;
             break;
 
         case F_SETFD: {
-gouta("__fcntl 41\n");
             fdesc->flags = (fdesc->flags & ~FD_CLOEXEC) | (flags & FD_CLOEXEC);
             break;
         }
 
         case F_GETFL:
-gouta("__fcntl 42\n");
             ret = fdesc->flags;
             break;
 
         case F_SETFL: {
-gouta("__fcntl 43\n");
             /* Only allow O_APPEND, O_NONBLOCK, etc. — silently ignore unsupported bits */
             fdesc->flags = (fdesc->flags & ~(O_APPEND | O_NONBLOCK)) | (flags & (O_APPEND | O_NONBLOCK));
             break;
@@ -554,21 +546,24 @@ gouta("__fcntl 43\n");
 
         default:
             errno = EINVAL;
-gouta("__fcntl 4d\n");
             return -1;
     }
 
    
-gouta("__fcntl 5\n");
     errno = 0;
     return 0;
 e:
-gouta("__fcntl 6\n");
     errno = EBADF;
     return -1;
 }
 
-off_t __lseek(int fd, off_t offset, int whence) {
+int __llseek(unsigned int fd,
+             unsigned long offset_high,
+             unsigned long offset_low,
+             off_t *result,
+             unsigned int whence
+) {
+    off_t offset = offset_low | ((off_t)offset_high << 32);
     if (fd < 0) goto e;
     init_pfiles();
     // Standard descriptors cannot be seeked
@@ -576,7 +571,6 @@ off_t __lseek(int fd, off_t offset, int whence) {
         errno = ESPIPE; // Illegal seek
         return -1;
     }
-    
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
     if (!fdesc || is_closed_desc(fdesc)) goto e;
 
@@ -588,7 +582,7 @@ off_t __lseek(int fd, off_t offset, int whence) {
             new_pos = offset;
             break;
         case SEEK_CUR:
-            new_pos = fp->fptr + offset;
+            new_pos = f_tell(fp) + offset;
             break;
         case SEEK_END:
             new_pos = f_size(fp) + offset;
@@ -610,7 +604,55 @@ off_t __lseek(int fd, off_t offset, int whence) {
     }
 
     errno = 0;
-    return fp->fptr;
+    *result = f_tell(fp);
+    return 0;
+e:
+    errno = EBADF;
+    return -1;
+}
+
+long __lseek(int fd, long offset, int whence) {
+    if (fd < 0) goto e;
+    init_pfiles();
+    // Standard descriptors cannot be seeked
+    if (fd <= STDERR_FILENO) {
+        errno = ESPIPE; // Illegal seek
+        return -1;
+    }
+    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+    if (!fdesc || is_closed_desc(fdesc)) goto e;
+
+    FIL* fp = fdesc->fp;
+    FSIZE_t new_pos;
+
+    switch (whence) {
+        case SEEK_SET:
+            new_pos = offset;
+            break;
+        case SEEK_CUR:
+            new_pos = f_tell(fp) + offset;
+            break;
+        case SEEK_END:
+            new_pos = f_size(fp) + offset;
+            break;
+        default:
+            errno = EINVAL;
+            return -1;
+    }
+
+    if (new_pos < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    FRESULT fr = f_lseek(fp, new_pos);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+
+    errno = 0;
+    return f_tell(fp);
 e:
     errno = EBADF;
     return -1;

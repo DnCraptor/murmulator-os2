@@ -427,6 +427,7 @@
 #define SYS_writev 301
 #define SYS_openat 302
 #define SYS_readv 304
+#define SYS__llseek 305
 /// TODO:
 #define SYS_futex_time64 0xFFFF
 #define SYS_rt_sigqueueinfo 0xFFFE

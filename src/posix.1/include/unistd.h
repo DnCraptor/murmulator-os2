@@ -177,10 +177,13 @@ int __dup2(int oldfd, int newfd);
  *       the same open file description will see the new offset.
  *     - Seeking past the end of the file does not extend it until data is written.
  */
-off_t __lseek(int fd, off_t offset, int whence);
-inline static off_t lseek(int fd, off_t offset, int whence) {
-    return __lseek(fd, offset, whence);
-}
+long __lseek(int fd, long offset, int whence);
+
+int __llseek(unsigned int fd,
+             unsigned long offset_high,
+             unsigned long offset_low,
+             off_t *result,
+             unsigned int whence);
 
 /* TODO:
 pid_t fork(void);
