@@ -76,10 +76,12 @@ int main(int argc, char **argv) {
         goto m1;
     }
     printf("fread: PASSED\n");
-
+    //  BSD style:
     rewind(f);
-    if (strcmp(fgetln(f), "TEST") != 0) {
-        printf("fgetln: FAILED errno: %d\n", errno);
+    size_t len = 0;
+    char* pres = fgetln(f, &len);
+    if (pres != 0 && errno == 0 && len != 0 && strcmp(pres, "TEST") != 0) {
+        printf("fgetln: FAILED errno: %d len:\n", errno, len);
         goto m1;
     }
     printf("fgetln: PASSED\n");

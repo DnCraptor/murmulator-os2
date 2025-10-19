@@ -75,6 +75,7 @@ int __overflow(FILE *, int), __uflow(FILE *);
 
 hidden int __fseeko(FILE *, off_t, int);
 hidden int __fseeko_unlocked(FILE *, off_t, int);
+hidden off_t __lseek(int fd, off_t offset, int whence);
 hidden off_t __ftello(FILE *);
 hidden off_t __ftello_unlocked(FILE *);
 hidden size_t __fwritex(const unsigned char *, size_t, FILE *);

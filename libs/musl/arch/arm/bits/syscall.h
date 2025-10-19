@@ -638,6 +638,7 @@
 #define SYS_symlinkat 0xFF99
 #define SYS_sync 0xFF9A
 #define SYS_set_thread_area 0xFF9B
+#define SYS_wait4 0xFF9C
 
 #define SYSCALL_RLIM_INFINITY (~0L)
 #define SYSCALL_MMAP2_UNIT 4096

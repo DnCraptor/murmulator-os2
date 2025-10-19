@@ -97,7 +97,7 @@ static inline long __syscall6(long n, long a, long b, long c, long d, long e, lo
 #define VDSO_CGT_VER "LINUX_2.6"
 #define VDSO_CGT_WORKAROUND 1
 
-/// TODO: optimize it
+/* TODO: optimize it
 long syscall(long n, ...);
 long __syscall(long n, ...);
 long __syscall_ret(unsigned long r);
@@ -105,5 +105,6 @@ int __sys_open(const char* n, int opt1, int opt2);
 long __syscall_cp(syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t,  syscall_arg_t);
 int __sys_open_cp(const char* n, int opt1, int opt2);
 long syscall_cp(long n, ...);
+*/
 
 #endif

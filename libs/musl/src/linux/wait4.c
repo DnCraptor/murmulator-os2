@@ -5,12 +5,6 @@
 #include <errno.h>
 #include "syscall.h"
 
-pid_t __sys_wait4(pid_t pid, int *status, int options, struct rusage *ru) {
-	/// TODO:
-	return 0;
-}
-
-
 pid_t wait4(pid_t pid, int *status, int options, struct rusage *ru)
 {
 	int r;

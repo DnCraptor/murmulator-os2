@@ -51,11 +51,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     # workarounds
     ${CMAKE_CURRENT_SOURCE_DIR}/../../api/wa
     # MUSL
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/arch/arm
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/arch/generic
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/internal
     # POSIX.1
     ${CMAKE_CURRENT_SOURCE_DIR}/../../api/posix
     # GCC toolchain

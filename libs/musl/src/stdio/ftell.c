@@ -4,11 +4,9 @@
 
 off_t __ftello_unlocked(FILE *f)
 {
-	kprintf("__ftello_unlocked\n");
 	off_t pos = f->seek(f, 0,
-		(f->flags & F_APP) && f->wpos != f->wbase
-		? SEEK_END : SEEK_CUR);
-	kprintf("pos: %d\n", pos);
+		(f->flags & F_APP) && f->wpos != f->wbase ? SEEK_END : SEEK_CUR
+	);
 	if (pos < 0) return pos;
 
 	/* Adjust for data in buffer. */
