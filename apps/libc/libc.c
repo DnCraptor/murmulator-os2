@@ -92,12 +92,20 @@ int main(int argc, char **argv) {
     printf("ungetc: PASSED\n");
 
     rewind(f);
-    char b[4];
+    char b[8];
     if (4 != fread(b, 1, 4, f)) {
         printf("fread: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fread: PASSED\n");
+
+    rewind(f);
+    if (!fgets(b, sizeof(b), f)) {
+        printf("fgets: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fgets: PASSED\n");
+
     //  BSD style:
     rewind(f);
     size_t len = 0;
@@ -169,6 +177,24 @@ m1:
         goto m2;
     }
     printf("remove: PASSED\n");
+
+    if (fputs("fputs: ", stdout) < 0) {
+        printf("fputs: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("PASSED\n");
+
+    if (puts("puts: PASSED") < 0) {
+        printf("puts: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+
+    char c;
+    if (scanf("%c", &c) <= 0) {
+        printf("scanf: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("scanf: PASSED\n");
 m2:
     return 0;
 }
