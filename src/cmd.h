@@ -22,7 +22,7 @@ FIL * get_stderr(); // old system
 typedef struct {
     char* del_addr;
     char* prg_addr;
-    uint16_t sec_num;
+    int sec_num;
 } sect_entry_t;
 
 static void sect_entry_deallocator(sect_entry_t* s) {

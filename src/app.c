@@ -7,6 +7,8 @@
 #include "graphics.h"
 #include "keyboard.h"
 #include "sys_table.h"
+#include "elf32.h"
+#include "../../api/m-os-api-c-hash.h"
 
 extern const char TEMP[];
 const char _flash_me[] = ".flash_me";
@@ -211,7 +213,6 @@ void __in_hfa() run_app(char * name) {
     xTaskCreate(vAppTask, name, 2048, NULL, configMAX_PRIORITIES - 1, NULL);
 }
 
-#include "elf32.h"
 // Декодирование и обновление инструкции BL для ссылки типа R_ARM_THM_PC22
 // Функция для разрешения ссылки типа R_ARM_THM_PC22
 void __in_hfa() resolve_thm_pc22(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
@@ -385,7 +386,13 @@ typedef struct {
     list_t* /*sect_entry_t*/ sections_lst;
 } load_sec_ctx;
 
-static char* __in_hfa() sec_prg_addr(load_sec_ctx* ctx, uint16_t sec_num) {
+static load_sec_ctx* libc_pctx = 0;
+static hash_table_t* libc_idx = 0;
+
+static char* __in_hfa() sec_prg_addr(const load_sec_ctx* ctx, int sec_num) {
+    if (ctx == libc_pctx) {
+        sec_num = -1-sec_num; // use nagative numbers for libc (to do not intersect)
+    }
     node_t* n = ctx->sections_lst->first;
     while (n) {
         sect_entry_t* se = (sect_entry_t*)n->data;
@@ -397,12 +404,13 @@ static char* __in_hfa() sec_prg_addr(load_sec_ctx* ctx, uint16_t sec_num) {
     return 0;
 }
 
-static void __in_hfa() add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr, uint16_t num) {
+static void __in_hfa() add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr, int num) {
     sect_entry_t* se = (sect_entry_t*)pvPortMalloc(sizeof(sect_entry_t));
+    if (!se) return; // TODO: message with fault
     // goutf("sec: [%p]\n", se);
     se->del_addr = del_addr;
     se->prg_addr = prg_addr;
-    se->sec_num = num;
+    se->sec_num = ctx == libc_pctx ? -1-num : num; // use nagative numbers for libc (to do not intersect)
     list_push_back(ctx->sections_lst, se);
 }
 
@@ -561,6 +569,8 @@ bool __in_hfa() run_new_app(cmd_ctx_t* ctx) {
     return false;
 }
 
+static uint32_t load_sec2mem_wrapper(load_sec_ctx* pctx, uint32_t req_idx, bool try_to_use_flash);
+
 static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool try_to_use_flash) {
     uint8_t* prg_addr = sec_prg_addr(c, sec_num);
     if (prg_addr != 0) {
@@ -639,14 +649,56 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                         }
                         char* rel_str_sym = st_spec_sec(c->psym->st_shndx);
                         if (rel_str_sym != 0) {
-                            goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
-                                  rel_sym, c->psym->st_shndx, rel_str_sym,
-                                  st_predef(c->pstrtab + c->psym->st_name)
-                            );
+                            char* fn_name = c->pstrtab + c->psym->st_name;
+                            if (c != libc_pctx) { // load from libc
+                                uint32_t libc_req_idx = 0;
+                                if (!hash_table_get(libc_idx, fn_name, &libc_req_idx)) {
+                                    goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s (and not libc fn)\n",
+                                        rel_sym, c->psym->st_shndx, rel_str_sym,
+                                        st_predef(fn_name)
+                                    );
+                                } else {
+                                    // адрес функции в libc (A + S уже учтены в load_sec2mem_wrapper)
+                                    uint32_t libc_target = load_sec2mem_wrapper(libc_pctx, libc_req_idx, try_to_use_flash);
+                                    if (!libc_target) {
+                                        goutf("Unable to load link from STRTAB record #%d to section #%d (%s): %s from the libc\n",
+                                            rel_sym, c->psym->st_shndx, rel_str_sym,
+                                            st_predef(fn_name)
+                                        );
+                                    } else {
+                                        // указатель в загруженном приложении (где нужно применить релокацию)
+                                        uint32_t* reloc_in_app = (uint32_t*)(real_ram_addr + rel.rel_offset);
+                                        // указатель на эталонную инструкцию/место (используется для PC-relative resolver'ов)
+                                        uint32_t* reloc_ref = (uint32_t*)(prg_addr + rel.rel_offset);
+                                        switch (rel_type) {
+                                            case 2: // R_ARM_ABS32: P <- S + A (+ existing addend)
+                                            {
+                                                uint32_t addend = *reloc_in_app;    // A — addend, уже записанный в месте релокации
+                                                *reloc_in_app = addend + libc_target;
+                                                break;
+                                            }
+                                            case 10: // R_ARM_THM_PC22 (Thumb BL/BLX(1) wide)
+                                                // sym_val должен быть абсолютным адресом цели (A+S). resolve_thm_pc22 выполнит нужное кодирование.
+                                                resolve_thm_pc22((uint16_t*)reloc_in_app, (uint16_t*)reloc_ref, libc_target);
+                                                break;
+                                            default:
+                                                goutf("WARN: Unsupported libc REL type %d -> symbol: %s\n",
+                                                      rel_type, c->pstrtab + c->psym->st_name);
+                                                break;
+                                        }
+                                        continue;
+                                    }
+                                }
+                            } else { // it is already libc
+                                goutf("[libc] Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
+                                      rel_sym, c->psym->st_shndx, rel_str_sym,
+                                      st_predef(fn_name)
+                                );
+                            }
                             goto e1;
                         }
-                        uint32_t* rel_addr_ref  = (uint32_t*)(prg_addr      + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
                         uint32_t* rel_addr_real = (uint32_t*)(real_ram_addr + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
+                        uint32_t* rel_addr_ref  = (uint32_t*)(prg_addr      + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
                         // DO NOT resolve it for any case, it may be 16-bit alligned, and will hang to load 32-bit
                         //uint32_t P = *rel_addr; /*f7ff fffe 	bl	0*/
                         uint32_t S = c->psym->st_value;
@@ -783,6 +835,136 @@ e3:
     return 0;
 }
 
+static bool __in_hfa() pre_load_libc(cmd_ctx_t* ctx) {
+    if (libc_idx == 0) {
+        FIL* f = (FIL*)pvPortMalloc(sizeof(FIL));
+        if (!f) {
+    a:
+            gouta("[libc] Not enough RAM\n");
+            ctx->ret_code = -1;
+            return false;
+        }
+        const char* fn = "/mos2/libc"; // TODO: var
+        if (f_open(f, fn, FA_READ) != FR_OK) {
+            vPortFree(f);
+            goutf("[libc] Unable to open file: '%s'\n", fn);
+            ctx->ret_code = -1;
+            return false;
+        }
+        bool try_to_use_flash = ctx->forse_flash;
+        elf32_header* pehdr = (elf32_header*)pvPortMalloc(sizeof(elf32_header));
+        if (!pehdr) {
+    a1:
+            f_close(f);
+            vPortFree(f);
+            goto a;
+        }
+        UINT rb;
+        if (f_read(f, pehdr, sizeof(elf32_header), &rb) != FR_OK) {
+            goutf("[libc] Unable to read an ELF file header: '%s'\n", fn);
+            goto e1;
+        }
+        elf32_shdr* psh = (elf32_shdr*)pvPortMalloc(sizeof(elf32_shdr));
+        if (!psh) {
+    a2:
+            vPortFree(pehdr);
+            goto a1;
+        }
+        bool ok = f_lseek(f, pehdr->sh_offset + sizeof(elf32_shdr) * pehdr->sh_str_index) == FR_OK;
+        if (!ok || f_read(f, psh, sizeof(elf32_shdr), &rb) != FR_OK || rb != sizeof(elf32_shdr)) {
+            goutf("[libc] Unable to read .shstrtab section header @ %d+%d (read: %d)\n", f_tell(f), sizeof(elf32_shdr), rb);
+            goto e11;
+        }
+        char* symtab = (char*)pvPortMalloc(psh->sh_size);
+        if (!symtab) {
+    a3:
+            vPortFree(psh);
+            goto a2;
+        }
+        ok = f_lseek(f, psh->sh_offset) == FR_OK;
+        if (!ok || f_read(f, symtab, psh->sh_size, &rb) != FR_OK || rb != psh->sh_size) {
+            goutf("[libc] Unable to read .shstrtab section @ %d+%d (read: %d)\n", f_tell(f), psh->sh_size, rb);
+            goto e2;
+        }
+        f_lseek(f, pehdr->sh_offset);
+        int symtab_off = -1;
+        int strtab_off = -1;
+        UINT symtab_len, strtab_len = 0;
+        while ((symtab_off < 0 || strtab_off < 0) && f_read(f, psh, sizeof(elf32_shdr), &rb) == FR_OK && rb == sizeof(elf32_shdr)) { 
+            if(psh->sh_type == 2 && 0 == strcmp(symtab + psh->sh_name, ".symtab")) {
+                symtab_off = psh->sh_offset;
+                symtab_len = psh->sh_size;
+            }
+            if(psh->sh_type == 3 && 0 == strcmp(symtab + psh->sh_name, ".strtab")) {
+                strtab_off = psh->sh_offset;
+                strtab_len = psh->sh_size;
+            }
+        }
+        if (symtab_off < 0 || strtab_off < 0) {
+            goutf("[libc] Unable to find .strtab/.symtab sections\n");
+            goto e2;
+        }
+        f_lseek(f, strtab_off);
+        char* strtab = (char*)pvPortMalloc(strtab_len);
+        if (!strtab) {
+    a4:
+            vPortFree(symtab);
+            goto a3;
+        }
+        if (f_read(f, strtab, strtab_len, &rb) != FR_OK || rb != strtab_len) {
+            goutf("[libc] Unable to read .strtab section\n");
+            goto e3;
+        }
+        f_lseek(f, symtab_off);
+        elf32_sym* psym = pvPortMalloc(sizeof(elf32_sym));;
+        if (!psym) {
+    a5:
+            vPortFree(strtab);
+            goto a4;
+        }
+        libc_idx = hash_table_create(64);
+        for (uint32_t i = 0; i < symtab_len / sizeof(elf32_sym); ++i) {
+            if (f_read(f, psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)) {
+                goutf("Unable to read .symtab section #%d\n", i);
+                break;
+            }
+            if (psym->st_info == STR_TAB_GLOBAL_FUNC || psym->st_info == STR_TAB_WEAK_FUNC) {
+                char* gfn = strtab + psym->st_name;
+                hash_table_put(libc_idx, gfn, i);
+            }
+        }
+        libc_pctx = (load_sec_ctx*)pvPortMalloc(sizeof(load_sec_ctx));
+        if (!libc_pctx) {
+    a6:
+            vPortFree(psym);
+            goto a5;
+        }
+        libc_pctx->f2 = f;
+        libc_pctx->pehdr = pehdr;
+        libc_pctx->symtab_off = symtab_off;
+        libc_pctx->psym = psym;
+        libc_pctx->pstrtab = strtab;
+        libc_pctx->sections_lst = 0; // new_list_v(0, sect_entry_deallocator, 0);
+        ///////
+        ///////
+        return true;
+    e8:
+        vPortFree(psym);
+    e3:
+        vPortFree(strtab);
+    e2:
+        vPortFree(symtab);
+    e11:
+        vPortFree(psh);
+    e1:
+        vPortFree(pehdr);
+        f_close(f);
+        vPortFree(f);
+        return false;
+    }
+    return true;
+}
+
 bool __in_hfa() load_app(cmd_ctx_t* ctx) {
     if (!ctx->orig_cmd) {
         gouta("Unable to load file: NULL\n");
@@ -899,7 +1081,6 @@ a5:
     uint32_t w_init_idx = 0xFFFFFFFF;
     uint32_t w_fini_idx = 0xFFFFFFFF;
 
-    bootb_ctx->sections = new_list_v(0, sect_entry_deallocator, 0);
     load_sec_ctx* pctx = (load_sec_ctx*)pvPortMalloc(sizeof(load_sec_ctx));
     if (!pctx) {
 a6:
@@ -911,7 +1092,9 @@ a6:
     pctx->symtab_off = symtab_off;
     pctx->psym = psym;
     pctx->pstrtab = strtab;
-    pctx->sections_lst = bootb_ctx->sections;
+    pctx->sections_lst = new_list_v(0, sect_entry_deallocator, 0);
+    pre_load_libc(ctx);
+    libc_pctx->sections_lst = pctx->sections_lst; // one list to load app and libc functions
     for (uint32_t i = 0; i < symtab_len / sizeof(elf32_sym); ++i) {
         if (f_read(f, psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)) {
             goutf("Unable to read .symtab section #%d\n", i);
