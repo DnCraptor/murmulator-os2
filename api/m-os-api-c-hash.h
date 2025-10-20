@@ -66,7 +66,7 @@ inline static char* pcStrDup(const char *s)
 
 inline static bool hash_table_put(hash_table_t *t, const char *key, uint32_t value) {
     if (!t || !key) return 0;
-    uint32_t h = hash_str(key) % t->bucket_count;
+    uint32_t h = hash_str(key) & (t->bucket_count - 1);
     hash_node_t *node = t->buckets[h];
     for (; node; node = node->next) {
         if (strcmp(node->key, key) == 0) {
@@ -90,7 +90,7 @@ inline static bool hash_table_put(hash_table_t *t, const char *key, uint32_t val
 
 inline static bool hash_table_get(const hash_table_t *t, const char *key, uint32_t *out_value) {
     if (!t || !key) return 0;
-    uint32_t h = hash_str(key) % t->bucket_count;
+    uint32_t h = hash_str(key) & (t->bucket_count - 1);
     hash_node_t *node = t->buckets[h];
     for (; node; node = node->next) {
         if (strcmp(node->key, key) == 0) {

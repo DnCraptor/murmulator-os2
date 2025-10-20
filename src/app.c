@@ -651,6 +651,7 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                         if (rel_str_sym != 0) {
                             char* fn_name = c->pstrtab + c->psym->st_name;
                             if (c != libc_pctx) { // load from libc
+                                goutf("load from libc: %s\n", fn_name);
                                 uint32_t libc_req_idx = 0;
                                 if (!hash_table_get(libc_idx, fn_name, &libc_req_idx)) {
                                     goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s (and not libc fn)\n",
@@ -944,9 +945,9 @@ static bool __in_hfa() pre_load_libc(cmd_ctx_t* ctx) {
         libc_pctx->symtab_off = symtab_off;
         libc_pctx->psym = psym;
         libc_pctx->pstrtab = strtab;
-        libc_pctx->sections_lst = 0; // new_list_v(0, sect_entry_deallocator, 0);
-        ///////
-        ///////
+        libc_pctx->sections_lst = 0;
+        vPortFree(symtab);
+        vPortFree(psh);
         return true;
     e8:
         vPortFree(psym);

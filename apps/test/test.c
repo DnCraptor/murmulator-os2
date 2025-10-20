@@ -96,6 +96,163 @@ int main() {
 
     log_write("POSIX test completed successfully\n");
 
+
+    FILE* f = fopen("/libc.test", "w+");
+    if (!f) {
+        printf("fopen: FAILED errno: %d\n", errno);
+        return errno;
+    }
+    printf("fopen: PASSED\n");
+
+    if (4 != fwrite("TEST", 1, 4, f)) {
+        printf("fwrite: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fwrite: PASSED\n");
+
+    if (fputc(0, f) != 0) {
+        printf("fputc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fputc: PASSED\n");
+    if (putc(0, f) != 0) {
+        printf("putc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("putc: PASSED\n");
+
+    if (fflush(f) != 0) {
+        printf("fflush: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fflush: PASSED\n");
+
+/*
+    rewind(f);
+    printf("rewind: PASSED\n");
+    if (fgetc(f) != 'T') {
+        printf("fgetc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fgetc: PASSED\n");
+    if (getc(f) != 'E') {
+        printf("getc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("getc: PASSED\n");
+    if (ungetc('E', f) != 'E') {
+        printf("ungetc: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("ungetc: PASSED\n");
+
+    rewind(f);
+    char b[8];
+    if (4 != fread(b, 1, 4, f)) {
+        printf("fread: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fread: PASSED\n");
+
+    rewind(f);
+    if (!fgets(b, sizeof(b), f)) {
+        printf("fgets: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fgets: PASSED\n");
+
+    //  BSD style:
+    rewind(f);
+    size_t len = 0;
+    char* pres = fgetln(f, &len);
+    if (pres != 0 && errno == 0 && len != 0 && strcmp(pres, "TEST") != 0) {
+        printf("fgetln: FAILED errno: %d len:\n", errno, len);
+        goto m1;
+    }
+    printf("fgetln: PASSED\n");
+
+    if (fseek(f, 2, SEEK_SET) != 0) {
+        printf("fseek: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fseek: PASSED\n");
+
+    fpos_t pos;
+    if (fgetpos(f, &pos) != 0) {
+        printf("fgetpos: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fgetpos: PASSED\n");
+
+    if (fsetpos(f, &pos) != 0) {
+        printf("fsetpos: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fsetpos: PASSED\n");
+
+    // just to ensure not hanged
+    feof(f);
+    ferror(f);
+    clearerr(f);
+    printf("feof/ferror/clearerr: PASSED\n");
+
+    if (ftell(f) != 2) {
+        printf("ftell: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("ftell: PASSED\n");
+*/
+m1:
+    if (fclose(f) < 0) {
+        printf("fclose: FAILED errno: %d\n", errno);
+        return errno;
+    }
+    printf("fclose: PASSED\n");
+/*
+    if(!freopen("/libc.test", "r", stdin)) {
+        printf("freopen: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("freopen: PASSED\n");
+
+    if (getchar() != 'T') {
+        printf("getchar: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("getchar: PASSED\n");
+
+    if (rename("/libc.test", "/libc.test2") < 0) {
+        printf("rename: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("rename: PASSED\n");
+
+    if (remove("/libc.test2") < 0) {
+        printf("remove: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("remove: PASSED\n");
+
+    if (fputs("fputs: ", stdout) < 0) {
+        printf("fputs: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("PASSED\n");
+
+    if (puts("puts: PASSED") < 0) {
+        printf("puts: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+
+    char c;
+    if (scanf("%c", &c) <= 0) {
+        printf("scanf: FAILED errno: %d\n", errno);
+        goto m2;
+    }
+    printf("scanf: PASSED\n");
+    */
+m2:
+
 fail:
     log_write("errno: ");
     buf[1] = 0;
