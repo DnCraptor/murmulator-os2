@@ -161,8 +161,8 @@ inline static int dup2(int oldfd, int newfd) {
  *       the same open file description will see the new offset.
  *     - Seeking past the end of the file does not extend it until data is written.
  */
-inline static off_t lseek(int fd, off_t offset, int whence) {
-    typedef off_t (*fn_ptr_t)(int, off_t, int);
+inline static int lseek(int fd, int offset, int whence) {
+    typedef int (*fn_ptr_t)(int, int, int);
     return ((fn_ptr_t)_sys_table_ptrs[275])(fd, offset, whence);
 }
 

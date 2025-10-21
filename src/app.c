@@ -618,137 +618,137 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
             }
         }
         #if DEBUG_APP_LOAD
-            goutf("Program section #%d (%d bytes) allocated into %ph\n", sec_num, psh->sh_size, prg_addr);
+        goutf("Program section #%d (%d bytes) allocated into %ph\n", sec_num, psh->sh_size, prg_addr);
         #endif
-            add_sec(c, del_addr, prg_addr, sec_num);
-            // links and relocations
-            if (f_lseek(c->f2, c->pehdr->sh_offset) != FR_OK) {
-                goutf("Unable to locate sections @ %ph\n", c->pehdr->sh_offset);
-                goto e1;
-            }
-            while (f_read(c->f2, psh, sizeof(elf32_shdr), &rb) == FR_OK && rb == sizeof(elf32_shdr)) {
-                // goutf("Section info: %d type: %d\n", psh->sh_info, psh->sh_type);
-                if (psh->sh_type == REL_SEC && psh->sh_info == sec_num) {
-                    uint32_t r2 = f_tell(c->f2);
-                    elf32_rel rel;
-                    for (uint32_t j = 0; j < psh->sh_size / sizeof(rel); ++j) {
-                        if (f_lseek(c->f2, psh->sh_offset + j * sizeof(rel)) != FR_OK ||
-                            f_read(c->f2, &rel, sizeof(rel), &rb) != FR_OK || rb != sizeof(rel)
-                        ) {
-                            goutf("Unable to read REL record #%d in section #%d\n", j, psh->sh_info);
-                            goto e1;
-                        }
-                        uint32_t rel_sym = rel.rel_info >> 8;
-                        uint8_t rel_type = rel.rel_info & 0xFF;
-                        // goutf("rel_offset: %p; rel_sym: %d; rel_type: %d\n", rel.rel_offset, rel_sym, rel_type);
-                        if (f_lseek(c->f2, c->symtab_off + rel_sym * sizeof(elf32_sym)) != FR_OK ||
-                            f_read(c->f2, c->psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)
-                        ) {
-                            goutf("Unable to read .symtab section #%d\n", rel_sym);
-                            goto e1;
-                        }
-                        char* rel_str_sym = st_spec_sec(c->psym->st_shndx);
-                        if (rel_str_sym != 0) {
-                            char* fn_name = c->pstrtab + c->psym->st_name;
-                            if (c != libc_pctx) { // load from libc
-                                goutf("load from libc: %s\n", fn_name);
-                                uint32_t libc_req_idx = 0;
-                                if (!hash_table_get(libc_idx, fn_name, &libc_req_idx)) {
-                                    goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s (and not libc fn)\n",
+        add_sec(c, del_addr, prg_addr, sec_num);
+        // links and relocations
+        if (f_lseek(c->f2, c->pehdr->sh_offset) != FR_OK) {
+            goutf("Unable to locate sections @ %ph\n", c->pehdr->sh_offset);
+            goto e1;
+        }
+        while (f_read(c->f2, psh, sizeof(elf32_shdr), &rb) == FR_OK && rb == sizeof(elf32_shdr)) {
+            // goutf("Section info: %d type: %d\n", psh->sh_info, psh->sh_type);
+            if (psh->sh_type == REL_SEC && psh->sh_info == sec_num) {
+                uint32_t r2 = f_tell(c->f2);
+                elf32_rel rel;
+                for (uint32_t j = 0; j < psh->sh_size / sizeof(rel); ++j) {
+                    if (f_lseek(c->f2, psh->sh_offset + j * sizeof(rel)) != FR_OK ||
+                        f_read(c->f2, &rel, sizeof(rel), &rb) != FR_OK || rb != sizeof(rel)
+                    ) {
+                        goutf("Unable to read REL record #%d in section #%d\n", j, psh->sh_info);
+                        goto e1;
+                    }
+                    uint32_t rel_sym = rel.rel_info >> 8;
+                    uint8_t rel_type = rel.rel_info & 0xFF;
+                    // goutf("rel_offset: %p; rel_sym: %d; rel_type: %d\n", rel.rel_offset, rel_sym, rel_type);
+                    if (f_lseek(c->f2, c->symtab_off + rel_sym * sizeof(elf32_sym)) != FR_OK ||
+                        f_read(c->f2, c->psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)
+                    ) {
+                        goutf("Unable to read .symtab section #%d\n", rel_sym);
+                        goto e1;
+                    }
+                    char* rel_str_sym = st_spec_sec(c->psym->st_shndx);
+                    if (rel_str_sym != 0) {
+                        char* fn_name = c->pstrtab + c->psym->st_name;
+                        if (c != libc_pctx) { // load from libc
+                            // goutf("load from libc: %s\n", fn_name);
+                            uint32_t libc_req_idx = 0;
+                            if (!hash_table_get(libc_idx, fn_name, &libc_req_idx)) {
+                                goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s (and not libc fn)\n",
+                                    rel_sym, c->psym->st_shndx, rel_str_sym,
+                                    st_predef(fn_name)
+                                );
+                            } else {
+                                // адрес функции в libc (A + S уже учтены в load_sec2mem_wrapper)
+                                uint32_t libc_target = load_sec2mem_wrapper(libc_pctx, libc_req_idx, try_to_use_flash);
+                                if (!libc_target) {
+                                    goutf("Unable to load link from STRTAB record #%d to section #%d (%s): %s from the libc\n",
                                         rel_sym, c->psym->st_shndx, rel_str_sym,
                                         st_predef(fn_name)
                                     );
                                 } else {
-                                    // адрес функции в libc (A + S уже учтены в load_sec2mem_wrapper)
-                                    uint32_t libc_target = load_sec2mem_wrapper(libc_pctx, libc_req_idx, try_to_use_flash);
-                                    if (!libc_target) {
-                                        goutf("Unable to load link from STRTAB record #%d to section #%d (%s): %s from the libc\n",
-                                            rel_sym, c->psym->st_shndx, rel_str_sym,
-                                            st_predef(fn_name)
-                                        );
-                                    } else {
-                                        // указатель в загруженном приложении (где нужно применить релокацию)
-                                        uint32_t* reloc_in_app = (uint32_t*)(real_ram_addr + rel.rel_offset);
-                                        // указатель на эталонную инструкцию/место (используется для PC-relative resolver'ов)
-                                        uint32_t* reloc_ref = (uint32_t*)(prg_addr + rel.rel_offset);
-                                        switch (rel_type) {
-                                            case 2: // R_ARM_ABS32: P <- S + A (+ existing addend)
-                                            {
-                                                uint32_t addend = *reloc_in_app;    // A — addend, уже записанный в месте релокации
-                                                *reloc_in_app = addend + libc_target;
-                                                break;
-                                            }
-                                            case 10: // R_ARM_THM_PC22 (Thumb BL/BLX(1) wide)
-                                                // sym_val должен быть абсолютным адресом цели (A+S). resolve_thm_pc22 выполнит нужное кодирование.
-                                                resolve_thm_pc22((uint16_t*)reloc_in_app, (uint16_t*)reloc_ref, libc_target);
-                                                break;
-                                            default:
-                                                goutf("WARN: Unsupported libc REL type %d -> symbol: %s\n",
-                                                      rel_type, c->pstrtab + c->psym->st_name);
-                                                break;
+                                    // указатель в загруженном приложении (где нужно применить релокацию)
+                                    uint32_t* reloc_in_app = (uint32_t*)(real_ram_addr + rel.rel_offset);
+                                    // указатель на эталонную инструкцию/место (используется для PC-relative resolver'ов)
+                                    uint32_t* reloc_ref = (uint32_t*)(prg_addr + rel.rel_offset);
+                                    switch (rel_type) {
+                                        case 2: // R_ARM_ABS32: P <- S + A (+ existing addend)
+                                        {
+                                            uint32_t addend = *reloc_in_app;    // A — addend, уже записанный в месте релокации
+                                            *reloc_in_app = addend + libc_target;
+                                            break;
                                         }
-                                        continue;
+                                        case 10: // R_ARM_THM_PC22 (Thumb BL/BLX(1) wide)
+                                            // sym_val должен быть абсолютным адресом цели (A+S). resolve_thm_pc22 выполнит нужное кодирование.
+                                            resolve_thm_pc22((uint16_t*)reloc_in_app, (uint16_t*)reloc_ref, libc_target);
+                                            break;
+                                        default:
+                                            goutf("WARN: Unsupported libc REL type %d -> symbol: %s\n",
+                                                    rel_type, c->pstrtab + c->psym->st_name);
+                                            break;
                                     }
+                                    continue;
                                 }
-                            } else { // it is already libc
-                                goutf("[libc] Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
-                                      rel_sym, c->psym->st_shndx, rel_str_sym,
-                                      st_predef(fn_name)
-                                );
                             }
+                        } else { // it is already libc
+                            goutf("[libc] Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
+                                    rel_sym, c->psym->st_shndx, rel_str_sym,
+                                    st_predef(fn_name)
+                            );
+                        }
+                        goto e1;
+                    }
+                    uint32_t* rel_addr_real = (uint32_t*)(real_ram_addr + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
+                    uint32_t* rel_addr_ref  = (uint32_t*)(prg_addr      + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
+                    // DO NOT resolve it for any case, it may be 16-bit alligned, and will hang to load 32-bit
+                    //uint32_t P = *rel_addr; /*f7ff fffe 	bl	0*/
+                    uint32_t S = c->psym->st_value;
+                    uint8_t* sec_addr_ref  = prg_addr;
+                    // goutf("rel_offset: %p; rel_sym: %d; rel_type: %d -> %d\n", rel.rel_offset, rel_sym, rel_type, c->psym->st_shndx);
+                    if (c->psym->st_shndx != sec_num) {
+                        sec_addr_ref = load_sec2mem(c, c->psym->st_shndx, try_to_use_flash);
+                        if (sec_addr_ref == 0) {
                             goto e1;
                         }
-                        uint32_t* rel_addr_real = (uint32_t*)(real_ram_addr + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
-                        uint32_t* rel_addr_ref  = (uint32_t*)(prg_addr      + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
-                        // DO NOT resolve it for any case, it may be 16-bit alligned, and will hang to load 32-bit
-                        //uint32_t P = *rel_addr; /*f7ff fffe 	bl	0*/
-                        uint32_t S = c->psym->st_value;
-                        uint8_t* sec_addr_ref  = prg_addr;
-                        // goutf("rel_offset: %p; rel_sym: %d; rel_type: %d -> %d\n", rel.rel_offset, rel_sym, rel_type, c->psym->st_shndx);
-                        if (c->psym->st_shndx != sec_num) {
-                            sec_addr_ref = load_sec2mem(c, c->psym->st_shndx, try_to_use_flash);
-                            if (sec_addr_ref == 0) {
-                                goto e1;
-                            }
-                        }
-                        uint32_t A = sec_addr_ref;
-                        // Разрешение ссылки
-                        switch (rel_type) {
-                            case 2: //R_ARM_ABS32:
-                                // goutf("rel_type: %d; *rel_addr += A: %ph + S: %ph\n", rel_type, A, S);
-                                *rel_addr_real += S + A;
-                                break;
-                            //case 3: //R_ARM_REL32:
-                                //*rel_addr_real = S - P + A; // todo: signed?
-                                // break;
-                            case 10: //R_ARM_THM_PC22:
-                                resolve_thm_pc22(rel_addr_real, rel_addr_ref, A + S);
-                                break;
-                                /*
-                            case 30: // R_ARM_THM_JUMP24
-                                gouta("WARN: Untested REL type: R_ARM_THM_JUMP24\n");
-                                resolve_thm_jump24(rel_addr_real, rel_addr_ref, A + S);
-                                break;
-                            case 102: // R_ARM_THM_ALU_ABS_G0_NC
-                                gouta("WARN: Untested REL type: R_ARM_THM_ALU_ABS_G0_NC\n");
-                                if (((uintptr_t)rel_addr_real & 0x1) || ((uintptr_t)rel_addr_real & 0x2)) {
-                                    goutf("WARN: REL type 102 misaligned addr: %p\n", rel_addr_real);
-                                    goutf("REL type %d -> symbol: %s\n", rel_type, c->pstrtab + c->psym->st_name);
-                                    break;
-                                }
-                                resolve_thm_alu_abs_g0_nc((uint16_t*)rel_addr_real, S + A);
-                                break;*/
-                            default:
-                                goutf("WARN: Unsupported REL type %d -> symbol: %s\n", rel_type, c->pstrtab + c->psym->st_name);
-                                goto e1;
-                        }
-                        //goutf("= %ph\n", *rel_addr);
                     }
-                    f_lseek(c->f2, r2);
+                    uint32_t A = sec_addr_ref;
+                    // Разрешение ссылки
+                    switch (rel_type) {
+                        case 2: //R_ARM_ABS32:
+                            // goutf("rel_type: %d; *rel_addr += A: %ph + S: %ph\n", rel_type, A, S);
+                            *rel_addr_real += S + A;
+                            break;
+                        //case 3: //R_ARM_REL32:
+                            //*rel_addr_real = S - P + A; // todo: signed?
+                            // break;
+                        case 10: //R_ARM_THM_PC22:
+                            resolve_thm_pc22(rel_addr_real, rel_addr_ref, A + S);
+                            break;
+                            /*
+                        case 30: // R_ARM_THM_JUMP24
+                            gouta("WARN: Untested REL type: R_ARM_THM_JUMP24\n");
+                            resolve_thm_jump24(rel_addr_real, rel_addr_ref, A + S);
+                            break;
+                        case 102: // R_ARM_THM_ALU_ABS_G0_NC
+                            gouta("WARN: Untested REL type: R_ARM_THM_ALU_ABS_G0_NC\n");
+                            if (((uintptr_t)rel_addr_real & 0x1) || ((uintptr_t)rel_addr_real & 0x2)) {
+                                goutf("WARN: REL type 102 misaligned addr: %p\n", rel_addr_real);
+                                goutf("REL type %d -> symbol: %s\n", rel_type, c->pstrtab + c->psym->st_name);
+                                break;
+                            }
+                            resolve_thm_alu_abs_g0_nc((uint16_t*)rel_addr_real, S + A);
+                            break;*/
+                        default:
+                            goutf("WARN: Unsupported REL type %d -> symbol: %s\n", rel_type, c->pstrtab + c->psym->st_name);
+                            goto e1;
+                    }
+                    //goutf("= %ph\n", *rel_addr);
                 }
+                f_lseek(c->f2, r2);
             }
+        }
         #if DEBUG_APP_LOAD
-            goutf("Section #%d - load completed @%ph\n", sec_num, prg_addr);
+        goutf("Section #%d - load completed @%ph\n", sec_num, prg_addr);
         #endif
     } else {
         goutf("Unable to read section #%d info\n", sec_num);
@@ -929,10 +929,8 @@ static bool __in_hfa() pre_load_libc(cmd_ctx_t* ctx) {
                 goutf("Unable to read .symtab section #%d\n", i);
                 break;
             }
-            if (psym->st_info == STR_TAB_GLOBAL_FUNC || psym->st_info == STR_TAB_WEAK_FUNC) {
-                char* gfn = strtab + psym->st_name;
-                hash_table_put(libc_idx, gfn, i);
-            }
+            char* gfn = strtab + psym->st_name;
+            hash_table_put(libc_idx, gfn, i);
         }
         libc_pctx = (load_sec_ctx*)pvPortMalloc(sizeof(load_sec_ctx));
         if (!libc_pctx) {

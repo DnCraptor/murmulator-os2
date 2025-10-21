@@ -127,7 +127,6 @@ int main() {
     }
     printf("fflush: PASSED\n");
 
-/*
     rewind(f);
     printf("rewind: PASSED\n");
     if (fgetc(f) != 'T') {
@@ -201,7 +200,6 @@ int main() {
         goto m1;
     }
     printf("ftell: PASSED\n");
-*/
 m1:
     if (fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);
@@ -249,8 +247,7 @@ m1:
         printf("scanf: FAILED errno: %d\n", errno);
         goto m2;
     }
-    printf("scanf: PASSED\n");
-    */
+    printf("scanf: PASSED\n");*/
 m2:
 
 fail:
