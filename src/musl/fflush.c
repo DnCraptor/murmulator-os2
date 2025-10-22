@@ -11,12 +11,12 @@ int __libc() __fflush(FILE *f)
 {
 	if (!f) {
 		int r = 0;
-		if (__stdout_used) r |= fflush(__stdout_used);
-		if (__stderr_used) r |= fflush(__stderr_used);
+		if (__stdout_used) r |= __fflush(__stdout_used);
+		if (__stderr_used) r |= __fflush(__stderr_used);
 
 		for (f=*__ofl_lock(); f; f=f->next) {
 			FLOCK(f);
-			if (f->wpos != f->wbase) r |= fflush(f);
+			if (f->wpos != f->wbase) r |= __fflush(f);
 			FUNLOCK(f);
 		}
 		__ofl_unlock();

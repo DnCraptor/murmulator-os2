@@ -120,13 +120,13 @@ int main() {
         goto m1;
     }
     printf("putc: PASSED\n");
-
+*/
     if (fflush(f) != 0) {
         printf("fflush: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fflush: PASSED\n");
-
+/*
     rewind(f);
     printf("rewind: PASSED\n");
     if (fgetc(f) != 'T') {
