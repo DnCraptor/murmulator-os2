@@ -7,12 +7,11 @@
 #include "unistd.h"
 
 #include "ff.h"
-#define NULL 0
 #include "../../api/m-os-api-c-array.h"
-
 
 #include <time.h>
 #include <stdint.h>
+#include <string.h>
 
 static int is_leap_year(int year) {
     return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
@@ -91,7 +90,7 @@ static void* alloc_file(void) {
 static void dealloc_file(void* p) {
     if (!p) return;
     FDESC* d = (FDESC*)p;
-    if (d->fp > 2) vPortFree(d->fp);
+    if ((intptr_t)d->fp > 2) vPortFree(d->fp);
     vPortFree(p);
 }
 
@@ -174,7 +173,7 @@ static int map_ff_fresult_to_errno(FRESULT fr) {
 }
 
 inline static bool is_closed_desc(const FDESC* fd) {
-    return fd && fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
+    return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }
 
 static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
@@ -260,7 +259,7 @@ int __close(int fildes) {
         goto e;
     }
     FIL* fp = fd->fp;
-    if (fp <= STDERR_FILENO) {
+    if ((intptr_t)fp <= STDERR_FILENO) {
         goto e;
     }
     if (fp->pending_descriptors) {
@@ -493,7 +492,7 @@ int __dup2(int oldfd, int newfd) {
         __close(newfd);
     }
     ++fd0->fp->pending_descriptors;
-    if (fd1->fp > STDERR_FILENO && !fd1->fp->pending_descriptors) { // not STD and not in use by other descriptors, so we can remove it
+    if ((intptr_t)fd1->fp > STDERR_FILENO && !fd1->fp->pending_descriptors) { // not STD and not in use by other descriptors, so we can remove it
         vPortFree(fd1->fp);
     }
     fd1->fp = fd0->fp;
@@ -611,7 +610,7 @@ e:
     return -1;
 }
 
-long __lseek(int fd, long offset, int whence) {
+long __lseek_p(int fd, long offset, int whence) {
     if (fd < 0) goto e;
     init_pfiles();
     // Standard descriptors cannot be seeked

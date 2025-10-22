@@ -49,7 +49,7 @@ add_executable(${PROJECT_NAME}
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     # workarounds
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/wa
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/wa
     # MUSL
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/internal
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/include

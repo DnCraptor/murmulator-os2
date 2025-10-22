@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include "internal/__stdlib.h"
 
 #undef malloc
 #undef calloc

@@ -275,6 +275,7 @@ bool __in_hfa() graphics_set_ext_font(uint8_t* t, uint8_t w, uint8_t h) {
     return false;
 }
 
+void hdmi_init();
 
 void __in_hfa() graphics_init(int drv_type) {
     if (graphics_driver == 0) {

@@ -6,6 +6,7 @@
 #include "graphics.h"
 #include <string.h>
 #include "sys_table.h"
+#include <stdlib.h>
 
 static FIL file;
 static uint32_t _swap_size = 0;

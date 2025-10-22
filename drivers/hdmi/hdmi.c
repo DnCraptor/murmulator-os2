@@ -421,6 +421,8 @@ static inline void irq_set_exclusive_handler_DMA_core1() {
     irq_set_enabled(VIDEO_DMA_IRQ, true);
 }
 
+void hdmi_set_palette(uint8_t i, uint32_t color888);
+
 //деинициализация - инициализация ресурсов
 static inline bool inner_init() {
     //выключение прерывания DMA

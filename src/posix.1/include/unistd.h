@@ -177,15 +177,16 @@ int __dup2(int oldfd, int newfd);
  *       the same open file description will see the new offset.
  *     - Seeking past the end of the file does not extend it until data is written.
  */
-long __lseek(int fd, long offset, int whence);
+long __lseek_p(int fd, long offset, int whence);
 
 int __llseek(unsigned int fd,
              unsigned long offset_high,
              unsigned long offset_low,
              off_t *result,
              unsigned int whence);
-
+#ifndef AT_FDCWD
 #define AT_FDCWD (-100)
+#endif
 #define AT_SYMLINK_NOFOLLOW 0x100
 #define AT_REMOVEDIR 0x200
 #define AT_SYMLINK_FOLLOW 0x400

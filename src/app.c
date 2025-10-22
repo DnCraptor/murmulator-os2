@@ -3,6 +3,7 @@
 #include <hardware/flash.h>
 #include <pico/bootrom.h>
 #include <pico/stdlib.h>
+#include <pico/multicore.h>
 #include "ff.h"
 #include "graphics.h"
 #include "keyboard.h"

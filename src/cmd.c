@@ -106,6 +106,7 @@ void __in_hfa() cleanup_ctx(cmd_ctx_t* src) {
     src->forse_flash = false;
     // gouta("cleanup_ctx <<\n");
 }
+void cleanup_bootb_ctx(cmd_ctx_t* ctx); // app
 void __in_hfa() remove_ctx(cmd_ctx_t* src) {
     if (!src) return;
     // goutf("remove_ctx: [%p]\n", src);
@@ -262,7 +263,7 @@ bool __in_hfa() exists(cmd_ctx_t* ctx) {
         // goutf("C: %s\n", res);
         goto r1;
     }
-    const char* path = get_ctx_var(ctx, "PATH");
+    char* path = get_ctx_var(ctx, "PATH");
     if (path) {
         size_t sz = strlen(path);
         char* e = path;
@@ -442,7 +443,7 @@ inline static void __in_hfa() tokenize_cmd(list_t* lst, string_t* pcmd, cmd_ctx_
         string_clip(pcmd, 0);
     }
     if (!pcmd->size) {
-        return 0;
+        return;
     }
     bool in_space = false;
     int inTokenN = 0;
@@ -538,7 +539,7 @@ inline static bool __in_hfa() prepare_ctx(string_t* pcmd, cmd_ctx_t* ctx) {
         delete_string(std_out_file);
     }
 
-    list_t* lst = new_list_v(new_string_v, delete_string, NULL);
+    list_t* lst = new_list_v((alloc_fn_ptr_t)new_string_v, (dealloc_fn_ptr_t)delete_string, NULL);
     tokenize_cmd(lst, pcmd, ctx);
     if (!lst->size) {
         delete_list(lst);

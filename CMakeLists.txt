@@ -101,7 +101,8 @@ add_executable(${PROJECT_NAME} ${SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/freertos_config
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/posix.1/include 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/posix.1/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/musl/include
 )
 
 configure_file(memmap.ld.in memmap.ld @ONLY)
@@ -158,6 +159,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
+        -fno-builtin-printf
+#        -Werror=implicit-function-declaration
+
         -Wno-error=suggest-attribute=format
         -Wno-error=cast-qual
         -Wno-error=unused-parameter
@@ -184,7 +188,6 @@ if (MURM20)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         PSRAM_NO_FUGE=1
         MURM2=1
-        PICO_FLASH_SIZE_BYTES=16777216
         MOS_VERSION_STR="${MOS_VERSION}"
 
         # VGA 8 pins starts from pin:
@@ -244,7 +247,6 @@ if (MURM20)
     )
 else ()
     target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PICO_FLASH_SIZE_BYTES=16777216
         MOS_VERSION_STR="${MOS_VERSION}"
 
         # VGA 8 pins starts from pin:

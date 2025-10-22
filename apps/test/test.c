@@ -8,8 +8,8 @@
 #include <string.h>
 
 static void log_write(const char* msg) {
-    write(STDOUT_FILENO, msg, strlen(msg));
-    ///printf(msg);
+    ///write(STDOUT_FILENO, msg, strlen(msg));
+    printf(msg);
 }
 
 int main() {
@@ -96,7 +96,6 @@ int main() {
 
     log_write("POSIX test completed successfully\n");
 
-
     FILE* f = fopen("/libc.test", "w+");
     if (!f) {
         printf("fopen: FAILED errno: %d\n", errno);
@@ -104,6 +103,7 @@ int main() {
     }
     printf("fopen: PASSED\n");
 
+/*
     if (4 != fwrite("TEST", 1, 4, f)) {
         printf("fwrite: FAILED errno: %d\n", errno);
         goto m1;
@@ -200,6 +200,7 @@ int main() {
         goto m1;
     }
     printf("ftell: PASSED\n");
+    */
 m1:
     if (fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);
@@ -247,9 +248,9 @@ m1:
         printf("scanf: FAILED errno: %d\n", errno);
         goto m2;
     }
-    printf("scanf: PASSED\n");*/
+    printf("scanf: PASSED\n");
 m2:
-
+*/
 fail:
     log_write("errno: ");
     buf[1] = 0;

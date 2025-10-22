@@ -57,7 +57,7 @@ inline static int array_reserve(array_t* arr, size_t sz_bytes) {
     return 0;
 }
 
-inline static size_t array_push_back(array_t* arr, const void* data) {
+inline static size_t array_push_back(array_t* arr, void* data) {
     register size_t min_sz_bytes = (arr->size + 1) * sizeof(void*);
     if (min_sz_bytes > arr->alloc) {
         if (array_reserve(arr, min_sz_bytes) < 0) return 0;

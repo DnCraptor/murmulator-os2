@@ -35,6 +35,8 @@
 #include "errno.h"
 #include "poll.h"
 
+#include "__stdio.h"
+
 // TODO: think about it
 //extern int __cxa_pure_virtual();
 
@@ -370,7 +372,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __fcntl, // 272
     __dup, // 273
     __dup2, // 274
-    __lseek,// 275
+    __lseek_p,// 275
     __errno_location, // 276
     // missed gcc math
     __aeabi_dcmpun, // 277
@@ -405,6 +407,15 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __llseek, // 305
     __unlinkat, // 306
     __rename, // 307
+    // libc
+    __printf, // 308
+    __vprintf, // 309
+    __vfprintf, // 310
+    __fwritex, // 311
+    __fwrite, // 312
+    __fopen, // 313
+    __fclose, // 314
+    __fflush, // 315
     // TODO:
     0
 };

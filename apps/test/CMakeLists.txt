@@ -47,19 +47,8 @@ add_executable(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    # workarounds
-#    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/wa
-    # MUSL
-#    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/include
-    #${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/include
-    #${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/arch/arm
-    #${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/arch/generic
-#    ${CMAKE_CURRENT_SOURCE_DIR}/../../libs/musl/src/internal
-    # POSIX.1
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/libc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../api/posix
-    # GCC toolchain
-    #${CMAKE_CURRENT_SOURCE_DIR}/../../api/gcc/toolchain/14_2_Rel1/arm-none-eabi/include
-    # for your program
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
@@ -70,8 +59,6 @@ pico_set_program_name(${PROJECT_NAME} "Murmulator OS Applications: POSIX.1 test"
 pico_set_program_version(${PROJECT_NAME} "test")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-#    pico_runtime
-#    pico_stdlib
     murmulator_runtime
 )
 
@@ -86,19 +73,21 @@ target_link_options(${PROJECT_NAME} PRIVATE
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
+        -fno-builtin-printf
         -fno-jump-tables  # suppress __gnu_thumb1_case_uni symbol generation
-        -Wno-error=suggest-attribute=format
-        -Wno-error=cast-qual
-        -Wno-error=unused-parameter
-        -Wno-error=conversion
-        -Wno-error=format=
-        -Wno-error=sign-compare
-        -Wno-error=missing-field-initializers
-        -Wno-error=switch
-        -Wno-error=implicit-fallthrough=
-        -Wno-error=stringop-truncation
-        -Wno-error=restrict
-        -w
+        -Werror=implicit-function-declaration
+#        -Wno-error=suggest-attribute=format
+#        -Wno-error=cast-qual
+#        -Wno-error=unused-parameter
+#        -Wno-error=conversion
+#        -Wno-error=format=
+#        -Wno-error=sign-compare
+#        -Wno-error=missing-field-initializers
+#        -Wno-error=switch
+#        -Wno-error=implicit-fallthrough=
+#        -Wno-error=stringop-truncation
+#        -Wno-error=restrict
+#        -w
 )
 endif ()
 

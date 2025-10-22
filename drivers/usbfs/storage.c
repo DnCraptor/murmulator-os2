@@ -30,7 +30,7 @@
 /* Module variables. */
 
 static const uint32_t m_storage_size = FLASH_SECTOR_SIZE * 128;
-static const uint32_t m_storage_offset = PICO_FLASH_SIZE_BYTES - m_storage_size;
+static const uint32_t m_storage_offset = (FLASH_SIZE * 1024) - m_storage_size;
 
 
 /* Functions.*/
