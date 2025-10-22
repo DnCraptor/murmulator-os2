@@ -103,7 +103,6 @@ int main() {
     }
     printf("fopen: PASSED\n");
 
-/*
     if (4 != fwrite("TEST", 1, 4, f)) {
         printf("fwrite: FAILED errno: %d\n", errno);
         goto m1;
@@ -120,15 +119,16 @@ int main() {
         goto m1;
     }
     printf("putc: PASSED\n");
-*/
+
     if (fflush(f) != 0) {
         printf("fflush: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fflush: PASSED\n");
-/*
+
     rewind(f);
     printf("rewind: PASSED\n");
+/*
     if (fgetc(f) != 'T') {
         printf("fgetc: FAILED errno: %d\n", errno);
         goto m1;
@@ -144,7 +144,7 @@ int main() {
         goto m1;
     }
     printf("ungetc: PASSED\n");
-
+*/
     rewind(f);
     char b[8];
     if (4 != fread(b, 1, 4, f)) {
@@ -152,7 +152,7 @@ int main() {
         goto m1;
     }
     printf("fread: PASSED\n");
-
+/*
     rewind(f);
     if (!fgets(b, sizeof(b), f)) {
         printf("fgets: FAILED errno: %d\n", errno);
@@ -169,13 +169,13 @@ int main() {
         goto m1;
     }
     printf("fgetln: PASSED\n");
-
+*/
     if (fseek(f, 2, SEEK_SET) != 0) {
         printf("fseek: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fseek: PASSED\n");
-
+/*
     fpos_t pos;
     if (fgetpos(f, &pos) != 0) {
         printf("fgetpos: FAILED errno: %d\n", errno);

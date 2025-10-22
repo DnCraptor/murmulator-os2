@@ -85,6 +85,31 @@ inline static int fflush(FILE* f) {
     typedef int (*fn_ptr_t)(FILE*);
     return ((fn_ptr_t)_sys_table_ptrs[315])(f);
 }
+inline static size_t fread(void *__restrict b, size_t n1, size_t n2, FILE *__restrict f) {
+    typedef size_t (*fn_ptr_t)(void *__restrict, size_t, size_t, FILE *__restrict);
+    return ((fn_ptr_t)_sys_table_ptrs[316])(b, n1, n2, f);
+}
+inline static size_t fwrite(const void *__restrict b, size_t n1, size_t n2, FILE *__restrict f) {
+    typedef size_t (*fn_ptr_t)(const void *__restrict, size_t, size_t, FILE *__restrict);
+    return ((fn_ptr_t)_sys_table_ptrs[312])(b, n1, n2, f);
+}
+inline static int fputc(int c, FILE *f) {
+    typedef int (*fn_ptr_t)(int, FILE *);
+    return ((fn_ptr_t)_sys_table_ptrs[317])(c, f);
+}
+inline static int putc(int c, FILE *f) {
+    typedef int (*fn_ptr_t)(int, FILE *);
+    return ((fn_ptr_t)_sys_table_ptrs[317])(c, f);
+}
+inline static void rewind(FILE *f) {
+    typedef void (*fn_ptr_t)(FILE *);
+    return ((fn_ptr_t)_sys_table_ptrs[318])(f);
+}
+inline static int fseek(FILE *f, long off, int whence) {
+    typedef int (*fn_ptr_t)(FILE*, long, int);
+    return ((fn_ptr_t)_sys_table_ptrs[319])(f, off, whence);
+}
+
 /*
 FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict);
 
@@ -97,21 +122,14 @@ void clearerr(FILE *);
 
 int fseek(FILE *, long, int);
 long ftell(FILE *);
-void rewind(FILE *);
 
 int fgetpos(FILE *__restrict, fpos_t *__restrict);
 int fsetpos(FILE *, const fpos_t *);
-
-size_t fread(void *__restrict, size_t, size_t, FILE *__restrict);
-size_t fwrite(const void *__restrict, size_t, size_t, FILE *__restrict);
-
 int fgetc(FILE *);
 int getc(FILE *);
 int getchar(void);
 int ungetc(int, FILE *);
 
-int fputc(int, FILE *);
-int putc(int, FILE *);
 int putchar(int);
 
 char *fgets(char *__restrict, int, FILE *__restrict);

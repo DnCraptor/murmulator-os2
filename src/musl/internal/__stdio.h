@@ -111,6 +111,10 @@ size_t __fwrite(const void *restrict src, size_t size, size_t nmemb, FILE *restr
 FILE* __fopen(const char *restrict filename, const char *restrict mode);
 int __fclose(FILE *f);
 int __fflush(FILE *f);
+size_t __fread(void *__restrict b, size_t n1, size_t n2, FILE *__restrict f);
+int __fputc(int c, FILE *f);
+void __rewind(FILE *f);
+int __fseek(FILE *f, long off, int whence);
 
 #ifdef __cplusplus
 }
