@@ -43,7 +43,7 @@ int __libc() __fseeko(FILE *f, off_t off, int whence)
 	return result;
 }
 
-int __libc() __fseek(FILE *f, off_t off, int whence)
+int __libc() __fseek(FILE *f, long off, int whence)
 {
 	return __fseeko(f, off, whence);
 }

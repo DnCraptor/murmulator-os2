@@ -23,9 +23,11 @@ int __fflush(FILE *f);
 size_t __fread(void *__restrict b, size_t n1, size_t n2, FILE *__restrict f);
 int __fputc(int c, FILE *f);
 void __rewind(FILE *f);
-int __fseek(FILE *f, long long off, int whence);
+int __fseek(FILE *f, long off, int whence);
+int __fseeko(FILE *f, long long off, int whence);
 int __fgetc(FILE *f);
 int __ungetc(int c, FILE *f);
+char* __fgets(char *restrict s, int n, FILE *restrict f);
 
 #undef FILE
 

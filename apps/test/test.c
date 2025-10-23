@@ -152,7 +152,7 @@ int main() {
         goto m1;
     }
     printf("fread: PASSED\n");
-/*
+
     rewind(f);
     if (!fgets(b, sizeof(b), f)) {
         printf("fgets: FAILED errno: %d\n", errno);
@@ -161,6 +161,7 @@ int main() {
     printf("fgets: PASSED\n");
 
     //  BSD style:
+/*
     rewind(f);
     size_t len = 0;
     char* pres = fgetln(f, &len);
@@ -170,11 +171,18 @@ int main() {
     }
     printf("fgetln: PASSED\n");
 */
+    if (fseeko(f, 1, SEEK_SET) != 0) {
+        printf("fseeko: FAILED errno: %d\n", errno);
+        goto m1;
+    }
+    printf("fseeko: PASSED\n");
+    // todo: ftello
     if (fseek(f, 2, SEEK_SET) != 0) {
         printf("fseek: FAILED errno: %d\n", errno);
         goto m1;
     }
     printf("fseek: PASSED\n");
+    // todo: ftell
 /*
     fpos_t pos;
     if (fgetpos(f, &pos) != 0) {

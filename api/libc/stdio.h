@@ -113,8 +113,8 @@ inline static void rewind(FILE *f) {
     typedef void (*fn_ptr_t)(FILE *);
     return ((fn_ptr_t)_sys_table_ptrs[318])(f);
 }
-inline static int fseek(FILE *f, off_t off, int whence) {
-    typedef int (*fn_ptr_t)(FILE*, off_t, int);
+inline static int fseek(FILE *f, long off, int whence) {
+    typedef int (*fn_ptr_t)(FILE*, long, int);
     return ((fn_ptr_t)_sys_table_ptrs[319])(f, off, whence);
 }
 inline static int fgetc(FILE *f) {
@@ -129,6 +129,15 @@ inline static int ungetc(int c, FILE *f) {
     typedef int (*fn_ptr_t)(int, FILE *);
     return ((fn_ptr_t)_sys_table_ptrs[321])(c, f);
 }
+inline static char* fgets(char *restrict s, int n, FILE *restrict f) {
+    typedef char* (*fn_ptr_t)(char *restrict s, int n, FILE *restrict f);
+    return ((fn_ptr_t)_sys_table_ptrs[322])(s, n, f);
+}
+inline static int fseeko(FILE *f, off_t off, int whence) {
+    typedef int (*fn_ptr_t)(FILE*, off_t, int);
+    return ((fn_ptr_t)_sys_table_ptrs[323])(f, off, whence);
+}
+
 /*
 FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict);
 
@@ -160,7 +169,7 @@ int printf0(const char *__restrict, ...);
 */
 
 typedef void (*__goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
-#define printf(...) ((__goutf_ptr_t)_sys_table_ptrs[308])(__VA_ARGS__)
+#define printf(...) (((__goutf_ptr_t)_sys_table_ptrs[308])(__VA_ARGS__))
 
 /*
 int fprintf(FILE *__restrict, const char *__restrict, ...);

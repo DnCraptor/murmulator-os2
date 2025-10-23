@@ -90,6 +90,7 @@ __attribute__((visibility("protected")))
 #endif
 int __overflow(FILE *, int), __uflow(FILE *);
 
+hidden int __fseek(FILE *, long, int);
 hidden int __fseeko(FILE *, off_t, int);
 hidden int __fseeko_unlocked(FILE *, off_t, int);
 hidden off_t __lseek(int fd, off_t offset, int whence);
