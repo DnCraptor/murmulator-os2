@@ -23,6 +23,14 @@ extern "C" {
 #define __NEED_va_list
 #endif
 
+#undef off_t
+#ifndef _OFF_T_DECLARED
+typedef long long off_t;
+typedef long long _off_t;
+#define __machine_off_t_defined
+#define	_OFF_T_DECLARED
+#endif
+
 #include <stddef.h>
 
 #ifndef _OWN_IO_FILE 
@@ -105,11 +113,22 @@ inline static void rewind(FILE *f) {
     typedef void (*fn_ptr_t)(FILE *);
     return ((fn_ptr_t)_sys_table_ptrs[318])(f);
 }
-inline static int fseek(FILE *f, long off, int whence) {
-    typedef int (*fn_ptr_t)(FILE*, long, int);
+inline static int fseek(FILE *f, off_t off, int whence) {
+    typedef int (*fn_ptr_t)(FILE*, off_t, int);
     return ((fn_ptr_t)_sys_table_ptrs[319])(f, off, whence);
 }
-
+inline static int fgetc(FILE *f) {
+    typedef int (*fn_ptr_t)(FILE *);
+    return ((fn_ptr_t)_sys_table_ptrs[320])(f);
+}
+inline static int getc(FILE *f) {
+    typedef int (*fn_ptr_t)(FILE *);
+    return ((fn_ptr_t)_sys_table_ptrs[320])(f);
+}
+inline static int ungetc(int c, FILE *f) {
+    typedef int (*fn_ptr_t)(int, FILE *);
+    return ((fn_ptr_t)_sys_table_ptrs[321])(c, f);
+}
 /*
 FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict);
 
@@ -125,10 +144,7 @@ long ftell(FILE *);
 
 int fgetpos(FILE *__restrict, fpos_t *__restrict);
 int fsetpos(FILE *, const fpos_t *);
-int fgetc(FILE *);
-int getc(FILE *);
 int getchar(void);
-int ungetc(int, FILE *);
 
 int putchar(int);
 

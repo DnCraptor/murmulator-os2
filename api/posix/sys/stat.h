@@ -50,6 +50,8 @@ typedef unsigned int gid_t;
 /* Type for file offsets */
 #ifndef _OFF_T_DECLARED
 typedef long long off_t;
+typedef long long _off_t;
+#define __machine_off_t_defined
 #define	_OFF_T_DECLARED
 #endif
 

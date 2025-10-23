@@ -420,6 +420,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __fputc, // 317
     __rewind, // 318
     __fseek,  // 319
+    __fgetc, // 320
+    __ungetc, // 321
     // TODO:
     0
 };

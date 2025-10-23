@@ -651,6 +651,7 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                     char* rel_str_sym = st_spec_sec(c->psym->st_shndx);
                     if (rel_str_sym != 0) {
                         char* fn_name = c->pstrtab + c->psym->st_name;
+                        #if 0
                         if (c != libc_pctx) { // load from libc
                             // goutf("load from libc: %s\n", fn_name);
                             uint32_t libc_req_idx = 0;
@@ -692,11 +693,12 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                                 }
                             }
                         } else { // it is already libc
+                         #endif
                             goutf("[libc] Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
                                     rel_sym, c->psym->st_shndx, rel_str_sym,
                                     st_predef(fn_name)
                             );
-                        }
+                        ///}
                         goto e1;
                     }
                     uint32_t* rel_addr_real = (uint32_t*)(real_ram_addr + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
@@ -1093,8 +1095,8 @@ a6:
     pctx->psym = psym;
     pctx->pstrtab = strtab;
     pctx->sections_lst = new_list_v(0, sect_entry_deallocator, 0);
-    pre_load_libc(ctx);
-    libc_pctx->sections_lst = pctx->sections_lst; // one list to load app and libc functions
+///    pre_load_libc(ctx);
+///    libc_pctx->sections_lst = pctx->sections_lst; // one list to load app and libc functions
     for (uint32_t i = 0; i < symtab_len / sizeof(elf32_sym); ++i) {
         if (f_read(f, psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)) {
             goutf("Unable to read .symtab section #%d\n", i);

@@ -10,7 +10,6 @@ size_t __libc() __fread(void *restrict destv, size_t size, size_t nmemb, FILE *r
 	unsigned char *dest = destv;
 	size_t len = size*nmemb, l = len, k;
 	if (!size) nmemb = 0;
-
 	FLOCK(f);
 
 	f->mode |= f->mode-1;
@@ -29,7 +28,7 @@ size_t __libc() __fread(void *restrict destv, size_t size, size_t nmemb, FILE *r
 		k = __toread(f) ? 0 : f->read(f, dest, l);
 		if (!k) {
 			FUNLOCK(f);
-			return (len-l)/size;
+			return (len - l) / size;
 		}
 	}
 

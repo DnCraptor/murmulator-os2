@@ -52,7 +52,6 @@ static inline void __wake(volatile int *addr, int n, int priv)
 int __libc() __lockfile(FILE *f)
 {
 	int owner = f->lock;
-    if (owner == -1) return;
 	int tid = (intptr_t)xTaskGetCurrentTaskHandle() | 1;
 	if ((owner & ~MAYBE_WAITERS) == tid)
 		return 0;
@@ -68,7 +67,6 @@ int __libc() __lockfile(FILE *f)
 
 void __libc() __unlockfile(FILE *f)
 {
-    if (f->lock == -1) return;
 	if (a_swap(&f->lock, 0) & MAYBE_WAITERS)
 		__wake(&f->lock, 1, 1);
 }

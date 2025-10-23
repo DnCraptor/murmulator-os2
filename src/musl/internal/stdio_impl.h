@@ -15,6 +15,14 @@
 #define F_SVB 64
 #define F_APP 128
 
+#undef off_t
+#ifndef _OFF_T_DECLARED
+typedef long long off_t;
+typedef long long _off_t;
+#define __machine_off_t_defined
+#define	_OFF_T_DECLARED
+#endif
+
 #define _OWN_IO_FILE
 
 struct _IO_FILE;

@@ -126,11 +126,11 @@ int main() {
     }
     printf("fflush: PASSED\n");
 
-    rewind(f);
+    rewind(f); // TODO: errno?
     printf("rewind: PASSED\n");
-/*
-    if (fgetc(f) != 'T') {
-        printf("fgetc: FAILED errno: %d\n", errno);
+    int c = fgetc(f);
+    if (c != 'T') {
+        printf("fgetc: FAILED c: %d errno: %d\n", c, errno);
         goto m1;
     }
     printf("fgetc: PASSED\n");
@@ -144,8 +144,8 @@ int main() {
         goto m1;
     }
     printf("ungetc: PASSED\n");
-*/
     rewind(f);
+
     char b[8];
     if (4 != fread(b, 1, 4, f)) {
         printf("fread: FAILED errno: %d\n", errno);

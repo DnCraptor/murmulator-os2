@@ -5,6 +5,14 @@
 extern "C" {
 #endif
 
+#undef off_t
+#ifndef _OFF_T_DECLARED
+typedef long long off_t;
+typedef long long _off_t;
+#define __machine_off_t_defined
+#define	_OFF_T_DECLARED
+#endif
+
 #define weak_alias(old, new) \
 	extern __typeof(old) new __attribute__((__weak__, __alias__(#old)))
 
@@ -114,7 +122,9 @@ int __fflush(FILE *f);
 size_t __fread(void *__restrict b, size_t n1, size_t n2, FILE *__restrict f);
 int __fputc(int c, FILE *f);
 void __rewind(FILE *f);
-int __fseek(FILE *f, long off, int whence);
+int __fseek(FILE *f, off_t off, int whence);
+int __fgetc(FILE *f);
+int __ungetc(int c, FILE *f);
 
 #ifdef __cplusplus
 }

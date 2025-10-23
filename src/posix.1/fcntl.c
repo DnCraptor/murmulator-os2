@@ -595,7 +595,6 @@ int __llseek(unsigned int fd,
         errno = EINVAL;
         return -1;
     }
-
     FRESULT fr = f_lseek(fp, new_pos);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
