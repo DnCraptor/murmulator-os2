@@ -424,6 +424,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __ungetc, // 321
     __fgets, // 322
     __fseeko,  // 323
+    __ftello, // 324
     // TODO:
     0
 };

@@ -127,6 +127,8 @@ int __fseeko(FILE *f, off_t off, int whence);
 int __fgetc(FILE *f);
 int __ungetc(int c, FILE *f);
 char* __fgets(char *restrict s, int n, FILE *restrict f);
+long ftell(FILE *);
+off_t ftello(FILE *);
 
 #ifdef __cplusplus
 }

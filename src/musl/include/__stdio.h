@@ -28,6 +28,8 @@ int __fseeko(FILE *f, long long off, int whence);
 int __fgetc(FILE *f);
 int __ungetc(int c, FILE *f);
 char* __fgets(char *restrict s, int n, FILE *restrict f);
+long __ftell(FILE *);
+long long __ftello(FILE *);
 
 #undef FILE
 

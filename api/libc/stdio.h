@@ -137,6 +137,18 @@ inline static int fseeko(FILE *f, off_t off, int whence) {
     typedef int (*fn_ptr_t)(FILE*, off_t, int);
     return ((fn_ptr_t)_sys_table_ptrs[323])(f, off, whence);
 }
+off_t ftello(FILE* f) {
+    typedef off_t (*fn_ptr_t)(FILE*);
+    return ((fn_ptr_t)_sys_table_ptrs[324])(f);
+}
+inline static long ftell(FILE* f) {
+	off_t pos = ftello(f);
+	if (pos > 0x7FFFFFFF) { // LONG_MAX
+		errno = EOVERFLOW;
+		return -1;
+	}
+	return pos;
+}
 
 /*
 FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict);
@@ -148,8 +160,6 @@ int feof(FILE *);
 int ferror(FILE *);
 void clearerr(FILE *);
 
-int fseek(FILE *, long, int);
-long ftell(FILE *);
 
 int fgetpos(FILE *__restrict, fpos_t *__restrict);
 int fsetpos(FILE *, const fpos_t *);
@@ -205,8 +215,6 @@ FILE *fdopen(int, const char *);
 FILE *popen(const char *, const char *);
 int pclose(FILE *);
 int fileno(FILE *);
-int fseeko(FILE *, off_t, int);
-off_t ftello(FILE *);
 int dprintf(int, const char *__restrict, ...);
 int vdprintf(int, const char *__restrict, __isoc_va_list);
 void flockfile(FILE *);
