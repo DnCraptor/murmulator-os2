@@ -237,6 +237,10 @@ m1:
         printf("puts: FAILED errno: %d\n", errno);
         goto fail;
     }
+    if (fprintf(stdout, "fprintf: PASSED\n") < 0) {
+        printf("fprintf: FAILED errno: %d\n", errno);
+        goto fail;
+    }
 
     char ch;
     if (scanf("%c", &ch) <= 0) {

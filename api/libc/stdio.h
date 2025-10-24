@@ -238,6 +238,9 @@ typedef void (*__goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((_
 typedef int (*__scanf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
 #define scanf(...) (((__scanf_ptr_t)_sys_table_ptrs[336])(__VA_ARGS__))
 
+#undef fprintf
+typedef int (*__fprintf_ptr_t)(FILE *__restrict, const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 2, 3)));
+#define fprintf(f, ...) (((__fprintf_ptr_t)_sys_table_ptrs[337])(f, __VA_ARGS__))
 /*
 int fprintf(FILE *__restrict, const char *__restrict, ...);
 int sprintf(char *__restrict, const char *__restrict, ...);

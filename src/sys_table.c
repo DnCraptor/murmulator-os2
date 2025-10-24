@@ -437,6 +437,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __dup3, // 334
     __fputs, // 335
     __scanf, // 336
+    __fprintf, // 337
     // TODO:
     0
 };
