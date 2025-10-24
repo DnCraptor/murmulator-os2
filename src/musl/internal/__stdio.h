@@ -137,6 +137,7 @@ FILE* __freopen(const char *__restrict, const char *__restrict, FILE *__restrict
 FILE *const __stdin();
 FILE *const __stdout();
 FILE *const __stderr();
+int __fputs(const char *__restrict s, FILE *__restrict f);
 
 #ifdef __cplusplus
 }

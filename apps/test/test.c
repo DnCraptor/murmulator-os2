@@ -227,7 +227,6 @@ m1:
     }
     printf("remove: PASSED\n");
 
-/*
     if (fputs("fputs: ", stdout) < 0) {
         printf("fputs: FAILED errno: %d\n", errno);
         goto fail;
@@ -239,6 +238,7 @@ m1:
         goto fail;
     }
 
+/*
     char c;
     if (scanf("%c", &c) <= 0) {
         printf("scanf: FAILED errno: %d\n", errno);

@@ -210,6 +210,17 @@ inline static int rename(const char * fn, const char * nn) {
     return ((fn_ptr_t)_sys_table_ptrs[307])(fn, nn);
 }
 
+inline static int fputs(const char *__restrict s, FILE *__restrict f) {
+    typedef int (*fn_ptr_t)(const char *__restrict, FILE *__restrict);
+    return ((fn_ptr_t)_sys_table_ptrs[335])(s, f);
+}
+inline static int puts(const char * s) {
+    FILE *f = stdout;
+    if(fputs(s, f) < 0) return EOF;
+    if(fputc('\n', f) < 0) return EOF;
+    return 0;
+}
+
 /*
 int putchar(int);
 
@@ -217,9 +228,6 @@ char *fgets(char *__restrict, int, FILE *__restrict);
 #if __STDC_VERSION__ < 201112L
 char *gets(char *);
 #endif
-
-int fputs(const char *__restrict, FILE *__restrict);
-int puts(const char *);
 */
 
 #undef printf
