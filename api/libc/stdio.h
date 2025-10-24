@@ -234,6 +234,10 @@ char *gets(char *);
 typedef void (*__goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
 #define printf(...) (((__goutf_ptr_t)_sys_table_ptrs[308])(__VA_ARGS__))
 
+#undef scanf
+typedef int (*__scanf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
+#define scanf(...) (((__scanf_ptr_t)_sys_table_ptrs[336])(__VA_ARGS__))
+
 /*
 int fprintf(FILE *__restrict, const char *__restrict, ...);
 int sprintf(char *__restrict, const char *__restrict, ...);
@@ -244,7 +248,6 @@ int vfprintf(FILE *__restrict, const char *__restrict, __isoc_va_list);
 int vsprintf(char *__restrict, const char *__restrict, __isoc_va_list);
 int vsnprintf(char *__restrict, size_t, const char *__restrict, __isoc_va_list);
 
-int scanf(const char *__restrict, ...);
 int fscanf(FILE *__restrict, const char *__restrict, ...);
 int sscanf(const char *__restrict, const char *__restrict, ...);
 int vscanf(const char *__restrict, __isoc_va_list);

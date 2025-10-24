@@ -27,6 +27,7 @@ typedef long long _off_t;
 
 struct _IO_FILE;
 typedef struct _IO_FILE FILE;
+#define __FILE_defined
 
 #ifndef hidden
 #define hidden __attribute__((__visibility__("hidden")))

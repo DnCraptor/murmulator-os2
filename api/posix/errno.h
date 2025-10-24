@@ -23,6 +23,7 @@ extern "C" {
 #define EMFILE    24  /* Too many open files per process */
 #define ENOSPC    28  /* No space left on device */
 #define ESPIPE    29  /* Illegal seek */
+#define ERANGE    34
 #define EOVERFLOW 75  /* Value too large for defined data type */
 
 #ifndef M_OS_API_SYS_TABLE_BASE

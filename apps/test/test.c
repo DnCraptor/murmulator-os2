@@ -238,14 +238,12 @@ m1:
         goto fail;
     }
 
-/*
-    char c;
-    if (scanf("%c", &c) <= 0) {
+    char ch;
+    if (scanf("%c", &ch) <= 0) {
         printf("scanf: FAILED errno: %d\n", errno);
         goto fail;
     }
     printf("scanf: PASSED\n");
-*/
 fail:
     log_write("errno: ");
     buf[1] = 0;
