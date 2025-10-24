@@ -123,15 +123,6 @@ long __syscall_ret(unsigned long r)
 	return r;
 }
 
-int __libc() __dup3(int old, int new, int flags)
-{
-	int r;
-	while ((r = __dup3_p(old, new, flags)) == -EBUSY);
-	return __syscall_ret(r);
-}
-
-weak_alias(__dup3, dup3);
-
 /* The basic idea of this implementation is to open a new FILE,
  * hack the necessary parts of the new FILE into the old one, then
  * close the new FILE. */
@@ -150,16 +141,22 @@ FILE* __libc() __freopen(const char *restrict filename, const char *restrict mod
 	__fflush(f);
 
 	if (!filename) {
-		if (fl&O_CLOEXEC)
+		if (fl & O_CLOEXEC) {
 			__fcntl(f->fd, F_SETFD, FD_CLOEXEC);
+		}
 		fl &= ~(O_CREAT|O_EXCL|O_CLOEXEC);
-		if (__fcntl(f->fd, F_SETFL, fl) < 0)
+		if (__fcntl(f->fd, F_SETFL, fl) < 0) {
 			goto fail;
+		}
 	} else {
 		f2 = __fopen(filename, mode);
 		if (!f2) goto fail;
 		if (f2->fd == f->fd) f2->fd = -1; /* avoid closing in fclose */
-		else if (__dup3(f2->fd, f->fd, fl&O_CLOEXEC)<0) goto fail2;
+		else {
+			if (__dup3(f2->fd, f->fd, fl & O_CLOEXEC) < 0) {
+				goto fail2;
+			}
+		}
 
 		f->flags = (f->flags & F_PERM) | f2->flags;
 		f->read = f2->read;

@@ -459,11 +459,11 @@ e:
     return -1;
 }
 
-int __in_hfa() __dup2(int oldfd, int newfd) {
+int __in_hfa() __dup3(int oldfd, int newfd, int flags) {
     if (oldfd < 0 || newfd < 0) goto e;
     if (oldfd == newfd) {
-        errno = 0;
-        return newfd;
+        errno = EINVAL;  // POSIX требует EINVAL при dup3(oldfd == newfd)
+        return -1;
     }
     init_pfiles();
     FDESC* fd0 = (FDESC*)array_get_at(pfiles, oldfd);
@@ -487,7 +487,7 @@ int __in_hfa() __dup2(int oldfd, int newfd) {
         vPortFree(fd1->fp);
     }
     fd1->fp = fd0->fp;
-    fd1->flags = 0;
+    fd1->flags = flags;
     pfiles->p[newfd] = fd1;
     errno = 0;
     return newfd;
@@ -496,51 +496,17 @@ e:
     return -1;
 }
 
-int __in_hfa() __dup3_p(int oldfd, int newfd, int flags)
+int __in_hfa() __dup2(int oldfd, int newfd)
 {
-    if (oldfd < 0 || newfd < 0) goto e;
-    if (oldfd == newfd) {
-        errno = EINVAL;  // POSIX требует EINVAL при dup3(oldfd == newfd)
+    if (oldfd < 0 || newfd < 0) {
+        errno = EBADF;
         return -1;
     }
-    init_pfiles();
-    FDESC* fd0 = (FDESC*)array_get_at(pfiles, oldfd);
-    if (fd0 == 0 || is_closed_desc(fd0))
-        goto e;
-
-    // Проверим, есть ли уже слот под newfd
-    FDESC* fd1 = (FDESC*)array_get_at(pfiles, newfd);
-    if (fd1 == 0) {
-        if (array_resize(pfiles, newfd + 1) < 0) {
-            errno = ENOMEM;
-            return -1;
-        }
-        fd1 = (FDESC*)array_get_at(pfiles, newfd);
-        if (fd1 == 0) {
-            errno = ENOMEM;
-            return -1;
-        }
-    } else {
-        __close(newfd);
+    if (oldfd == newfd) {
+        errno = 0;
+        return newfd;
     }
-
-    ++fd0->fp->pending_descriptors;
-
-    // Освобождаем старую структуру, если она никем больше не используется
-    if ((intptr_t)fd1->fp > STDERR_FILENO && !fd1->fp->pending_descriptors) {
-        vPortFree(fd1->fp);
-    }
-
-    fd1->fp = fd0->fp;
-    fd1->flags = flags;   // <--- отличие dup3: сохраняем переданные флаги
-    pfiles->p[newfd] = fd1;
-
-    errno = 0;
-    return newfd;
-
-e:
-    errno = EBADF;
-    return -1;
+    return __dup3(oldfd, newfd, 0);
 }
 
 /*

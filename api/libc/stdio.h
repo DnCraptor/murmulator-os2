@@ -166,20 +166,20 @@ inline static void clearerr(FILE* f) {
 }
 inline static FILE* freopen(const char *__restrict fn, const char *__restrict m, FILE *__restrict f) {
     typedef FILE* (*fn_ptr_t)(const char *__restrict, const char *__restrict, FILE *__restrict);
-    ((fn_ptr_t)_sys_table_ptrs[330])(fn, m, f);
+    return ((fn_ptr_t)_sys_table_ptrs[330])(fn, m, f);
 }
 
 inline static FILE *const stdin() {
     typedef FILE *const (*fn_ptr_t)();
-    ((fn_ptr_t)_sys_table_ptrs[331])();
+    return ((fn_ptr_t)_sys_table_ptrs[331])();
 }
 inline static FILE *const stdout() {
     typedef FILE *const (*fn_ptr_t)();
-    ((fn_ptr_t)_sys_table_ptrs[332])();
+    return ((fn_ptr_t)_sys_table_ptrs[332])();
 }
 inline static FILE *const stderr() {
     typedef FILE *const (*fn_ptr_t)();
-    ((fn_ptr_t)_sys_table_ptrs[333])();
+    return ((fn_ptr_t)_sys_table_ptrs[333])();
 }
 inline static int dup3(int oldfd, int newfd, int flags) {
     typedef int (*fn_ptr_t)(int, int, int);
