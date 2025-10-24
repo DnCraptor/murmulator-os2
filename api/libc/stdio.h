@@ -185,15 +185,32 @@ inline static int dup3(int oldfd, int newfd, int flags) {
     typedef int (*fn_ptr_t)(int, int, int);
     return ((fn_ptr_t)_sys_table_ptrs[334])(oldfd,  newfd, flags);
 }
+inline static int getchar(void) {
+    return getc(stdin());
+}
 
 #define stdin  (stdin())
 #define stdout (stdout())
 #define stderr (stderr())
-/*
-int remove(const char *);
-int rename(const char *, const char *);
 
-int getchar(void);
+#ifndef AT_FDCWD
+#define AT_FDCWD (-100)
+#endif
+#define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_REMOVEDIR 0x200
+#define AT_SYMLINK_FOLLOW 0x400
+#define AT_EACCESS 0x200
+
+inline static int remove(const char * fn) {
+    typedef int (*fn_ptr_t)(int dirfd, const char *pathname, int flags);
+    return ((fn_ptr_t)_sys_table_ptrs[306])(AT_FDCWD, fn, AT_REMOVEDIR);
+}
+inline static int rename(const char * fn, const char * nn) {
+    typedef int (*fn_ptr_t)(const char *,const char *);
+    return ((fn_ptr_t)_sys_table_ptrs[307])(fn, nn);
+}
+
+/*
 int putchar(int);
 
 char *fgets(char *__restrict, int, FILE *__restrict);
@@ -203,10 +220,9 @@ char *gets(char *);
 
 int fputs(const char *__restrict, FILE *__restrict);
 int puts(const char *);
-
-int printf0(const char *__restrict, ...);
 */
 
+#undef printf
 typedef void (*__goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
 #define printf(...) (((__goutf_ptr_t)_sys_table_ptrs[308])(__VA_ARGS__))
 

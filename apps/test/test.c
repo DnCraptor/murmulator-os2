@@ -209,7 +209,6 @@ m1:
     }
     printf("freopen: PASSED\n");
 
-/*
     if (getchar() != 'T') {
         printf("getchar: FAILED errno: %d\n", errno);
         goto fail;
@@ -228,6 +227,7 @@ m1:
     }
     printf("remove: PASSED\n");
 
+/*
     if (fputs("fputs: ", stdout) < 0) {
         printf("fputs: FAILED errno: %d\n", errno);
         goto fail;
