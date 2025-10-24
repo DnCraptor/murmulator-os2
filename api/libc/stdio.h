@@ -137,7 +137,7 @@ inline static int fseeko(FILE *f, off_t off, int whence) {
     typedef int (*fn_ptr_t)(FILE*, off_t, int);
     return ((fn_ptr_t)_sys_table_ptrs[323])(f, off, whence);
 }
-off_t ftello(FILE* f) {
+inline static off_t ftello(FILE* f) {
     typedef off_t (*fn_ptr_t)(FILE*);
     return ((fn_ptr_t)_sys_table_ptrs[324])(f);
 }
@@ -150,21 +150,36 @@ inline static long ftell(FILE* f) {
 	return pos;
 }
 
+inline static int fgetpos(FILE *__restrict f, fpos_t *__restrict pos) {
+    typedef int (*fn_ptr_t)(FILE *__restrict, fpos_t *__restrict);
+    return ((fn_ptr_t)_sys_table_ptrs[325])(f, pos);
+}
+
+inline static int fsetpos(FILE* f, const fpos_t* pos) {
+    typedef int (*fn_ptr_t)(FILE*, const fpos_t*);
+    return ((fn_ptr_t)_sys_table_ptrs[326])(f, pos);
+}
+
+inline static int feof(FILE* f) {
+    typedef int (*fn_ptr_t)(FILE*);
+    return ((fn_ptr_t)_sys_table_ptrs[327])(f);
+}
+inline static int ferror(FILE* f) {
+    typedef int (*fn_ptr_t)(FILE*);
+    return ((fn_ptr_t)_sys_table_ptrs[328])(f);
+}
+inline static void clearerr(FILE* f) {
+    typedef void (*fn_ptr_t)(FILE*);
+    ((fn_ptr_t)_sys_table_ptrs[329])(f);
+}
+
 /*
 FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict);
 
 int remove(const char *);
 int rename(const char *, const char *);
 
-int feof(FILE *);
-int ferror(FILE *);
-void clearerr(FILE *);
-
-
-int fgetpos(FILE *__restrict, fpos_t *__restrict);
-int fsetpos(FILE *, const fpos_t *);
 int getchar(void);
-
 int putchar(int);
 
 char *fgets(char *__restrict, int, FILE *__restrict);

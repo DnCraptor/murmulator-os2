@@ -425,6 +425,11 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __fgets, // 322
     __fseeko,  // 323
     __ftello, // 324
+    __fgetpos, // 325
+    __fsetpos, // 326
+    __feof, // 327
+    __ferror, // 328
+    __clearerr, // 329
     // TODO:
     0
 };

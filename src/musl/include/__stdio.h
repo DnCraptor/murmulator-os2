@@ -30,6 +30,11 @@ int __ungetc(int c, FILE *f);
 char* __fgets(char *restrict s, int n, FILE *restrict f);
 long __ftell(FILE *);
 long long __ftello(FILE *);
+int __fgetpos(FILE *__restrict, fpos_t *__restrict);
+int __fsetpos(FILE *, const fpos_t *);
+int __feof(FILE *);
+int __ferror(FILE *);
+void __clearerr(FILE *);
 
 #undef FILE
 

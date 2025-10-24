@@ -127,8 +127,12 @@ int __fseeko(FILE *f, off_t off, int whence);
 int __fgetc(FILE *f);
 int __ungetc(int c, FILE *f);
 char* __fgets(char *restrict s, int n, FILE *restrict f);
-long ftell(FILE *);
-off_t ftello(FILE *);
+off_t __ftello(FILE *);
+int __fgetpos(FILE *__restrict, fpos_t *__restrict);
+int __fsetpos(FILE *, const fpos_t *);
+int __feof(FILE *);
+int __ferror(FILE *);
+void __clearerr(FILE *);
 
 #ifdef __cplusplus
 }

@@ -171,7 +171,7 @@ int main() {
         goto m1;
     }
     printf("fseek: PASSED\n");
-/*
+
     fpos_t pos;
     if (fgetpos(f, &pos) != 0) {
         printf("fgetpos: FAILED errno: %d\n", errno);
@@ -196,7 +196,6 @@ int main() {
         goto m1;
     }
     printf("ftell: PASSED\n");
-    */
 m1:
     if (fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);

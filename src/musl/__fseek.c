@@ -82,3 +82,47 @@ off_t __libc() __ftello(FILE *f)
 	FUNLOCK(f);
 	return pos;
 }
+
+int __libc() __fgetpos(FILE *restrict f, fpos_t *restrict pos)
+{
+	off_t off = __ftello(f);
+	if (off < 0) return -1;
+	*(long long *)pos = off;
+	return 0;
+}
+
+int __libc() __fsetpos(FILE *f, const fpos_t *pos)
+{
+	return __fseeko(f, *(const long long *)pos, SEEK_SET);
+}
+
+int __libc() __feof(FILE *f)
+{
+	FLOCK(f);
+	int ret = !!(f->flags & F_EOF);
+	FUNLOCK(f);
+	return ret;
+}
+
+weak_alias(__feof, feof_unlocked);
+weak_alias(__feof, _IO_feof_unlocked);
+
+int __libc() __ferror(FILE *f)
+{
+	FLOCK(f);
+	int ret = !!(f->flags & F_ERR);
+	FUNLOCK(f);
+	return ret;
+}
+
+weak_alias(__ferror, ferror_unlocked);
+weak_alias(__ferror, _IO_ferror_unlocked);
+
+void __clearerr(FILE *f)
+{
+	FLOCK(f);
+	f->flags &= ~(F_EOF|F_ERR);
+	FUNLOCK(f);
+}
+
+weak_alias(__clearerr, clearerr_unlocked);
