@@ -430,6 +430,11 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __feof, // 327
     __ferror, // 328
     __clearerr, // 329
+    __freopen, // 330
+    __stdin, // 331
+    __stdout, // 332
+    __stderr, // 333
+    __dup3, // 334
     // TODO:
     0
 };

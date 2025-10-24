@@ -1,5 +1,6 @@
 #include "internal/stdio_impl.h"
 #include "internal/__stdio.h"
+#include "sys_table.h"
 
 #undef stderr
 
@@ -17,3 +18,7 @@ hidden FILE __stderr_FILE = {
 };
 FILE *const stderr = &__stderr_FILE;
 FILE *volatile __stderr_used = &__stderr_FILE;
+
+FILE *const __libc() __stderr() { // TODO: task context
+	return stderr;
+}

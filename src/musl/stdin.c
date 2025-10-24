@@ -1,5 +1,6 @@
 #include "internal/stdio_impl.h"
 #include "internal/__stdio.h"
+#include "sys_table.h"
 
 #undef stdin
 
@@ -16,3 +17,7 @@ hidden FILE __stdin_FILE = {
 };
 FILE *const stdin = &__stdin_FILE;
 FILE *volatile __stdin_used = &__stdin_FILE;
+
+FILE *const __libc() __stdin() { // TODO: task context
+	return stdin;
+}

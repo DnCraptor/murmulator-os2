@@ -1,5 +1,6 @@
 #include "internal/stdio_impl.h"
 #include "internal/__stdio.h"
+#include "sys_table.h"
 
 #undef stdout
 
@@ -17,3 +18,7 @@ hidden FILE __stdout_FILE = {
 };
 FILE *const stdout = &__stdout_FILE;
 FILE *volatile __stdout_used = &__stdout_FILE;
+
+FILE *const __libc() __stdout() { // TODO: task context
+	return stdout;
+}

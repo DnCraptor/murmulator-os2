@@ -139,6 +139,7 @@ int __dup(int oldfd);
  *     EMFILE - newfd is out of available range.
  */
 int __dup2(int oldfd, int newfd);
+int __dup3_p(int oldfd, int newfd, int flags);
 
 #define SEEK_SET 0  /* Set file offset to 'offset' bytes from the beginning */
 #define SEEK_CUR 1  /* Set file offset to current position plus 'offset' */

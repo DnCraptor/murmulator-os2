@@ -72,15 +72,7 @@ typedef union _G_fpos64_t {
 	long long __lldata;
 	double __align;
 } fpos_t;
-/*
-extern FILE *const stdin;
-extern FILE *const stdout;
-extern FILE *const stderr;
 
-#define stdin  (stdin)
-#define stdout (stdout)
-#define stderr (stderr)
-*/
 inline static FILE* fopen(const char *__restrict filename, const char *__restrict mode) {
     typedef FILE* (*fn_ptr_t)(const char *__restrict, const char *__restrict);
     return ((fn_ptr_t)_sys_table_ptrs[313])(filename, mode);
@@ -172,10 +164,32 @@ inline static void clearerr(FILE* f) {
     typedef void (*fn_ptr_t)(FILE*);
     ((fn_ptr_t)_sys_table_ptrs[329])(f);
 }
+inline static FILE* freopen(const char *__restrict fn, const char *__restrict m, FILE *__restrict f) {
+    typedef FILE* (*fn_ptr_t)(const char *__restrict, const char *__restrict, FILE *__restrict);
+    ((fn_ptr_t)_sys_table_ptrs[330])(fn, m, f);
+}
 
+inline static FILE *const stdin() {
+    typedef FILE *const (*fn_ptr_t)();
+    ((fn_ptr_t)_sys_table_ptrs[331])();
+}
+inline static FILE *const stdout() {
+    typedef FILE *const (*fn_ptr_t)();
+    ((fn_ptr_t)_sys_table_ptrs[332])();
+}
+inline static FILE *const stderr() {
+    typedef FILE *const (*fn_ptr_t)();
+    ((fn_ptr_t)_sys_table_ptrs[333])();
+}
+inline static int dup3(int oldfd, int newfd, int flags) {
+    typedef int (*fn_ptr_t)(int, int, int);
+    return ((fn_ptr_t)_sys_table_ptrs[334])(oldfd,  newfd, flags);
+}
+
+#define stdin  (stdin())
+#define stdout (stdout())
+#define stderr (stderr())
 /*
-FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict);
-
 int remove(const char *);
 int rename(const char *, const char *);
 

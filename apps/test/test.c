@@ -202,49 +202,49 @@ m1:
         return errno;
     }
     printf("fclose: PASSED\n");
-/*
+
     if(!freopen("/libc.test", "r", stdin)) {
         printf("freopen: FAILED errno: %d\n", errno);
-        goto m2;
+        goto fail;
     }
     printf("freopen: PASSED\n");
 
+/*
     if (getchar() != 'T') {
         printf("getchar: FAILED errno: %d\n", errno);
-        goto m1;
+        goto fail;
     }
     printf("getchar: PASSED\n");
 
     if (rename("/libc.test", "/libc.test2") < 0) {
         printf("rename: FAILED errno: %d\n", errno);
-        goto m2;
+        goto fail;
     }
     printf("rename: PASSED\n");
 
     if (remove("/libc.test2") < 0) {
         printf("remove: FAILED errno: %d\n", errno);
-        goto m2;
+        goto fail;
     }
     printf("remove: PASSED\n");
 
     if (fputs("fputs: ", stdout) < 0) {
         printf("fputs: FAILED errno: %d\n", errno);
-        goto m2;
+        goto fail;
     }
     printf("PASSED\n");
 
     if (puts("puts: PASSED") < 0) {
         printf("puts: FAILED errno: %d\n", errno);
-        goto m2;
+        goto fail;
     }
 
     char c;
     if (scanf("%c", &c) <= 0) {
         printf("scanf: FAILED errno: %d\n", errno);
-        goto m2;
+        goto fail;
     }
     printf("scanf: PASSED\n");
-m2:
 */
 fail:
     log_write("errno: ");

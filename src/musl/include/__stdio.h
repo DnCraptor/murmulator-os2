@@ -35,6 +35,11 @@ int __fsetpos(FILE *, const fpos_t *);
 int __feof(FILE *);
 int __ferror(FILE *);
 void __clearerr(FILE *);
+FILE* __freopen(const char *__restrict, const char *__restrict, FILE *__restrict);
+FILE *const __stdin();
+FILE *const __stdout();
+FILE *const __stderr();
+int __dup3(int oldfd, int newfd, int flags);
 
 #undef FILE
 

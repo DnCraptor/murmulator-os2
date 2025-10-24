@@ -15,6 +15,7 @@ extern "C" {
 #define ENOMEM    12  /* Not enough memory */
 #define EACCES    13  /* Permission denied */
 #define EFAULT    14  /* Bad address: pointer points outside accessible memory */
+#define EBUSY     16
 #define EEXIST    17  /* File exists */
 #define ENOTDIR   20  /* Not a directory */
 #define EISDIR    21  /* Is a directory */

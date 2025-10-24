@@ -12,6 +12,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <string.h>
+#include "sys_table.h"
 
 static int is_leap_year(int year) {
     return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
@@ -188,16 +189,6 @@ static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
     return NULL;
 }
 
-#ifndef M_OS_API_SYS_TABLE_BASE
-#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
-static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
-#endif
-
-inline static void gouta(char* string) {
-    typedef void (*t_ptr_t)(char*);
-    ((t_ptr_t)_sys_table_ptrs[127])(string);
-}
-
 /*
  * openat() — open a file relative to a directory file descriptor
  *
@@ -211,7 +202,7 @@ inline static void gouta(char* string) {
  *   On success: a new file descriptor (non-negative)
  *   On error:  -1 and errno is set appropriately
  */
-int __openat(int dfd, const char *path, int flags, mode_t mode) {
+int __in_hfa() __openat(int dfd, const char *path, int flags, mode_t mode) {
     // TODO: dfd
     if (!path) {
         errno = ENOTDIR;
@@ -245,11 +236,11 @@ int __openat(int dfd, const char *path, int flags, mode_t mode) {
     return (int)n;
 }
 
-int __open(const char *path, int flags, mode_t mode) {
+int __in_hfa() __open(const char *path, int flags, mode_t mode) {
     return __openat(AT_FDCWD, path, flags, mode);
 }
 
-int __close(int fildes) {
+int __in_hfa() __close(int fildes) {
     if (fildes <= STDERR_FILENO) {
         goto e;
     }
@@ -275,7 +266,7 @@ e:
     return -1;
 }
 
-int __stat(const char *path, struct stat *buf) {
+int __in_hfa() __stat(const char *path, struct stat *buf) {
     if (!buf) {
         errno = EFAULT;
         return -1;
@@ -311,7 +302,7 @@ int __stat(const char *path, struct stat *buf) {
     return 0;
 }
 
-int __fstat(int fildes, struct stat *buf) {
+int __in_hfa() __fstat(int fildes, struct stat *buf) {
     if (!buf) {
         errno = EFAULT;
         return -1;
@@ -355,12 +346,12 @@ e:
     return -1;
 }
 
-int __lstat(const char *path, struct stat *buf) {
+int __in_hfa() __lstat(const char *path, struct stat *buf) {
     // no symlinl supported on FatFS
     return __stat(path, buf);
 }
 
-int __read(int fildes, void *buf, size_t count) {
+int __in_hfa() __read(int fildes, void *buf, size_t count) {
     if (!buf) {
         errno = EFAULT;
         return -1;
@@ -387,7 +378,7 @@ e:
     return -1;
 }
 
-int __readv(int fd, const struct iovec *iov, int iovcnt) {
+int __in_hfa() __readv(int fd, const struct iovec *iov, int iovcnt) {
     int res = 0;
     for (int i = 0; i < iovcnt; ++i, ++iov) {
         if (iov->iov_len == 0) continue;
@@ -400,7 +391,7 @@ int __readv(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
-int __write(int fildes, const void *buf, size_t count) {
+int __in_hfa() __write(int fildes, const void *buf, size_t count) {
     if (!buf) {
         errno = EFAULT;
         return -1;
@@ -427,7 +418,7 @@ e:
     return -1;
 }
 
-int __writev(int fd, const struct iovec *iov, int iovcnt) {
+int __in_hfa() __writev(int fd, const struct iovec *iov, int iovcnt) {
     int res = 0;
     for (int i = 0; i < iovcnt; ++i, ++iov) {
         if (iov->iov_len == 0) continue;
@@ -441,7 +432,7 @@ int __writev(int fd, const struct iovec *iov, int iovcnt) {
 }
 
 
-int __dup(int oldfd) {
+int __in_hfa() __dup(int oldfd) {
     if (oldfd < 0) {
         goto e;
     }
@@ -468,7 +459,7 @@ e:
     return -1;
 }
 
-int __dup2(int oldfd, int newfd) {
+int __in_hfa() __dup2(int oldfd, int newfd) {
     if (oldfd < 0 || newfd < 0) goto e;
     if (oldfd == newfd) {
         errno = 0;
@@ -505,6 +496,53 @@ e:
     return -1;
 }
 
+int __in_hfa() __dup3_p(int oldfd, int newfd, int flags)
+{
+    if (oldfd < 0 || newfd < 0) goto e;
+    if (oldfd == newfd) {
+        errno = EINVAL;  // POSIX требует EINVAL при dup3(oldfd == newfd)
+        return -1;
+    }
+    init_pfiles();
+    FDESC* fd0 = (FDESC*)array_get_at(pfiles, oldfd);
+    if (fd0 == 0 || is_closed_desc(fd0))
+        goto e;
+
+    // Проверим, есть ли уже слот под newfd
+    FDESC* fd1 = (FDESC*)array_get_at(pfiles, newfd);
+    if (fd1 == 0) {
+        if (array_resize(pfiles, newfd + 1) < 0) {
+            errno = ENOMEM;
+            return -1;
+        }
+        fd1 = (FDESC*)array_get_at(pfiles, newfd);
+        if (fd1 == 0) {
+            errno = ENOMEM;
+            return -1;
+        }
+    } else {
+        __close(newfd);
+    }
+
+    ++fd0->fp->pending_descriptors;
+
+    // Освобождаем старую структуру, если она никем больше не используется
+    if ((intptr_t)fd1->fp > STDERR_FILENO && !fd1->fp->pending_descriptors) {
+        vPortFree(fd1->fp);
+    }
+
+    fd1->fp = fd0->fp;
+    fd1->flags = flags;   // <--- отличие dup3: сохраняем переданные флаги
+    pfiles->p[newfd] = fd1;
+
+    errno = 0;
+    return newfd;
+
+e:
+    errno = EBADF;
+    return -1;
+}
+
 /*
  * Minimal POSIX.1-like fcntl() implementation.
  *
@@ -516,7 +554,7 @@ e:
  *
  * Unimplemented commands will return -1 and set errno = EINVAL.
  */
-int __fcntl(int fd, int cmd, int flags) {
+int __in_hfa() __fcntl(int fd, int cmd, int flags) {
     if (fd < 0) goto e;
     init_pfiles();
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
@@ -556,7 +594,7 @@ e:
     return -1;
 }
 
-int __llseek(unsigned int fd,
+int __in_hfa() __llseek(unsigned int fd,
              unsigned long offset_high,
              unsigned long offset_low,
              off_t *result,
@@ -609,7 +647,7 @@ e:
     return -1;
 }
 
-long __lseek_p(int fd, long offset, int whence) {
+long __in_hfa() __lseek_p(int fd, long offset, int whence) {
     if (fd < 0) goto e;
     init_pfiles();
     // Standard descriptors cannot be seeked
@@ -656,7 +694,7 @@ e:
     return -1;
 }
 
-int __unlinkat(int dirfd, const char *pathname, int flags) {
+int __in_hfa() __unlinkat(int dirfd, const char *pathname, int flags) {
     // TODO: dirfd, flags
     FRESULT fr = f_unlink(pathname);
     if (fr != FR_OK) {
@@ -667,7 +705,7 @@ int __unlinkat(int dirfd, const char *pathname, int flags) {
     return 0;
 }
 
-int __rename(const char * f1, const char * f2) {
+int __in_hfa() __rename(const char * f1, const char * f2) {
     FRESULT fr = f_rename(f1, f2);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
