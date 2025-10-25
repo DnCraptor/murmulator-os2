@@ -5,12 +5,16 @@
 extern "C" {
 #endif
 
-void* malloc(size_t sz);
-void* calloc(size_t sz0, size_t sz1);
-void free(void* p);
-void* realloc(void *ptr, size_t new_size);
-void* memalign(size_t alignment, size_t size);
-void* aligned_alloc(size_t alignment, size_t size);
+#include "FreeRTOS.h"
+#include "task.h"
+
+#define malloc(sz) pvPortMalloc(sz)
+#define calloc(sz0, sz1) pvPortCalloc(sz0, sz1)
+#define free(p) vPortFree(p)
+#define realloc(ptr, new_size) pvPortRealloc(ptr, new_size)
+/// TODO:
+#define memalign(alignment, size) pvPortMalloc(alignment, size)
+#define aligned_alloc(alignment, size) pvPortMalloc(alignment, size)
 
 #ifdef __cplusplus
 }

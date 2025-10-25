@@ -188,6 +188,9 @@ inline static int dup3(int oldfd, int newfd, int flags) {
 inline static int getchar(void) {
     return getc(stdin());
 }
+inline static int putchar(int c) {
+    return putc(c, stdout());
+}
 
 #define stdin  (stdin())
 #define stdout (stdout())
@@ -221,32 +224,49 @@ inline static int puts(const char * s) {
     return 0;
 }
 
-/*
-int putchar(int);
-
-char *fgets(char *__restrict, int, FILE *__restrict);
 #if __STDC_VERSION__ < 201112L
-char *gets(char *);
+inline static char *gets(char* s) {
+    return fgets(s, stdout());
+}
 #endif
-*/
 
-#undef printf
-typedef void (*__goutf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
-#define printf(...) (((__goutf_ptr_t)_sys_table_ptrs[308])(__VA_ARGS__))
+inline static int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap) {
+    typedef int (*fn_ptr_t)(FILE *restrict f, const char *restrict fmt, va_list ap);
+    return ((fn_ptr_t)_sys_table_ptrs[310])(f, fmt, ap);
+}
+
+inline static int vprintf(const char *restrict fmt, va_list ap) {
+    return vfprintf(stdout, fmt, ap);
+}
+
+inline static int printf(const char *restrict fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+inline static int printf(const char *restrict fmt, ...) {
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vfprintf(stdout, fmt, ap);
+	va_end(ap);
+	return ret;
+}
+
+inline static int fprintf(FILE *restrict f, const char *restrict fmt, ...)  __attribute__((__format__(__printf__, 2, 3)));
+inline static int fprintf(FILE *restrict f, const char *restrict fmt, ...) {
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vfprintf(f, fmt, ap);
+	va_end(ap);
+	return ret;
+}
 
 #undef scanf
 typedef int (*__scanf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
 #define scanf(...) (((__scanf_ptr_t)_sys_table_ptrs[336])(__VA_ARGS__))
 
-#undef fprintf
-typedef int (*__fprintf_ptr_t)(FILE *__restrict, const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 2, 3)));
-#define fprintf(f, ...) (((__fprintf_ptr_t)_sys_table_ptrs[337])(f, __VA_ARGS__))
 /*
-int fprintf(FILE *__restrict, const char *__restrict, ...);
 int sprintf(char *__restrict, const char *__restrict, ...);
 int snprintf(char *__restrict, size_t, const char *__restrict, ...);
 
-int vprintf(const char *__restrict, __isoc_va_list);
 int vfprintf(FILE *__restrict, const char *__restrict, __isoc_va_list);
 int vsprintf(char *__restrict, const char *__restrict, __isoc_va_list);
 int vsnprintf(char *__restrict, size_t, const char *__restrict, __isoc_va_list);

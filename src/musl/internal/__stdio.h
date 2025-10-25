@@ -111,8 +111,6 @@ extern FILE *const stderr;
 #define stdout (stdout)
 #define stderr (stderr)
 
-int __printf(const char *__restrict, ...);
-int __vprintf(const char *__restrict, __isoc_va_list);
 int __vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap);
 size_t __fwritex(const unsigned char *restrict s, size_t l, FILE *restrict f);
 size_t __fwrite(const void *restrict src, size_t size, size_t nmemb, FILE *restrict f);
@@ -139,7 +137,6 @@ FILE *const __stdout();
 FILE *const __stderr();
 int __fputs(const char *__restrict s, FILE *__restrict f);
 int __scanf(const char *__restrict, ...);
-int __fprintf(FILE *restrict f, const char *restrict fmt, ...);
 
 #ifdef __cplusplus
 }

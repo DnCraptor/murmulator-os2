@@ -702,13 +702,3 @@ int __libc() __vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
 	va_end(ap2);
 	return ret;
 }
-
-int __libc() __fprintf(FILE *restrict f, const char *restrict fmt, ...)
-{
-	int ret;
-	va_list ap;
-	va_start(ap, fmt);
-	ret = __vfprintf(f, fmt, ap);
-	va_end(ap);
-	return ret;
-}
