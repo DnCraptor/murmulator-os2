@@ -979,21 +979,3 @@ match_fail:
 
 weak_alias(__vfscanf,__isoc99_vfscanf);
 
-int __libc() __vscanf(const char *restrict fmt, va_list ap)
-{
-	return __vfscanf(stdin, fmt, ap);
-}
-
-weak_alias(__vscanf,__isoc99_vscanf);
-
-int __libc() __scanf(const char *restrict fmt, ...)
-{
-	int ret;
-	va_list ap;
-	va_start(ap, fmt);
-	ret = __vscanf(fmt, ap);
-	va_end(ap);
-	return ret;
-}
-
-weak_alias(__scanf,__isoc99_scanf);

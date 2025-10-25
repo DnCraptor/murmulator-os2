@@ -259,9 +259,26 @@ inline static int fprintf(FILE *restrict f, const char *restrict fmt, ...) {
 	return ret;
 }
 
-#undef scanf
-typedef int (*__scanf_ptr_t)(const char *__restrict str, ...) __attribute__ ((__format__ (__printf__, 1, 2)));
-#define scanf(...) (((__scanf_ptr_t)_sys_table_ptrs[336])(__VA_ARGS__))
+inline static int vfscanf(FILE *__restrict f, const char *__restrict fmt, va_list ap) {
+    typedef int (*fn_ptr_t)(FILE *restrict f, const char *restrict fmt, va_list ap);
+    return ((fn_ptr_t)_sys_table_ptrs[308])(f, fmt, ap);
+}
+
+inline static int vscanf(const char *__restrict fmt, va_list ap) {
+    return vfscanf(stdin, fmt, ap);
+}
+
+inline static int scanf(const char *restrict fmt, ...) __attribute__((__format__(__scanf__, 1, 2)));
+inline static int scanf(const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vfscanf(stdin, fmt, ap);
+	va_end(ap);
+	return ret;
+}
+
 
 /*
 int sprintf(char *__restrict, const char *__restrict, ...);
@@ -273,8 +290,6 @@ int vsnprintf(char *__restrict, size_t, const char *__restrict, __isoc_va_list);
 
 int fscanf(FILE *__restrict, const char *__restrict, ...);
 int sscanf(const char *__restrict, const char *__restrict, ...);
-int vscanf(const char *__restrict, __isoc_va_list);
-int vfscanf(FILE *__restrict, const char *__restrict, __isoc_va_list);
 int vsscanf(const char *__restrict, const char *__restrict, __isoc_va_list);
 
 void perror(const char *);
