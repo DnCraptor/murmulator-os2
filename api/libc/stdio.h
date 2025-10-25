@@ -337,13 +337,19 @@ inline static int sscanf(const char *restrict s, const char *restrict fmt, ...)
 
 inline static void perror(const char * msg) {
     typedef void (*fn_ptr_t)(const char *);
-    return ((fn_ptr_t)_sys_table_ptrs[337])(msg);
+    ((fn_ptr_t)_sys_table_ptrs[337])(msg);
+}
+
+inline static int setvbuf(FILE *restrict f, char *restrict buf, int type, size_t size) {
+    typedef int (*fn_ptr_t)(FILE *__restrict, char *__restrict, int, size_t);
+    return ((fn_ptr_t)_sys_table_ptrs[338])(f, buf, type, size);
+}
+
+inline static void setbuf(FILE *restrict f, char *restrict buf) {
+	setvbuf(f, buf, buf ? _IOFBF : _IONBF, BUFSIZ);
 }
 
 /*
-int setvbuf(FILE *__restrict, char *__restrict, int, size_t);
-void setbuf(FILE *__restrict, char *__restrict);
-
 char *tmpnam(char *);
 FILE *tmpfile(void);
 
