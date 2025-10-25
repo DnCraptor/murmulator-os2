@@ -247,6 +247,12 @@ m1:
     } else {
         printf("snprintf: PASSED\n");
     }
+    int d;
+    if (sscanf(b, "%d", &d) < 0 || d != 1234568) {
+        printf("sscanf: FAILED errno: %d, d: %d\n", errno, d);
+        goto fail;
+    }
+    printf("sscanf: PASSED\n");
 
     char ch;
     if (scanf("%c", &ch) <= 0) {

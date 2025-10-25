@@ -309,10 +309,32 @@ inline static int scanf(const char *restrict fmt, ...)
 	return ret;
 }
 
+inline static int fscanf(FILE *__restrict, const char *__restrict, ...) __attribute__((__format__(__scanf__, 2, 3)));
+inline static int fscanf(FILE *restrict f, const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vfscanf(f, fmt, ap);
+	va_end(ap);
+	return ret;
+}
+int vsscanf(const char *__restrict b, const char *__restrict fmt, va_list ap) {
+    typedef int (*fn_ptr_t)(const char *__restrict, const char *__restrict, va_list);
+    return ((fn_ptr_t)_sys_table_ptrs[336])(b, fmt, ap);
+}
+
+inline static int sscanf(const char *restrict s, const char *restrict fmt, ...) __attribute__((__format__(__scanf__, 2, 3)));
+inline static int sscanf(const char *restrict s, const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vsscanf(s, fmt, ap);
+	va_end(ap);
+	return ret;
+}
 /*
-int fscanf(FILE *__restrict, const char *__restrict, ...);
-int sscanf(const char *__restrict, const char *__restrict, ...);
-int vsscanf(const char *__restrict, const char *__restrict, __isoc_va_list);
 
 void perror(const char *);
 
