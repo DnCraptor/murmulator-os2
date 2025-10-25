@@ -236,10 +236,6 @@ int __in_hfa() __openat(int dfd, const char *path, int flags, mode_t mode) {
     return (int)n;
 }
 
-int __in_hfa() __open(const char *path, int flags, mode_t mode) {
-    return __openat(AT_FDCWD, path, flags, mode);
-}
-
 int __in_hfa() __close(int fildes) {
     if (fildes <= STDERR_FILENO) {
         goto e;
@@ -677,6 +673,12 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
+    errno = 0;
+    return 0;
+}
+
+long __in_hfa() __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize) {
+    //
     errno = 0;
     return 0;
 }

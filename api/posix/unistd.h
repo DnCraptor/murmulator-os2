@@ -166,6 +166,17 @@ inline static int lseek(int fd, int offset, int whence) {
     return ((fn_ptr_t)_sys_table_ptrs[275])(fd, offset, whence);
 }
 
+inline static long readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
+    typedef long (*fn_ptr_t)(int, const char*, char*, size_t);
+    return ((fn_ptr_t)_sys_table_ptrs[302])(dirfd, pathname, buf, bufsiz);
+}
+
+#ifndef AT_FDCWD
+#define AT_FDCWD (-100)
+#endif
+inline static long readlink(const char *restrict path, char *restrict buf, size_t bufsize) {
+    return readlinkat(AT_FDCWD, path, buf, bufsize);
+}
 /* TODO:
 pid_t fork(void);
 int execve(const char *pathname, char *const argv[], char *const envp[]);

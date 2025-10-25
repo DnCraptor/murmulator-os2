@@ -32,6 +32,24 @@ typedef unsigned int mode_t;
 #define O_SYNC      0x1000  /* write according to synchronized I/O file integrity completion */
 #define O_NOFOLLOW  0x2000  /* do not follow symbolic links */
 
+/*
+ * openat() — open a file relative to a directory file descriptor
+ *
+ * Parameters:
+ *   dfd   – directory file descriptor (use AT_FDCWD for current directory)
+ *   path  – pathname of the file to open
+ *   oflag – file status flags and access modes (see below)
+ *   mode  – permissions to use if a new file is created
+ *
+ * Returns:
+ *   On success: a new file descriptor (non-negative)
+ *   On error:  -1 and errno is set appropriately
+ */
+inline static int openat(int dfd, const char *path, int oflag, mode_t mode) {
+    typedef int (*fn_ptr_t)(int, const char*, int, mode_t);
+    return ((fn_ptr_t)_sys_table_ptrs[265])(dfd, path, oflag, mode);
+}
+
 /**
  * Opens a file and returns a file descriptor for subsequent I/O operations.
  *
@@ -77,8 +95,7 @@ inline static int open(const char *path, int oflag, ...) {
         mode = va_arg(ap, mode_t);
     }
     va_end(ap);
-    typedef int (*fn_ptr_t)(const char*, int, mode_t);
-    return ((fn_ptr_t)_sys_table_ptrs[265])(path, oflag, mode);
+    return openat(AT_FDCWD, path, oflag, mode);
 }
 
 /* Commands for fcntl() */

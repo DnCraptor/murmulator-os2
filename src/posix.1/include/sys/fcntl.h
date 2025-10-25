@@ -27,55 +27,6 @@ typedef unsigned int mode_t;
 #define O_SYNC      0x1000  /* write according to synchronized I/O file integrity completion */
 #define O_NOFOLLOW  0x2000  /* do not follow symbolic links */
 
-/**
- * Opens a file and returns a file descriptor for subsequent I/O operations.
- *
- * @param path
- *     Path to the file to be opened. Can be absolute or relative.
- *
- * @param oflag
- *     File access mode and options. Must include exactly one of:
- *       - O_RDONLY : open for reading only
- *       - O_WRONLY : open for writing only
- *       - O_RDWR   : open for reading and writing
- *     Additional flags may be combined using bitwise OR, such as:
- *       - O_CREAT  : create file if it does not exist (requires 'mode')
- *       - O_EXCL   : with O_CREAT, fail if file already exists
- *       - O_TRUNC  : truncate existing file to length 0
- *       - O_APPEND : append all writes to the end of file
- *       - O_NONBLOCK, O_SYNC, O_NOFOLLOW, etc.
- *
- * @param ...
- *     Optional argument of type mode_t, required if O_CREAT is specified.
- *     Defines the file's permissions (e.g., 0644), modified by the process umask.
- *
- * @return
- *     On success: non-negative file descriptor.
- *     On failure: -1 is returned and errno is set appropriately.
- *
- * @errors
- *     EACCES  - Permission denied.
- *     EEXIST  - File exists and O_CREAT|O_EXCL was used.
- *     ENOENT  - File does not exist and O_CREAT not specified.
- *     ENOTDIR - A path component is not a directory.
- *     EISDIR  - Tried to open a directory for writing.
- *     EMFILE  - Process limit of open files reached.
- *     ENFILE  - System-wide limit of open files reached.
- *     EINVAL  - Invalid flags.
- */
-int __open(const char *path, int oflag, mode_t mode);
-inline static int open(const char *path, int oflag, ...) {
-    va_list ap;
-    mode_t mode = 0;
-    va_start(ap, oflag);
-    /* mode only if O_CREAT */
-    if (oflag & O_CREAT) {
-        mode = va_arg(ap, mode_t);
-    }
-    va_end(ap);
-    return __open(path, oflag, mode);
-}
-
 /* Commands for fcntl() */
 #define F_DUPFD         0   /* Duplicate file descriptor (>= arg) */
 #define F_DUPFD_CLOEXEC 1030 /* Duplicate FD with FD_CLOEXEC */
@@ -133,7 +84,6 @@ inline static int fcntl(int fd, int cmd, ...) {
     return __fcntl(fd, cmd, 0);
 }
 
-
 /*
  * openat() — open a file relative to a directory file descriptor
  *
@@ -153,6 +103,8 @@ int __openat(int dfd, const char *path, int flags, mode_t mode);
 #ifndef AT_FDCWD
 #define AT_FDCWD        -100    /* Use current working directory */
 #endif
+
+long __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize);
 
 #ifdef __cplusplus
 }

@@ -102,7 +102,7 @@ FILE* __libc() __fopen(const char *restrict filename, const char *restrict mode)
 	/* Compute the flags to pass to open() */
 	flags = __fmodeflags(mode);
 
-	fd = __open(filename, flags, 0666);
+	fd = __openat(AT_FDCWD, filename, flags, 0666);
 	if (fd < 0) return 0;
 	if (flags & O_CLOEXEC) {
 		__fcntl(fd, F_SETFD, FD_CLOEXEC);

@@ -362,7 +362,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     time_us_64, // 263
     __aeabi_uldivmod, // 264
     // API v.27 POSIX.1 (Base)
-    __open, // 265
+    __openat, // 265
     __close, // 266
     __stat, // 267
     __fstat, // 268
@@ -401,7 +401,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __poll, // 299
     __ioctl, // 300
     __writev, // 301
-    __openat, // 302
+    __readlinkat, // 302
     pvPortRealloc, // 303
     __readv, // 304
     __llseek, // 305
