@@ -260,6 +260,9 @@ m1:
         goto fail;
     }
     printf("scanf: PASSED\n");
+
+    perror("perror\n");
+
 fail:
     log_write("errno: ");
     buf[1] = 0;

@@ -1,5 +1,6 @@
 #include "internal/stdio_impl.h"
 #include "internal/__stdio.h"
+#include "errno.h"
 #include "sys_table.h"
 #include <string.h>
 
@@ -46,3 +47,29 @@ int __libc() __fputs(const char *restrict s, FILE *restrict f)
 }
 
 weak_alias(__fputs, fputs_unlocked);
+
+void __libc() __perror(const char *msg)
+{
+	FILE *f = stderr;
+	char *errstr = strerror(errno);
+
+	FLOCK(f);
+
+	/* Save stderr's orientation and encoding rule, since perror is not
+	 * permitted to change them. */
+	void *old_locale = f->locale;
+	int old_mode = f->mode;
+	
+	if (msg && *msg) {
+		__fwrite(msg, strlen(msg), 1, f);
+		__fputc(':', f);
+		__fputc(' ', f);
+	}
+	__fwrite(errstr, strlen(errstr), 1, f);
+	__fputc('\n', f);
+
+	f->mode = old_mode;
+	f->locale = old_locale;
+
+	FUNLOCK(f);
+}

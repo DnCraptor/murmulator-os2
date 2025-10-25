@@ -139,6 +139,7 @@ int __fputs(const char *__restrict s, FILE *__restrict f);
 int __vfscanf(FILE *restrict f, const char *restrict fmt, va_list ap);
 int __vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list ap);
 int __vsscanf(const char *restrict s, const char *restrict fmt, va_list ap);
+void __perror(const char *msg);
 
 #ifdef __cplusplus
 }
