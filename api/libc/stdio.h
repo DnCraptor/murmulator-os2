@@ -259,6 +259,36 @@ inline static int fprintf(FILE *restrict f, const char *restrict fmt, ...) {
 	return ret;
 }
 
+inline static int vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list ap) {
+    typedef int (*fn_ptr_t)(char *restrict s, size_t n, const char *restrict fmt, va_list ap);
+    return ((fn_ptr_t)_sys_table_ptrs[309])(s, n, fmt, ap);
+}
+
+inline static int vsprintf(char *restrict s, const char *restrict fmt, va_list ap) {
+	return vsnprintf(s, 0x7FFFFFFF, fmt, ap);
+}
+
+inline static int sprintf(char *__restrict, const char *__restrict, ...) __attribute__((__format__(__printf__, 2, 3)));
+inline static int sprintf(char *restrict s, const char *restrict fmt, ...) {
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vsprintf(s, fmt, ap);
+	va_end(ap);
+	return ret;
+}
+
+inline static int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...) __attribute__((__format__(__printf__, 3, 4)));
+inline static int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...) {
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = vsnprintf(s, n, fmt, ap);
+	va_end(ap);
+	return ret;
+}
+
+
 inline static int vfscanf(FILE *__restrict f, const char *__restrict fmt, va_list ap) {
     typedef int (*fn_ptr_t)(FILE *restrict f, const char *restrict fmt, va_list ap);
     return ((fn_ptr_t)_sys_table_ptrs[308])(f, fmt, ap);
@@ -279,15 +309,7 @@ inline static int scanf(const char *restrict fmt, ...)
 	return ret;
 }
 
-
 /*
-int sprintf(char *__restrict, const char *__restrict, ...);
-int snprintf(char *__restrict, size_t, const char *__restrict, ...);
-
-int vfprintf(FILE *__restrict, const char *__restrict, __isoc_va_list);
-int vsprintf(char *__restrict, const char *__restrict, __isoc_va_list);
-int vsnprintf(char *__restrict, size_t, const char *__restrict, __isoc_va_list);
-
 int fscanf(FILE *__restrict, const char *__restrict, ...);
 int sscanf(const char *__restrict, const char *__restrict, ...);
 int vsscanf(const char *__restrict, const char *__restrict, __isoc_va_list);

@@ -241,6 +241,12 @@ m1:
         printf("fprintf: FAILED errno: %d\n", errno);
         goto fail;
     }
+    
+    if (snprintf(b, 8, "%d", 1234568) < 0) {
+        printf("snprintf: FAILED errno: %d\n", errno);
+    } else {
+        printf("snprintf: PASSED\n");
+    }
 
     char ch;
     if (scanf("%c", &ch) <= 0) {

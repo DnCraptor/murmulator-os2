@@ -137,6 +137,7 @@ FILE *const __stdout();
 FILE *const __stderr();
 int __fputs(const char *__restrict s, FILE *__restrict f);
 int __vfscanf(FILE *restrict f, const char *restrict fmt, va_list ap);
+int __vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list ap);
 
 #ifdef __cplusplus
 }

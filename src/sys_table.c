@@ -409,7 +409,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __rename, // 307
     // libc
     __vfscanf, // 308
-    0, // 309
+    __vsnprintf, // 309
     __vfprintf, // 310
     __fwritex, // 311
     __fwrite, // 312
