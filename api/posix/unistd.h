@@ -13,6 +13,10 @@ extern "C" {
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
 #endif
 
+#ifndef AT_FDCWD
+#define AT_FDCWD (-100)
+#endif
+
 #define STDIN_FILENO  0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
@@ -166,14 +170,27 @@ inline static int lseek(int fd, int offset, int whence) {
     return ((fn_ptr_t)_sys_table_ptrs[275])(fd, offset, whence);
 }
 
+inline static int linkat(int fde, const char *existing, int fdn, const char *new, int flag) {
+    typedef int (*fn_ptr_t)(int, const char *, int, const char *, int);
+    return ((fn_ptr_t)_sys_table_ptrs[339])(fde, existing, fdn, new, flag);
+}
+inline static int link(const char *existing, const char *new) {
+    return linkat(AT_FDCWD, existing, AT_FDCWD, new, 0);
+}
+
+inline static int symlinkat(const char *existing, int fd, const char *new) {
+    typedef int (*fn_ptr_t)(const char *, int, const char *);
+    return ((fn_ptr_t)_sys_table_ptrs[340])(existing, fd, new);
+}
+inline static int symlink(const char *existing, const char *new) {
+    return symlinkat(existing, AT_FDCWD, new);
+}
+
 inline static long readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     typedef long (*fn_ptr_t)(int, const char*, char*, size_t);
     return ((fn_ptr_t)_sys_table_ptrs[302])(dirfd, pathname, buf, bufsiz);
 }
 
-#ifndef AT_FDCWD
-#define AT_FDCWD (-100)
-#endif
 inline static long readlink(const char *restrict path, char *restrict buf, size_t bufsize) {
     return readlinkat(AT_FDCWD, path, buf, bufsize);
 }

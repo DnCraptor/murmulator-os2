@@ -194,8 +194,11 @@ int __llseek(unsigned int fd,
 #define AT_SYMLINK_FOLLOW 0x400
 #define AT_EACCESS 0x200
 
-int __unlinkat(int dirfd, const char *pathname, int flags);
 int __rename(const char *, const char *);
+int __unlinkat(int dirfd, const char *pathname, int flags);
+
+int __linkat(int, const char *, int, const char *, int);
+int __symlinkat(const char *, int, const char *);
 /* TODO:
 pid_t fork(void);
 int execve(const char *pathname, char *const argv[], char *const envp[]);

@@ -439,6 +439,9 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __vsscanf, // 336
     __perror, // 337
     __setvbuf, // 338
+    // POSIZ
+    __linkat, // 339
+    __symlinkat, // 340
     // TODO:
     0
 };

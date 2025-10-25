@@ -677,8 +677,102 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
     return 0;
 }
 
+static FRESULT __in_hfa() extfs_add_link(uint32_t clust, const char *path, char type) {
+    FIL ef;
+    FRESULT r = f_open(&ef, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
+    if (r != FR_OK) return r;
+    f_lseek(&ef, f_size(&ef));
+    char line[512];
+    snprintf(line, sizeof line, "%c %08lX %s\n", type, (unsigned long)clust, path);
+    UINT bw;
+    r = f_write(&ef, line, strlen(line), &bw);
+    f_close(&ef);
+    return (r == FR_OK && bw == strlen(line)) ? FR_OK : FR_DISK_ERR;
+}
+
+int __in_hfa() __linkat(int fde, const char *existing, int fdn, const char *new, int flag) {
+    /// TODO: fde, fdn
+    FIL f;
+    FRESULT fr = f_open(&f, existing, FA_READ);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    uint32_t clust = f.clust;
+    f_close(&f);
+    fr = f_open(&f, new, FA_WRITE | FA_CREATE_NEW);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    UINT bw;
+    f_write(&f, "H", 1, &bw);
+    fr = f_write(&f, existing, strlen(existing) + 1, &bw);
+    f_close(&f);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    fr = extfs_add_link(clust, new, 'H');
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    errno = 0;
+    return 0;
+}
+int __in_hfa() __symlinkat(const char *existing, int fd, const char *new) {
+    /// TODO: fd
+    FIL f;
+    FRESULT fr = f_open(&f, existing, FA_READ);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    uint32_t clust = f.clust;
+    f_close(&f);
+    fr = f_open(&f, new, FA_WRITE | FA_CREATE_NEW);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    UINT bw;
+    f_write(&f, "S", 1, &bw);
+    fr = f_write(&f, existing, strlen(existing) + 1, &bw);
+    f_close(&f);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    fr = extfs_add_link(clust, new, 'S');
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    errno = 0;
+    return 0;
+}
+
 long __in_hfa() __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize) {
-    //
+    // TODO: fd
+    FIL f;
+    FRESULT fr = f_open(&f, path, FA_READ);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    UINT br;
+    fr != f_read(&f, buf, bufsize, &br);
+    f_close(&f);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    if (br < 2 || buf[0] != 'S') {
+        errno = FR_INVALID_OBJECT;
+        return -1;
+    }
+    memcpy(buf, buf + 1, strlen(buf + 1));
     errno = 0;
     return 0;
 }
