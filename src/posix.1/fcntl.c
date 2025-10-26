@@ -77,41 +77,89 @@ typedef struct {
 static posix_link_t* posix_links = 0;
 static size_t posix_links_cnt = 0;
 
-static FRESULT __in_hfa() posix_add_link(uint32_t clust, const char *path, char type) {
-    size_t links_size = sizeof(posix_link_t) * (++posix_links_cnt);
-    posix_link_t* lnk = (posix_link_t*)pvPortMalloc(links_size + sizeof(posix_link_t));
+static void __in_hfa() posix_add_link(uint32_t clust, const char *path, char type) {
+    posix_link_t* lnk = (posix_link_t*)pvPortMalloc((posix_links_cnt + 1) * sizeof(posix_link_t));
     if (posix_links) {
-        memcpy(lnk, posix_links, links_size);
+        memcpy(lnk, posix_links, posix_links_cnt * sizeof(posix_link_t));
         vPortFree(posix_links);
         posix_links = lnk;
-        lnk = posix_links + links_size;
+        lnk += posix_links_cnt;
     } else {
         posix_links = lnk;
     }
+    ++posix_links_cnt;
     lnk->clust = clust;
     lnk->fname = (type == 'S' || type == 'H') ? copy_str(path) : path; // lower case is a signal to reuse the same memory
     lnk->is_symlink = type == 'S' || type == 's';
 }
 
+static FRESULT __in_hfa() extfs_flush() {
+    vTaskSuspendAll();
+    FRESULT r = FR_OK;
+    posix_link_t* lnk = posix_links;
+    if (!lnk) {
+        goto ok;
+    }
+    FIL ef;
+    r = f_open(&ef, "/.extfs", FA_CREATE_NEW | FA_WRITE);
+    if (r != FR_OK) goto ex;
+    for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
+        UINT bw;
+        r = f_write(&ef, &lnk->clust, sizeof(lnk->clust), &bw);
+        if (r != FR_OK) { /// TODO: error handling
+            r = FR_DISK_ERR;
+            goto ex;
+        }
+        char type = lnk->is_symlink ? 'S' : 'H';
+        f_write(&ef, &type, 1, &bw);
+        size_t sz = strlen(lnk->fname);
+        f_write(&ef, &sz, sizeof(sz), &bw);
+        f_write(&ef, lnk->fname, sz, &bw);
+    }
+ex:
+    f_close(&ef);
+ok:
+	xTaskResumeAll();
+    return r;
+}
+
+static bool __in_hfa() posix_unlink(uint32_t clust, char** to_rename) {
+    posix_link_t* lnk = posix_links;
+    if (!lnk) return false; // nothing
+    for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
+        if (lnk->clust == clust) {
+            bool is_symlink = lnk->is_symlink;
+            if (!is_symlink) *to_rename = lnk->fname;
+            if (posix_links_cnt - i > 1) {
+                memcpy(lnk, lnk + 1, sizeof(posix_link_t) * (posix_links_cnt - i - 1));
+            }
+            --posix_links_cnt;
+            return true;
+        }
+    }
+    return false; // nothing
+}
+
 static FRESULT __in_hfa() extfs_add_link(uint32_t clust, const char *path, char type) {
-    /// TODO: critical section
+    vTaskSuspendAll();
     posix_add_link(clust, path, type);
     FIL ef;
     FRESULT r = f_open(&ef, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
-    if (r != FR_OK) return r;
+    if (r != FR_OK) goto ex;
     f_lseek(&ef, f_size(&ef));
-    char line[512];
     UINT bw;
     r = f_write(&ef, &clust, sizeof(clust), &bw);
     if (r != FR_OK) { /// TODO: error handling
-        f_close(&ef);
-        return FR_DISK_ERR;
+        goto err;
     }
     f_write(&ef, &type, 1, &bw);
     clust = strlen(path);
     f_write(&ef, &clust, sizeof(clust), &bw);
     f_write(&ef, path, clust, &bw);
+err:
     f_close(&ef);
+ex:
+	xTaskResumeAll();
     return (r == FR_OK) ? FR_OK : FR_DISK_ERR;
 }
 
@@ -145,8 +193,8 @@ static void __in_hfa() dealloc_file(void* p) {
 
 static void __in_hfa() init_pfiles() {
     if (pfiles) return;
+    vTaskSuspendAll();
     pfiles = new_array_v(alloc_file, dealloc_file, NULL);
-
     FIL ef;
     FRESULT r = f_open(&ef, "/.extfs", FA_READ);
     if (r == FR_OK) {
@@ -184,6 +232,7 @@ static void __in_hfa() init_pfiles() {
     d->fp = (void*)STDERR_FILENO;
     d->flags = 0;
     array_push_back(pfiles, d); // 2 - stderr
+	xTaskResumeAll();
 }
 
 static BYTE __in_hfa() map_flags_to_ff_mode(int flags) {
@@ -729,11 +778,33 @@ e:
 
 int __in_hfa() __unlinkat(int dirfd, const char *pathname, int flags) {
     // TODO: dirfd, flags
-    FRESULT fr = f_unlink(pathname);
+    FIL f;
+    vTaskSuspendAll();
+    FRESULT fr = f_open(&f, pathname, FA_READ);
     if (fr != FR_OK) {
+        goto err;
+    }
+    uint32_t clust = f.obj.sclust;
+    f_close(&f);
+    char* to_rename = 0;
+    if (posix_unlink(clust, &to_rename)) {
+        extfs_flush();
+        if (to_rename) {
+            f_unlink(to_rename);
+            fr = f_rename(pathname, to_rename); if (fr != FR_OK) { vPortFree(to_rename); goto err; }
+            vPortFree(to_rename);
+            goto ok;
+        }
+    }
+    fr = f_unlink(pathname);
+    if (fr != FR_OK) {
+err:
+    	xTaskResumeAll();
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
+ok:
+	xTaskResumeAll();
     errno = 0;
     return 0;
 }
@@ -756,7 +827,7 @@ int __in_hfa() __linkat(int fde, const char *existing, int fdn, const char *new,
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    uint32_t clust = f.clust;
+    uint32_t clust = f.obj.sclust;
     f_close(&f);
     fr = f_open(&f, new, FA_WRITE | FA_CREATE_NEW);
     if (fr != FR_OK) {
@@ -787,7 +858,7 @@ int __in_hfa() __symlinkat(const char *existing, int fd, const char *new) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    uint32_t clust = f.clust;
+    uint32_t clust = f.obj.sclust;
     f_close(&f);
     fr = f_open(&f, new, FA_WRITE | FA_CREATE_NEW);
     if (fr != FR_OK) {
