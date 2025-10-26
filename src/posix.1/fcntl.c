@@ -677,17 +677,49 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
     return 0;
 }
 
+typedef struct {
+    uint32_t clust;
+    char* fname;
+    bool is_symlink;
+ } posix_link_t;
+
+static posix_link_t* posix_links = 0;
+static size_t posix_links_cnt = 0;
+
+char* copy_str(const char* s); // cmd
+
 static FRESULT __in_hfa() extfs_add_link(uint32_t clust, const char *path, char type) {
+    /// TODO: critical section
+    size_t links_size = sizeof(posix_link_t) * (++posix_links_cnt);
+    posix_link_t* lnk = (posix_link_t*)pvPortMalloc(links_size + sizeof(posix_link_t));
+    if (posix_links) {
+        memcpy(lnk, posix_links, links_size);
+        vPortFree(posix_links);
+        posix_links = lnk;
+        lnk = posix_links + links_size;
+    } else {
+        posix_links = lnk;
+    }
+    lnk->clust = clust;
+    lnk->fname = copy_str(path);
+    lnk->is_symlink = type == 'S';
     FIL ef;
     FRESULT r = f_open(&ef, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
     if (r != FR_OK) return r;
     f_lseek(&ef, f_size(&ef));
     char line[512];
-    snprintf(line, sizeof line, "%c %08lX %s\n", type, (unsigned long)clust, path);
     UINT bw;
-    r = f_write(&ef, line, strlen(line), &bw);
+    r = f_write(&ef, &clust, sizeof(clust), &bw);
+    if (r != FR_OK) { /// TODO: error handling
+        f_close(&ef);
+        return FR_DISK_ERR;
+    }
+    f_write(&ef, &type, 1, &bw);
+    clust = strlen(path);
+    f_write(&ef, &clust, sizeof(clust), &bw);
+    f_write(&ef, path, clust, &bw);
     f_close(&ef);
-    return (r == FR_OK && bw == strlen(line)) ? FR_OK : FR_DISK_ERR;
+    return (r == FR_OK) ? FR_OK : FR_DISK_ERR;
 }
 
 int __in_hfa() __linkat(int fde, const char *existing, int fdn, const char *new, int flag) {
