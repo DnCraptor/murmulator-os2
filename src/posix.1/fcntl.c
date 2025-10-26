@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "sys_table.h"
+char* copy_str(const char* s); // cmd
 
 static int is_leap_year(int year) {
     return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
@@ -21,7 +22,7 @@ static int is_leap_year(int year) {
 static const int days_in_month[12] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
 
 // TODO: optimize it
-time_t simple_mktime(struct tm *t) {
+time_t __in_hfa() simple_mktime(struct tm *t) {
     int year = t->tm_year + 1900;
     int mon = t->tm_mon;   // 0-11
     int day = t->tm_mday;  // 1-31
@@ -51,7 +52,7 @@ time_t simple_mktime(struct tm *t) {
     return seconds;
 }
 
-static time_t fatfs_to_time_t(WORD fdate, WORD ftime) {
+static time_t __in_hfa() fatfs_to_time_t(WORD fdate, WORD ftime) {
     struct tm t;
     // FAT date: bits 15–9 year since 1980, 8–5 month, 4–0 day
     t.tm_year = ((fdate >> 9) & 0x7F) + 80; // years since 1900
@@ -67,6 +68,53 @@ static time_t fatfs_to_time_t(WORD fdate, WORD ftime) {
     return simple_mktime(&t); // mktime(&t);
 }
 
+typedef struct {
+    uint32_t clust;
+    char* fname;
+    bool is_symlink;
+ } posix_link_t;
+
+static posix_link_t* posix_links = 0;
+static size_t posix_links_cnt = 0;
+
+static FRESULT __in_hfa() posix_add_link(uint32_t clust, const char *path, char type) {
+    size_t links_size = sizeof(posix_link_t) * (++posix_links_cnt);
+    posix_link_t* lnk = (posix_link_t*)pvPortMalloc(links_size + sizeof(posix_link_t));
+    if (posix_links) {
+        memcpy(lnk, posix_links, links_size);
+        vPortFree(posix_links);
+        posix_links = lnk;
+        lnk = posix_links + links_size;
+    } else {
+        posix_links = lnk;
+    }
+    lnk->clust = clust;
+    lnk->fname = (type == 'S' || type == 'H') ? copy_str(path) : path; // lower case is a signal to reuse the same memory
+    lnk->is_symlink = type == 'S' || type == 's';
+}
+
+static FRESULT __in_hfa() extfs_add_link(uint32_t clust, const char *path, char type) {
+    /// TODO: critical section
+    posix_add_link(clust, path, type);
+    FIL ef;
+    FRESULT r = f_open(&ef, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
+    if (r != FR_OK) return r;
+    f_lseek(&ef, f_size(&ef));
+    char line[512];
+    UINT bw;
+    r = f_write(&ef, &clust, sizeof(clust), &bw);
+    if (r != FR_OK) { /// TODO: error handling
+        f_close(&ef);
+        return FR_DISK_ERR;
+    }
+    f_write(&ef, &type, 1, &bw);
+    clust = strlen(path);
+    f_write(&ef, &clust, sizeof(clust), &bw);
+    f_write(&ef, path, clust, &bw);
+    f_close(&ef);
+    return (r == FR_OK) ? FR_OK : FR_DISK_ERR;
+}
+
 // TODO: per process context
 static array_t* pfiles = 0;
 
@@ -75,7 +123,7 @@ typedef struct FDESC_s {
     unsigned int flags;
 } FDESC;
 
-static void* alloc_file(void) {
+static void* __in_hfa() alloc_file(void) {
     FDESC* d = (FDESC*)pvPortMalloc(sizeof(FDESC));
     if (!d) return NULL;
     d->fp = (FIL*)pvPortMalloc(sizeof(FIL));
@@ -88,16 +136,40 @@ static void* alloc_file(void) {
     return d;
 }
 
-static void dealloc_file(void* p) {
+static void __in_hfa() dealloc_file(void* p) {
     if (!p) return;
     FDESC* d = (FDESC*)p;
     if ((intptr_t)d->fp > 2) vPortFree(d->fp);
     vPortFree(p);
 }
 
-static void init_pfiles() {
+static void __in_hfa() init_pfiles() {
     if (pfiles) return;
     pfiles = new_array_v(alloc_file, dealloc_file, NULL);
+
+    FIL ef;
+    FRESULT r = f_open(&ef, "/.extfs", FA_READ);
+    if (r == FR_OK) {
+        UINT br;
+        char type;
+        uint32_t clust;
+        uint32_t strsize;
+        while(!f_eof(&ef)) {
+            if (f_read(&ef, &type, 1, &br) != FR_OK || br != 1) break;
+            if (f_read(&ef, &clust, sizeof(clust), &br) != FR_OK || br != sizeof(clust)) break;
+            if (f_read(&ef, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) break;
+            char* buf = pvPortMalloc(strsize + 1);
+            if (!buf) break;
+            buf[strsize] = 0;
+            if (f_read(&ef, buf, strsize, &br) != FR_OK || strsize != 1) {
+                vPortFree(buf);
+                break;
+            }
+            posix_add_link(clust, buf, (type - 'A') + 'a');
+        }
+        f_close(&ef);
+    }
+
     // W/A for predefined file descriptors:
     FDESC* d;
     d = (FDESC*)pvPortMalloc(sizeof(FDESC));
@@ -114,7 +186,7 @@ static void init_pfiles() {
     array_push_back(pfiles, d); // 2 - stderr
 }
 
-static BYTE map_flags_to_ff_mode(int flags) {
+static BYTE __in_hfa() map_flags_to_ff_mode(int flags) {
     BYTE mode = 0;
     if (flags & O_RDWR) {
         mode |= FA_READ | FA_WRITE;
@@ -141,7 +213,7 @@ static BYTE map_flags_to_ff_mode(int flags) {
     return mode;
 }
 
-static int map_ff_fresult_to_errno(FRESULT fr) {
+static int __in_hfa() map_ff_fresult_to_errno(FRESULT fr) {
     switch(fr) {
         case FR_OK:
             return 0;          // ok
@@ -173,11 +245,11 @@ static int map_ff_fresult_to_errno(FRESULT fr) {
     }
 }
 
-inline static bool is_closed_desc(const FDESC* fd) {
+static bool is_closed_desc(const FDESC* fd) {
     return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }
 
-static FIL* array_lookup_first_closed(array_t* arr, size_t* pn) {
+static FIL* __in_hfa() array_lookup_first_closed(array_t* arr, size_t* pn) {
     for (size_t i = 3; i < arr->size; ++i) {
         FDESC* fd = (FDESC*)array_get_at(arr, i);
         if (!fd || !fd->fp) continue;
@@ -427,7 +499,6 @@ int __in_hfa() __writev(int fd, const struct iovec *iov, int iovcnt) {
     return res;
 }
 
-
 int __in_hfa() __dup(int oldfd) {
     if (oldfd < 0) {
         goto e;
@@ -675,51 +746,6 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
     }
     errno = 0;
     return 0;
-}
-
-typedef struct {
-    uint32_t clust;
-    char* fname;
-    bool is_symlink;
- } posix_link_t;
-
-static posix_link_t* posix_links = 0;
-static size_t posix_links_cnt = 0;
-
-char* copy_str(const char* s); // cmd
-
-static FRESULT __in_hfa() extfs_add_link(uint32_t clust, const char *path, char type) {
-    /// TODO: critical section
-    size_t links_size = sizeof(posix_link_t) * (++posix_links_cnt);
-    posix_link_t* lnk = (posix_link_t*)pvPortMalloc(links_size + sizeof(posix_link_t));
-    if (posix_links) {
-        memcpy(lnk, posix_links, links_size);
-        vPortFree(posix_links);
-        posix_links = lnk;
-        lnk = posix_links + links_size;
-    } else {
-        posix_links = lnk;
-    }
-    lnk->clust = clust;
-    lnk->fname = copy_str(path);
-    lnk->is_symlink = type == 'S';
-    FIL ef;
-    FRESULT r = f_open(&ef, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
-    if (r != FR_OK) return r;
-    f_lseek(&ef, f_size(&ef));
-    char line[512];
-    UINT bw;
-    r = f_write(&ef, &clust, sizeof(clust), &bw);
-    if (r != FR_OK) { /// TODO: error handling
-        f_close(&ef);
-        return FR_DISK_ERR;
-    }
-    f_write(&ef, &type, 1, &bw);
-    clust = strlen(path);
-    f_write(&ef, &clust, sizeof(clust), &bw);
-    f_write(&ef, path, clust, &bw);
-    f_close(&ef);
-    return (r == FR_OK) ? FR_OK : FR_DISK_ERR;
 }
 
 int __in_hfa() __linkat(int fde, const char *existing, int fdn, const char *new, int flag) {

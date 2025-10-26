@@ -178,6 +178,14 @@ inline static int link(const char *existing, const char *new) {
     return linkat(AT_FDCWD, existing, AT_FDCWD, new, 0);
 }
 
+inline static int unlinkat(int dirfd, const char *pathname, int flags) {
+    typedef int (*fn_ptr_t)(int dirfd, const char *pathname, int flags);
+    return ((fn_ptr_t)_sys_table_ptrs[306])(dirfd, pathname, flags);
+}
+inline static int unlink(const char *existing) {
+    return unlinkat(AT_FDCWD, existing, 0);
+}
+
 inline static int symlinkat(const char *existing, int fd, const char *new) {
     typedef int (*fn_ptr_t)(const char *, int, const char *);
     return ((fn_ptr_t)_sys_table_ptrs[340])(existing, fd, new);

@@ -94,6 +94,13 @@ int main() {
     if (ret < 0) { log_write("close fd failed\n"); goto fail; }
     log_write("close fd succeeded\n");
 
+    if (link(test_file, "/test_file.lnk") < 0) {
+        { log_write("link failed\n"); goto fail; }
+    }
+    if (unlink(test_file) < 0) {
+        { log_write("unlink failed\n"); goto fail; }
+    }
+
     log_write("POSIX test completed successfully\n");
 
     FILE* f = fopen("/libc.test", "w+");
@@ -261,7 +268,7 @@ m1:
     }
     printf("scanf: PASSED\n");
 
-    perror("perror\n");
+    perror("perror");
 
 fail:
     log_write("errno: ");
