@@ -100,6 +100,13 @@ int main() {
     if (unlink(test_file) < 0) {
         { log_write("unlink failed\n"); goto fail; }
     }
+    if (symlink("test_file.lnk", test_file) < 0) {
+        { log_write("symlink failed\n"); goto fail; }
+    }
+    if (unlink(test_file) < 0 || unlink("test_file.lnk") < 0) {
+        { log_write("unlink failed\n"); goto fail; }
+    }
+    log_write("link/symlink/unlink passed\n");
 
     log_write("POSIX test completed successfully\n");
 #if LIBC_TEST
