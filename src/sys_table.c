@@ -443,6 +443,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __linkat, // 339
     __symlinkat, // 340
     __realpath, // 341
+    __tmpnam, // 342
     // TODO:
     0
 };

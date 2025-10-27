@@ -109,8 +109,13 @@ int main() {
     log_write("link/symlink/unlink passed\n");
 
     log_write("POSIX test completed successfully\n");
-#if LIBC_TEST
-    FILE* f = fopen("/libc.test", "w+");
+
+    char* tmp = tmpnam(0);
+    char* tmp2 = tmpnam(0);
+    printf("tmpnam: %s\n", tmp);
+    printf("tmpnam: %s\n", tmp2);
+
+    FILE* f = fopen(tmp, "w+");
     if (!f) {
         printf("fopen: FAILED errno: %d\n", errno);
         return errno;
@@ -127,6 +132,7 @@ int main() {
         printf("fputc: FAILED errno: %d\n", errno);
         goto m1;
     }
+
     printf("fputc: PASSED\n");
     if (putc(0, f) != 0) {
         printf("putc: FAILED errno: %d\n", errno);
@@ -210,6 +216,7 @@ int main() {
         goto m1;
     }
     printf("ftell: PASSED\n");
+
 m1:
     if (fclose(f) < 0) {
         printf("fclose: FAILED errno: %d\n", errno);
@@ -217,7 +224,7 @@ m1:
     }
     printf("fclose: PASSED\n");
 
-    if(!freopen("/libc.test", "r", stdin)) {
+    if(!freopen(tmp, "r", stdin)) {
         printf("freopen: FAILED errno: %d\n", errno);
         goto fail;
     }
@@ -229,13 +236,13 @@ m1:
     }
     printf("getchar: PASSED\n");
 
-    if (rename("/libc.test", "/libc.test2") < 0) {
+    if (rename(tmp, tmp2) < 0) {
         printf("rename: FAILED errno: %d\n", errno);
         goto fail;
     }
     printf("rename: PASSED\n");
 
-    if (remove("/libc.test2") < 0) {
+    if (remove(tmp2) < 0) {
         printf("remove: FAILED errno: %d\n", errno);
         goto fail;
     }
@@ -276,7 +283,6 @@ m1:
     printf("scanf: PASSED\n");
 
     perror("perror");
-#endif
 fail:
     log_write("errno: ");
     buf[1] = 0;

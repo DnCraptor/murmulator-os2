@@ -56,6 +56,10 @@ TYPEDEF struct _IO_FILE FILE;
 #define TMP_MAX 10000
 #define L_tmpnam 20
 
+#ifndef AT_FDCWD
+#define AT_FDCWD (-100)
+#endif
+
 #define O_CREAT        0100
 #define O_EXCL         0200
 #define O_NOCTTY       0400
@@ -142,6 +146,7 @@ int __vsscanf(const char *restrict s, const char *restrict fmt, va_list ap);
 void __perror(const char *msg);
 int __setvbuf(FILE *__restrict, char *__restrict, int, size_t);
 char* __realpath(const char *restrict filename, char *restrict resolved);
+char* __tmpnam(char *buf);
 
 #ifdef __cplusplus
 }

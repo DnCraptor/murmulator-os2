@@ -1,6 +1,8 @@
 #include "internal/pthread_impl.h"
 #include <time.h>
 #include <stdint.h>
+#include "internal/__stdio.h"
+#include "ff.h"
 #include "sys_table.h"
 
 #include <pico/time.h>
@@ -21,6 +23,9 @@ int __libc() __clock_gettime(clockid_t clk, struct timespec *ts32)
 	uint64_t t = time_us_64();
 	ts32->tv_sec = t / 1000000;
 	ts32->tv_nsec = (t % 1000000) * 1000;
+	if (CLOCK_REALTIME == clk) {
+		ts32->tv_sec += 1761598873; // W/A Mon, 27 Oct 2025 21:01:13 GMT
+	}
 	return 0;
 }
 
@@ -35,7 +40,28 @@ char* __libc() __randname(char *template)
 	__clock_gettime(CLOCK_REALTIME, &ts);
 	r = ts.tv_sec + ts.tv_nsec + __pthread_tid() * 65537UL;
 	for (i=0; i<6; i++, r>>=5)
-		template[i] = 'A'+(r&15)+(r&16)*2;
+		template[i] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[r % 62];
 
 	return template;
+}
+
+#define MAXTRIES 100
+
+char* __libc() __tmpnam(char* buf) {
+	static char internal[L_tmpnam];
+	char s[] = "/tmp/tmpnam_XXXXXX";
+	int try;
+	FRESULT r;
+    FILINFO* pf = (FILINFO*)pvPortMalloc(sizeof(FILINFO));
+	if (!pf) return 0;
+	for (try = 0; try < MAXTRIES; ++try) {
+		__randname(s + 12);
+		r = f_stat(s, pf);
+		if (r != FR_OK) {
+			vPortFree(pf);
+			return buf ? strcpy(buf, s) : strcpy(internal, s);
+		}
+	}
+	vPortFree(pf);
+	return 0;
 }

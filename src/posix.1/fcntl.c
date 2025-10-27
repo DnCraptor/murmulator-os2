@@ -913,6 +913,7 @@ static uint32_t __in_hfa() get_hash(const char *pathname) {
 
 int __in_hfa() __unlinkat(int dirfd, const char* _pathname, int flags) {
     // TODO: dirfd, flags
+    init_pfiles();
 	char* pathname = __realpath(_pathname, 0);
 	if (!pathname) { errno = ENOMEM; return -1; }
     vTaskSuspendAll();
@@ -947,6 +948,8 @@ ok:
 }
 
 int __in_hfa() __rename(const char * f1, const char * f2) {
+    init_pfiles();
+    // TODO: links
     FRESULT fr = f_rename(f1, f2);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
@@ -958,6 +961,7 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
 
 int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _new, int flag) {
     /// TODO: fde, fdn
+    init_pfiles();
 	char* existing = __realpath(_existing, 0);
 	if (!existing) { errno = ENOMEM; return -1; }
 	char* new = __realpath(_new, 0);
@@ -997,6 +1001,7 @@ int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _ne
 }
 int __in_hfa() __symlinkat(const char *existing, int fd, const char* _new) {
     /// TODO: fd
+    init_pfiles();
 	char* new = __realpath(_new, 0);
 	if (!new) { errno = ENOMEM; return -1; }
     uint32_t hash = get_hash(new);
@@ -1031,6 +1036,7 @@ int __in_hfa() __symlinkat(const char *existing, int fd, const char* _new) {
 
 long __in_hfa() __readlinkat2(int fd, const char *restrict _path, char *restrict buf, size_t bufsize, int reqursive) {
     // TODO: fd -> at
+    init_pfiles();
 	char* path = reqursive ? _path : __realpath(_path, 0);
 	if (!path) { errno = ENOMEM; return -1; }
     if (path[0] != '/') {

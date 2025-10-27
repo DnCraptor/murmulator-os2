@@ -349,8 +349,12 @@ inline static void setbuf(FILE *restrict f, char *restrict buf) {
 	setvbuf(f, buf, buf ? _IOFBF : _IONBF, BUFSIZ);
 }
 
+inline static char* tmpnam(char* buf) {
+    typedef char* (*fn_ptr_t)(char*);
+    return ((fn_ptr_t)_sys_table_ptrs[342])(buf);
+}
+
 /*
-char *tmpnam(char *);
 FILE *tmpfile(void);
 
 #if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \
