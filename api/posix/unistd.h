@@ -179,7 +179,7 @@ inline static int link(const char *existing, const char *new) {
 }
 
 inline static int unlinkat(int dirfd, const char *pathname, int flags) {
-    typedef int (*fn_ptr_t)(int dirfd, const char *pathname, int flags);
+    typedef int (*fn_ptr_t)(int, const char*, int);
     return ((fn_ptr_t)_sys_table_ptrs[306])(dirfd, pathname, flags);
 }
 inline static int unlink(const char *existing) {

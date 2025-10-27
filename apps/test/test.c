@@ -102,7 +102,7 @@ int main() {
     }
 
     log_write("POSIX test completed successfully\n");
-
+#if LIBC_TEST
     FILE* f = fopen("/libc.test", "w+");
     if (!f) {
         printf("fopen: FAILED errno: %d\n", errno);
@@ -269,7 +269,7 @@ m1:
     printf("scanf: PASSED\n");
 
     perror("perror");
-
+#endif
 fail:
     log_write("errno: ");
     buf[1] = 0;

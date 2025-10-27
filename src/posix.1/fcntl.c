@@ -15,7 +15,16 @@
 #include "sys_table.h"
 char* copy_str(const char* s); // cmd
 
-static int is_leap_year(int year) {
+/// TODO: by process ctx
+void __in_hfa() __getcwd(char *buff, UINT len) {
+    buff[0] = '/';
+    buff[1] = 0;
+}
+
+// from libc (may be required to have own one?)
+char* __realpath(const char *restrict filename, char *restrict resolved);
+
+static int __in_hfa() is_leap_year(int year) {
     return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
 }
 
@@ -69,15 +78,18 @@ static time_t __in_hfa() fatfs_to_time_t(WORD fdate, WORD ftime) {
 }
 
 typedef struct {
-    uint32_t clust;
+    char type;
+    uint32_t hash;
     char* fname;
-    bool is_symlink;
- } posix_link_t;
+    // for 'H' links only
+    uint32_t ohash;
+    char* ofname;
+} posix_link_t;
 
 static posix_link_t* posix_links = 0;
 static size_t posix_links_cnt = 0;
 
-static void __in_hfa() posix_add_link(uint32_t clust, const char *path, char type) {
+static void __in_hfa() posix_add_link(uint32_t hash, const char* path, char type, uint32_t ohash, const char* opath, bool allocated) {
     posix_link_t* lnk = (posix_link_t*)pvPortMalloc((posix_links_cnt + 1) * sizeof(posix_link_t));
     if (posix_links) {
         memcpy(lnk, posix_links, posix_links_cnt * sizeof(posix_link_t));
@@ -88,79 +100,174 @@ static void __in_hfa() posix_add_link(uint32_t clust, const char *path, char typ
         posix_links = lnk;
     }
     ++posix_links_cnt;
-    lnk->clust = clust;
-    lnk->fname = (type == 'S' || type == 'H') ? copy_str(path) : path; // lower case is a signal to reuse the same memory
-    lnk->is_symlink = type == 'S' || type == 's';
+    lnk->type = type;
+    lnk->hash = hash;
+    lnk->fname = allocated ? path : copy_str(path);
+    if (type == 'H') {
+        lnk->ohash = ohash;
+        lnk->ofname = allocated ? opath : copy_str(opath);
+    } else {
+        lnk->ohash = 0;
+        lnk->ofname = 0;
+    }
 }
 
 static FRESULT __in_hfa() extfs_flush() {
-    vTaskSuspendAll();
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!pf) { errno = ENOMEM; return -1; }
     FRESULT r = FR_OK;
+    vTaskSuspendAll();
     posix_link_t* lnk = posix_links;
     if (!lnk) {
         goto ok;
     }
-    FIL ef;
-    r = f_open(&ef, "/.extfs", FA_CREATE_NEW | FA_WRITE);
+    r = f_open(pf, "/.extfs", FA_CREATE_ALWAYS | FA_WRITE);
     if (r != FR_OK) goto ex;
     for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
         UINT bw;
-        r = f_write(&ef, &lnk->clust, sizeof(lnk->clust), &bw);
+        f_write(pf, &lnk->type, 1, &bw);
+        r = f_write(pf, &lnk->hash, sizeof(lnk->hash), &bw);
         if (r != FR_OK) { /// TODO: error handling
             r = FR_DISK_ERR;
             goto ex;
         }
-        char type = lnk->is_symlink ? 'S' : 'H';
-        f_write(&ef, &type, 1, &bw);
-        size_t sz = strlen(lnk->fname);
-        f_write(&ef, &sz, sizeof(sz), &bw);
-        f_write(&ef, lnk->fname, sz, &bw);
+        uint16_t sz = (uint16_t)strlen(lnk->fname);
+        f_write(pf, &sz, sizeof(sz), &bw);
+        f_write(pf, lnk->fname, sz, &bw);
+        if (lnk->type == 'H') {
+            f_write(pf, &lnk->ohash, sizeof(lnk->ohash), &bw);
+            sz = (uint16_t)strlen(lnk->ofname);
+            f_write(pf, &sz, sizeof(sz), &bw);
+            f_write(pf, lnk->ofname, sz, &bw);
+        }
     }
 ex:
-    f_close(&ef);
+    f_close(pf);
 ok:
+    vPortFree(pf);
 	xTaskResumeAll();
     return r;
 }
 
-static bool __in_hfa() posix_unlink(uint32_t clust, char** to_rename) {
+static posix_link_t* __in_hfa() lookup_by_orig(const char* opath, uint32_t ohash) {
+    posix_link_t* lnk = posix_links;
+    if (!lnk) return 0;
+    for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
+        if (lnk->ofname && lnk->type == 'H' &&  lnk->ohash == ohash && strcmp(opath, lnk->ofname) == 0) {
+            return lnk;
+        }
+    }
+    return 0;
+}
+
+static void __in_hfa() replace_orig(const char* opath, uint32_t ohash, posix_link_t* rename_to) {
+    posix_link_t* lnk = posix_links;
+    if (!lnk) return;
+    /// TODO: last 'H' case
+    for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
+        if (lnk->ofname && lnk->type == 'H' &&  lnk->ohash == ohash && strcmp(opath, lnk->ofname) == 0) {
+            lnk->ohash = rename_to->hash;
+            vPortFree(lnk->ofname);
+            lnk->ofname = copy_str(rename_to->fname);
+        }
+    }
+    return;
+}
+
+static bool __in_hfa() posix_unlink(const char* path, uint32_t hash, posix_link_t** rename_to) {
     posix_link_t* lnk = posix_links;
     if (!lnk) return false; // nothing
     for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
-        if (lnk->clust == clust) {
-            bool is_symlink = lnk->is_symlink;
-            if (!is_symlink) *to_rename = lnk->fname;
+        if (lnk->hash == hash && strcmp(path, lnk->fname) == 0) {
+            if (lnk->type == 'O' && rename_to) { // original removement (additional handling is required)
+                *rename_to = lookup_by_orig(hash, path);
+                if (*rename_to) {
+                    (*rename_to)->type = 'O';
+                    replace_orig(hash, path, *rename_to);
+                }
+            }
+            vPortFree(lnk->fname);
             if (posix_links_cnt - i > 1) {
-                memcpy(lnk, lnk + 1, sizeof(posix_link_t) * (posix_links_cnt - i - 1));
+                memmove(lnk, lnk + 1, sizeof(posix_link_t) * (posix_links_cnt - i - 1));
             }
             --posix_links_cnt;
-            return true;
+            return true; // flush is required
         }
     }
     return false; // nothing
 }
 
-static FRESULT __in_hfa() extfs_add_link(uint32_t clust, const char *path, char type) {
+static bool __in_hfa() is_symlink(const char* path, uint32_t hash) {
     vTaskSuspendAll();
-    posix_add_link(clust, path, type);
-    FIL ef;
-    FRESULT r = f_open(&ef, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
+    posix_link_t* lnk = posix_links;
+    if (!lnk) goto err; // nothing
+    for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
+        if (lnk->hash == hash && strcmp(path, lnk->fname) == 0) {
+            char type = lnk->type;
+        	xTaskResumeAll();
+            return type == 'S';
+        }
+    }
+err:
+	xTaskResumeAll();
+    return false; // nothing
+}
+static FRESULT __in_hfa() extfs_add_link(const char* path, uint32_t hash, char type, const char *opath, uint32_t ohash) {
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!pf) { errno = ENOMEM; return -1; }
+    vTaskSuspendAll();
+    posix_add_link(hash, path, type, opath, opath, false);
+    FRESULT r = f_open(pf, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
     if (r != FR_OK) goto ex;
-    f_lseek(&ef, f_size(&ef));
+    f_lseek(pf, f_size(pf));
     UINT bw;
-    r = f_write(&ef, &clust, sizeof(clust), &bw);
+    f_write(pf, &type, 1, &bw);
+    r = f_write(pf, &hash, sizeof(hash), &bw);
     if (r != FR_OK) { /// TODO: error handling
         goto err;
     }
-    f_write(&ef, &type, 1, &bw);
-    clust = strlen(path);
-    f_write(&ef, &clust, sizeof(clust), &bw);
-    f_write(&ef, path, clust, &bw);
+    uint16_t sz = (uint16_t)strlen(path);
+    f_write(pf, &sz, sizeof(sz), &bw);
+    f_write(pf, path, sz, &bw);
+    if (type == 'H') {
+        f_write(pf, &ohash, sizeof(ohash), &bw);
+        sz = (uint16_t)strlen(opath);
+        f_write(pf, &sz, sizeof(sz), &bw);
+        f_write(pf, opath, sz, &bw);
+    }
 err:
-    f_close(&ef);
+    f_close(pf);
 ex:
+    vPortFree(pf);
 	xTaskResumeAll();
     return (r == FR_OK) ? FR_OK : FR_DISK_ERR;
+}
+
+static FRESULT __in_hfa() extfs_add_hlink(const char *path, uint32_t hash, const char *opath, uint32_t ohash) {
+    FRESULT r;
+    vTaskSuspendAll();
+    bool found_orig = false;
+    posix_link_t* lnk = posix_links;
+    for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
+        if (lnk->hash == ohash && strcmp(opath, lnk->fname) == 0) {
+            if (lnk->type != 'O') {
+                r = FR_EXIST;
+                goto ex;
+            }
+            found_orig = true;
+            break;
+        }
+    }
+    if (!found_orig) {
+        r = extfs_add_link(opath, ohash, 'O', 0, 0);
+        if (FR_OK != r) {
+            goto ex;
+        }
+    }
+    r = extfs_add_link(path, hash, 'H', opath, ohash);
+ex:
+	xTaskResumeAll();
+    return r;
 }
 
 // TODO: per process context
@@ -193,30 +300,47 @@ static void __in_hfa() dealloc_file(void* p) {
 
 static void __in_hfa() init_pfiles() {
     if (pfiles) return;
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!pf) { errno = ENOMEM; return; }
     vTaskSuspendAll();
     pfiles = new_array_v(alloc_file, dealloc_file, NULL);
-    FIL ef;
-    FRESULT r = f_open(&ef, "/.extfs", FA_READ);
+    FRESULT r = f_open(pf, "/.extfs", FA_READ);
     if (r == FR_OK) {
         UINT br;
         char type;
-        uint32_t clust;
-        uint32_t strsize;
-        while(!f_eof(&ef)) {
-            if (f_read(&ef, &type, 1, &br) != FR_OK || br != 1) break;
-            if (f_read(&ef, &clust, sizeof(clust), &br) != FR_OK || br != sizeof(clust)) break;
-            if (f_read(&ef, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) break;
+        uint32_t hash;
+        uint16_t strsize;
+        while(!f_eof(pf)) {
+            if (f_read(pf, &type, 1, &br) != FR_OK || br != 1) break;
+            if (f_read(pf, &hash, sizeof(hash), &br) != FR_OK || br != sizeof(hash)) break;
+            if (f_read(pf, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) break;
             char* buf = pvPortMalloc(strsize + 1);
             if (!buf) break;
             buf[strsize] = 0;
-            if (f_read(&ef, buf, strsize, &br) != FR_OK || strsize != 1) {
+            if (f_read(pf, buf, strsize, &br) != FR_OK || strsize != br) {
                 vPortFree(buf);
                 break;
             }
-            posix_add_link(clust, buf, (type - 'A') + 'a');
+            char* obuf = 0;
+            uint32_t ohash = 0;
+            if (type == 'H') {
+                if (f_read(pf, &ohash, sizeof(ohash), &br) != FR_OK || br != sizeof(ohash)) goto brk2;
+                if (f_read(pf, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) goto brk1;
+                obuf = (char*)pvPortMalloc(strsize + 1);
+                if (obuf) {
+                    obuf[strsize] = 0;
+                    if (f_read(pf, obuf, strsize, &br) != FR_OK || strsize != br) {
+                        brk1: vPortFree(obuf);
+                        brk2: vPortFree(buf);
+                        break;
+                    }
+                }
+            }
+            posix_add_link(hash, buf, type, ohash, obuf, true);
         }
-        f_close(&ef);
+        f_close(pf);
     }
+    vPortFree(pf);
 
     // W/A for predefined file descriptors:
     FDESC* d;
@@ -776,23 +900,33 @@ e:
     return -1;
 }
 
-int __in_hfa() __unlinkat(int dirfd, const char *pathname, int flags) {
-    // TODO: dirfd, flags
-    FIL f;
-    vTaskSuspendAll();
-    FRESULT fr = f_open(&f, pathname, FA_READ);
-    if (fr != FR_OK) {
-        goto err;
+// easy and fast FNV-1a (32-bit)
+static uint32_t __in_hfa() get_hash(const char *pathname) {
+    uint32_t h = 2166136261u;
+    while (*pathname) {
+        unsigned char c = 
+        h ^= (unsigned char)*pathname++;
+        h *= 16777619u;
     }
-    uint32_t clust = f.obj.sclust;
-    f_close(&f);
-    char* to_rename = 0;
-    if (posix_unlink(clust, &to_rename)) {
-        extfs_flush();
-        if (to_rename) {
-            f_unlink(to_rename);
-            fr = f_rename(pathname, to_rename); if (fr != FR_OK) { vPortFree(to_rename); goto err; }
-            vPortFree(to_rename);
+    return h;
+}
+
+int __in_hfa() __unlinkat(int dirfd, const char* _pathname, int flags) {
+    // TODO: dirfd, flags
+	char* pathname = __realpath(_pathname, 0);
+	if (!pathname) { errno = ENOMEM; return -1; }
+    vTaskSuspendAll();
+    uint32_t hash = get_hash(pathname);
+    posix_link_t* rename_to = 0;
+    FRESULT fr;
+    if (posix_unlink(pathname, hash, &rename_to)) {
+        if (rename_to) {
+            f_unlink(rename_to->fname);
+            fr = f_rename(pathname, rename_to->fname); if (fr != FR_OK) { goto err; }
+            // new original, so cleanup 'H' related fields
+            vPortFree(rename_to->ofname);
+            rename_to->ofname = 0;
+            rename_to->ohash = 0;
             goto ok;
         }
     }
@@ -800,11 +934,14 @@ int __in_hfa() __unlinkat(int dirfd, const char *pathname, int flags) {
     if (fr != FR_OK) {
 err:
     	xTaskResumeAll();
+        vPortFree(pathname);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
 ok:
+    extfs_flush();
 	xTaskResumeAll();
+    vPortFree(pathname);
     errno = 0;
     return 0;
 }
@@ -819,30 +956,38 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
     return 0;
 }
 
-int __in_hfa() __linkat(int fde, const char *existing, int fdn, const char *new, int flag) {
+int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _new, int flag) {
     /// TODO: fde, fdn
-    FIL f;
-    FRESULT fr = f_open(&f, existing, FA_READ);
+	char* existing = __realpath(_existing, 0);
+	if (!existing) { errno = ENOMEM; return -1; }
+	char* new = __realpath(_new, 0);
+	if (!new) { vPortFree(existing); errno = ENOMEM; return -1; }
+    uint32_t ohash = get_hash(existing);
+    uint32_t hash = get_hash(new);
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!pf) { vPortFree(existing); errno = ENOMEM; return -1; }
+    FRESULT fr = f_open(pf, new, FA_WRITE | FA_CREATE_NEW);
     if (fr != FR_OK) {
-        errno = map_ff_fresult_to_errno(fr);
-        return -1;
-    }
-    uint32_t clust = f.obj.sclust;
-    f_close(&f);
-    fr = f_open(&f, new, FA_WRITE | FA_CREATE_NEW);
-    if (fr != FR_OK) {
+        vPortFree(existing);
+        vPortFree(new);
+        vPortFree(pf);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
     UINT bw;
-    f_write(&f, "H", 1, &bw);
-    fr = f_write(&f, existing, strlen(existing) + 1, &bw);
-    f_close(&f);
+    f_write(pf, "H", 1, &bw);
+    fr = f_write(pf, existing, strlen(existing) + 1, &bw);
+    f_close(pf);
+    vPortFree(pf);
     if (fr != FR_OK) {
+        vPortFree(existing);
+        vPortFree(new);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    fr = extfs_add_link(clust, new, 'H');
+    fr = extfs_add_hlink(new, hash, existing, ohash);
+    vPortFree(existing);
+    vPortFree(new);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
@@ -850,30 +995,32 @@ int __in_hfa() __linkat(int fde, const char *existing, int fdn, const char *new,
     errno = 0;
     return 0;
 }
-int __in_hfa() __symlinkat(const char *existing, int fd, const char *new) {
+int __in_hfa() __symlinkat(const char *existing, int fd, const char* _new) {
     /// TODO: fd
-    FIL f;
-    FRESULT fr = f_open(&f, existing, FA_READ);
+	char* new = __realpath(_new, 0);
+	if (!new) { errno = ENOMEM; return -1; }
+    uint32_t hash = get_hash(new);
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!pf) { vPortFree(new); errno = ENOMEM; return -1; }
+    FRESULT fr = f_open(pf, new, FA_WRITE | FA_CREATE_NEW);
     if (fr != FR_OK) {
-        errno = map_ff_fresult_to_errno(fr);
-        return -1;
-    }
-    uint32_t clust = f.obj.sclust;
-    f_close(&f);
-    fr = f_open(&f, new, FA_WRITE | FA_CREATE_NEW);
-    if (fr != FR_OK) {
+        vPortFree(new);
+        vPortFree(pf);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
     UINT bw;
-    f_write(&f, "S", 1, &bw);
-    fr = f_write(&f, existing, strlen(existing) + 1, &bw);
-    f_close(&f);
+    f_write(pf, "S", 1, &bw);
+    fr = f_write(pf, existing, strlen(existing) + 1, &bw);
+    f_close(pf);
+    vPortFree(pf);
     if (fr != FR_OK) {
+        vPortFree(new);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    fr = extfs_add_link(clust, new, 'S');
+    fr = extfs_add_link(new, hash, 'S', 0, 0);
+    vPortFree(new);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
@@ -882,26 +1029,57 @@ int __in_hfa() __symlinkat(const char *existing, int fd, const char *new) {
     return 0;
 }
 
-long __in_hfa() __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize) {
-    // TODO: fd
-    FIL f;
-    FRESULT fr = f_open(&f, path, FA_READ);
+long __in_hfa() __readlinkat2(int fd, const char *restrict _path, char *restrict buf, size_t bufsize, int reqursive) {
+    // TODO: fd -> at
+	char* path = reqursive ? _path : __realpath(_path, 0);
+	if (!path) { errno = ENOMEM; return -1; }
+    if (path[0] != '/') {
+        size_t sz = strlen(path) + 1;
+        char* sp = (char*)pvPortMalloc(sz + 1);
+        if (!sp) {
+            if(!reqursive) vPortFree(path);
+            errno = ENOMEM;
+            return -1;
+        }
+        sp[0] = '/';
+        memcpy(sp + 1, path, sz);
+        if(!reqursive) vPortFree(path);
+        path = sp;
+        reqursive = false; // to cleanup allocated
+    }
+    if (!is_symlink(get_hash(path), path)) {
+        if(!reqursive) vPortFree(path);
+        errno = EINVAL;
+        return -1;
+    }
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!pf) { vPortFree(path); errno = ENOMEM; return -1; }
+    FRESULT fr = f_open(pf, path, FA_READ);
     if (fr != FR_OK) {
+        if(!reqursive) vPortFree(path);
+        vPortFree(pf);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
+    if(!reqursive) vPortFree(path);
     UINT br;
-    fr != f_read(&f, buf, bufsize, &br);
-    f_close(&f);
+    fr = f_read(pf, buf, bufsize, &br);
+    f_close(pf);
+    vPortFree(pf);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
     if (br < 2 || buf[0] != 'S') {
-        errno = FR_INVALID_OBJECT;
+        errno = EINVAL;
         return -1;
     }
-    memcpy(buf, buf + 1, strlen(buf + 1));
+    long res = strlen(buf + 1);
+    memmove(buf, buf + 1, res);
     errno = 0;
-    return 0;
+    return res;
+}
+
+long __in_hfa() __readlinkat(int fd, const char *restrict _path, char *restrict buf, size_t bufsize) {
+    return __readlinkat2(fd, _path, buf, bufsize, false);
 }

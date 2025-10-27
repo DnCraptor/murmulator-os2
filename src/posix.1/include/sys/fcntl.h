@@ -105,6 +105,7 @@ int __openat(int dfd, const char *path, int flags, mode_t mode);
 #endif
 
 long __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize);
+long __readlinkat2(int fd, const char *restrict _path, char *restrict buf, size_t bufsize, int reqursive);
 
 #ifdef __cplusplus
 }

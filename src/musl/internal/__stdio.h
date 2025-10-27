@@ -141,6 +141,7 @@ int __vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list ap
 int __vsscanf(const char *restrict s, const char *restrict fmt, va_list ap);
 void __perror(const char *msg);
 int __setvbuf(FILE *__restrict, char *__restrict, int, size_t);
+char* __realpath(const char *restrict filename, char *restrict resolved);
 
 #ifdef __cplusplus
 }
