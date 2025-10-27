@@ -2,6 +2,8 @@
 #include <time.h>
 #include <stdint.h>
 #include "internal/__stdio.h"
+#include "unistd.h"
+#include "sys/fcntl.h"
 #include "ff.h"
 #include "sys_table.h"
 
@@ -63,5 +65,24 @@ char* __libc() __tmpnam(char* buf) {
 		}
 	}
 	vPortFree(pf);
+	return 0;
+}
+
+FILE* __libc() __tmpfile(void)
+{
+	char s[] = "/tmp/tmpfile_XXXXXX";
+	int fd;
+	FILE *f;
+	int try;
+	for (try=0; try<MAXTRIES; try++) {
+		__randname(s+13);
+		fd = __openat(AT_FDCWD, s, O_RDWR|O_CREAT|O_EXCL, 0600);
+		if (fd >= 0) {
+			__unlinkat(AT_FDCWD, s, 0);
+			f = __fdopen(fd, "w+");
+			if (!f) __close(fd);
+			return f;
+		}
+	}
 	return 0;
 }

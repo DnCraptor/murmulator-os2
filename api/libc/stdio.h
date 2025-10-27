@@ -353,9 +353,12 @@ inline static char* tmpnam(char* buf) {
     typedef char* (*fn_ptr_t)(char*);
     return ((fn_ptr_t)_sys_table_ptrs[342])(buf);
 }
+inline static FILE* tmpfile(void) {
+    typedef FILE* (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[343])();
+}
 
 /*
-FILE *tmpfile(void);
 
 #if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \
  || defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) \

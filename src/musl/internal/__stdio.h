@@ -147,6 +147,7 @@ void __perror(const char *msg);
 int __setvbuf(FILE *__restrict, char *__restrict, int, size_t);
 char* __realpath(const char *restrict filename, char *restrict resolved);
 char* __tmpnam(char *buf);
+FILE* __tmpfile(void);
 
 #ifdef __cplusplus
 }
