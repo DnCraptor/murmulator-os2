@@ -1,3 +1,5 @@
+#include "internal/pthread_impl.h"
+
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -52,7 +54,7 @@ static inline void __wake(volatile int *addr, int n, int priv)
 int __libc() __lockfile(FILE *f)
 {
 	int owner = f->lock;
-	int tid = (intptr_t)xTaskGetCurrentTaskHandle() | 1;
+	int tid = __pthread_tid();
 	if ((owner & ~MAYBE_WAITERS) == tid)
 		return 0;
 	owner = a_cas(&f->lock, 0, tid);
