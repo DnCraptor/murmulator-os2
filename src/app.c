@@ -1130,11 +1130,11 @@ a6:
     }
     if (_init_idx == 0xFFFFFFFF && w_init_idx != 0xFFFFFFFF) _init_idx = w_init_idx;
     if (_fini_idx == 0xFFFFFFFF && w_fini_idx != 0xFFFFFFFF) _fini_idx = w_fini_idx;
-    bootb_ctx->bootb[0] = load_sec2mem_wrapper(pctx, req_idx, try_to_use_flash);
-    bootb_ctx->bootb[1] = load_sec2mem_wrapper(pctx, _init_idx, try_to_use_flash);
-    bootb_ctx->bootb[2] = load_sec2mem_wrapper(pctx, main_idx, try_to_use_flash);
-    bootb_ctx->bootb[3] = load_sec2mem_wrapper(pctx, _fini_idx, try_to_use_flash);
-    bootb_ctx->bootb[4] = load_sec2mem_wrapper(pctx, sig_idx, try_to_use_flash);
+    bootb_ctx->req_ver_fn = load_sec2mem_wrapper(pctx, req_idx, try_to_use_flash);
+    bootb_ctx->_init_fn   = load_sec2mem_wrapper(pctx, _init_idx, try_to_use_flash);
+    bootb_ctx->main_fn    = load_sec2mem_wrapper(pctx, main_idx, try_to_use_flash);
+    bootb_ctx->_fini_fn   = load_sec2mem_wrapper(pctx, _fini_idx, try_to_use_flash);
+    bootb_ctx->sig_fn     = load_sec2mem_wrapper(pctx, sig_idx, try_to_use_flash);
     if(try_to_use_flash) {
         node_t* n = lst->first;
         uint32_t min_addr = 0xFFFFFFFF;
@@ -1220,7 +1220,7 @@ e1:
 ///    debug_sections(bootb_ctx->sect_entries);
     goutf("[%p][%p][%p][%p]\n", bootb_ctx->bootb[0], bootb_ctx->bootb[1], bootb_ctx->bootb[2], bootb_ctx->bootb[3]);
     #endif
-    if (bootb_ctx->bootb[2] == 0) {
+    if (bootb_ctx->main_fn == 0) {
         goutf("'main' global function is not found in (or failed to load from) the '%s' elf-file\n", fn);
         ctx->ret_code = -1;
         return false;
@@ -1232,7 +1232,7 @@ e1:
     return true;
 }
 
-volatile bootb_ptr_t bootb_sync_signal = NULL;
+volatile bootb_sig_ptr_t bootb_sync_signal = NULL;
 #if DEBUG_HEAP_SIZE
 void vShowAlloc( void );
 #endif
@@ -1255,9 +1255,9 @@ static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
 
     bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
     #if DEBUG_APP_LOAD
-    goutf("__required_m_api_verion: [%p]\n", bootb_ctx->bootb[0]);
+    goutf("__required_m_api_verion: [%p]\n", bootb_ctx->req_ver_fn);
     #endif
-    int rav = bootb_ctx->bootb[0] ? bootb_ctx->bootb[0]() : MIN_API_VERSION;
+    int rav = bootb_ctx->req_ver_fn ? bootb_ctx->req_ver_fn() : MIN_API_VERSION;
     #if DEBUG_APP_LOAD
     goutf("rav: %d\n", rav);
     #endif
@@ -1271,24 +1271,25 @@ static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
         ctx->ret_code = -3;
         return;
     }
-    if (bootb_ctx->bootb[1]) {
-        int x = bootb_ctx->bootb[1]();
+    void* _fini_ctx = 0;
+    if (bootb_ctx->_init_fn) {
+        _fini_ctx = bootb_ctx->_init_fn();
         #if DEBUG_APP_LOAD
-        goutf("_init done: %p\n", x);
+        goutf("_init done: %p\n", _fini_ctx);
         #endif
     }
     #if DEBUG_APP_LOAD
-    goutf("EXEC main: [%p]\n", bootb_ctx->bootb[2]);
+    goutf("EXEC main: [%p]\n", bootb_ctx->main);
     goutf("EXEC signal: [%p]\n", bootb_sync_signal);
     #endif
-    bootb_sync_signal = bootb_ctx->bootb[4];
-    int res = bootb_ctx->bootb[2] ? bootb_ctx->bootb[2]() : -3;
+    bootb_sync_signal = bootb_ctx->sig_fn;
+    int res = bootb_ctx->main_fn ? bootb_ctx->main_fn(ctx->argc, ctx->argv) : -3;
     bootb_sync_signal = NULL;
     #if DEBUG_APP_LOAD
     goutf("EXEC RET_CODE: %d -> _fini: %p\n", res, bootb_ctx->bootb[3]);
     #endif
-    if (bootb_ctx->bootb[3]) {
-        bootb_ctx->bootb[3]();
+    if (bootb_ctx->_fini_fn) {
+        bootb_ctx->_fini_fn(_fini_ctx);
         #if DEBUG_APP_LOAD
         gouta("_fini done\n");
         #endif
@@ -1455,7 +1456,7 @@ e:
 
 // support sygnal for current "sync_ctx" context only for now
 void __in_hfa() app_signal(void) {
-    if (bootb_sync_signal) bootb_sync_signal();
+    if (bootb_sync_signal) bootb_sync_signal(15);
 }
 
 int __in_hfa() kill(uint32_t task_number) {
@@ -1470,8 +1471,8 @@ int __in_hfa() kill(uint32_t task_number) {
             cmd_ctx_t* ctx = (cmd_ctx_t*) pvTaskGetThreadLocalStoragePointer(pxTaskStatusArray[ x ].xHandle, 0);
             if (ctx) {
                 ctx->stage = SIGTERM;
-                if (ctx->pboot_ctx && ctx->pboot_ctx->bootb[4]) {
-                    ctx->pboot_ctx->bootb[4](); // signal SIGTERM
+                if (ctx->pboot_ctx && ctx->pboot_ctx->sig_fn) {
+                    ctx->pboot_ctx->sig_fn(15); // signal SIGTERM
                     res = 2;
                 }
             } else {

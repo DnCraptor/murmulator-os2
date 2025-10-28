@@ -251,10 +251,18 @@ typedef struct {
     uint16_t sec_num;
 } sect_entry_t;
 
-typedef int (*bootb_ptr_t)( void );
+typedef int (*bootb_req_ver_ptr_t)( void );
+typedef void* (*bootb_init_ptr_t)( void );
+typedef int (*bootb_main_ptr_t)( int, char** );
+typedef void (*bootb_fini_ptr_t)( void* );
+typedef void (*bootb_sig_ptr_t)( int );
 
 typedef struct {
-    bootb_ptr_t bootb[5];
+    bootb_req_ver_ptr_t req_ver_fn;
+    bootb_init_ptr_t _init_fn;
+    bootb_main_ptr_t main_fn;
+    bootb_fini_ptr_t _fini_fn;
+    bootb_sig_ptr_t sig_fn;
     void* /* list_ of sect_entry_t*/ sections;
 } bootb_ctx_t;
 
