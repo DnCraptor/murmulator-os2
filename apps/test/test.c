@@ -111,7 +111,7 @@ int main() {
     log_write("POSIX test completed successfully\n");
 
     char* tmp = tmpnam(0);
-    char* tmp2 = tmpnam(0);
+    char tmp2[L_tmpnam]; tmpnam(tmp2);
     printf("tmpnam: %s\n", tmp);
     printf("tmpnam: %s\n", tmp2);
 

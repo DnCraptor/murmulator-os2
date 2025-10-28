@@ -110,6 +110,7 @@ static void __in_hfa() posix_add_link(uint32_t hash, const char* path, char type
         lnk->ohash = 0;
         lnk->ofname = 0;
     }
+    //goutf("posix_add_link %c %s %x -> %s %x\n", lnk->type, lnk->fname ? lnk->fname : "null", lnk->hash, lnk->ofname ? lnk->ofname : "null", lnk->ohash);
 }
 
 static FRESULT __in_hfa() extfs_flush() {
@@ -149,7 +150,7 @@ ok:
     return r;
 }
 
-static posix_link_t* __in_hfa() lookup_by_orig(const char* opath, uint32_t ohash) {
+static posix_link_t* __in_hfa() lookup_by_orig(uint32_t ohash, const char* opath) {
     posix_link_t* lnk = posix_links;
     if (!lnk) return 0;
     for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
@@ -187,6 +188,7 @@ static bool __in_hfa() posix_unlink(const char* path, uint32_t hash, posix_link_
                 }
             }
             vPortFree(lnk->fname);
+            if (lnk->ofname) vPortFree(lnk->ofname);
             if (posix_links_cnt - i > 1) {
                 memmove(lnk, lnk + 1, sizeof(posix_link_t) * (posix_links_cnt - i - 1));
             }
