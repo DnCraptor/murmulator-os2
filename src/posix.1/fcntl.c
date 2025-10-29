@@ -23,6 +23,18 @@ void __in_hfa() __getcwd(char *buff, UINT len) {
 
 // from libc (may be required to have own one?)
 char* __realpath(const char *restrict filename, char *restrict resolved);
+char* __realpathat(const char *restrict filename, char *restrict resolved, int at);
+
+// easy and fast FNV-1a (32-bit)
+static uint32_t __in_hfa() get_hash(const char *pathname) {
+    uint32_t h = 2166136261u;
+    while (*pathname) {
+        unsigned char c = 
+        h ^= (unsigned char)*pathname++;
+        h *= 16777619u;
+    }
+    return h;
+}
 
 static int __in_hfa() is_leap_year(int year) {
     return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
@@ -150,6 +162,17 @@ ok:
     return r;
 }
 
+static posix_link_t* __in_hfa() lookup_exact(uint32_t hash, const char* path) {
+    posix_link_t* lnk = posix_links;
+    if (!lnk) return 0;
+    for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
+        if (lnk->hash == hash && strcmp(path, lnk->fname) == 0) {
+            return lnk;
+        }
+    }
+    return 0;
+}
+
 static posix_link_t* __in_hfa() lookup_by_orig(uint32_t ohash, const char* opath) {
     posix_link_t* lnk = posix_links;
     if (!lnk) return 0;
@@ -164,7 +187,6 @@ static posix_link_t* __in_hfa() lookup_by_orig(uint32_t ohash, const char* opath
 static void __in_hfa() replace_orig(const char* opath, uint32_t ohash, posix_link_t* rename_to) {
     posix_link_t* lnk = posix_links;
     if (!lnk) return;
-    /// TODO: last 'H' case
     for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
         if (lnk->ofname && lnk->type == 'H' &&  lnk->ohash == ohash && strcmp(opath, lnk->ofname) == 0) {
             lnk->ohash = rename_to->hash;
@@ -449,19 +471,21 @@ static FIL* __in_hfa() array_lookup_first_closed(array_t* arr, size_t* pn) {
  *   On success: a new file descriptor (non-negative)
  *   On error:  -1 and errno is set appropriately
  */
-int __in_hfa() __openat(int dfd, const char *path, int flags, mode_t mode) {
+int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
     // TODO: dfd
-    if (!path) {
+    if (!_path) {
         errno = ENOTDIR;
         return -1;
     }
     // TODO: /dev/... , /proc/..., symlink
-    size_t n;
     init_pfiles();
+    char* path = __realpath(_path, 0);
+//    goutf("openat %s\n", path ? path : "null");
+    size_t n;
     FIL* pf = array_lookup_first_closed(pfiles, &n);
     if (!pf) {
         FDESC* fd = (FDESC*)alloc_file();
-        if (!fd) { errno = ENOMEM; return -1; }
+        if (!fd) { vPortFree(path); errno = ENOMEM; return -1; }
         pf = fd->fp;
         n = array_push_back(pfiles, fd);
     }
@@ -469,16 +493,16 @@ int __in_hfa() __openat(int dfd, const char *path, int flags, mode_t mode) {
     BYTE ff_mode = map_flags_to_ff_mode(flags);
     FRESULT fr = f_open(pf, path, ff_mode);
     if (fr != FR_OK) {
+err:
+        vPortFree(path);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
     FILINFO fno;
     fr = f_stat(path, &fno);
-    if (fr != FR_OK) {
-        errno = map_ff_fresult_to_errno(fr);
-        return -1;
-    }
+    if (fr != FR_OK) goto err;
     pf->ctime = fatfs_to_time_t(fno.fdate, fno.ftime);
+    vPortFree(path);
     errno = 0;
     return (int)n;
 }
@@ -509,15 +533,17 @@ e:
     return -1;
 }
 
-int __in_hfa() __stat(const char *path, struct stat *buf) {
-    if (!buf) {
+int __in_hfa() __stat(const char *_path, struct stat *buf) {
+    if (!buf || !_path) {
         errno = EFAULT;
         return -1;
     }
     init_pfiles();
     // TODO: devices, links, etc...
+    char* path = __realpath(_path, 0);
     FILINFO fno;
     FRESULT fr = f_stat(path, &fno);
+    vPortFree(path);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
@@ -589,9 +615,44 @@ e:
     return -1;
 }
 
-int __in_hfa() __lstat(const char *path, struct stat *buf) {
-    // no symlinl supported on FatFS
-    return __stat(path, buf);
+int __in_hfa() __lstat(const char *_path, struct stat *buf) {
+    if (!buf || !_path) {
+        errno = EFAULT;
+        return -1;
+    }
+    init_pfiles();
+    char* path = __realpathat(_path, 0, AT_SYMLINK_NOFOLLOW);
+    uint32_t hash = get_hash(path);
+    posix_link_t* lnk = lookup_exact(hash, path);
+    buf->st_mode = (lnk && lnk->type == 'S') ? S_IFLNK : 0;
+    FILINFO fno;
+    FRESULT fr = f_stat(path, &fno);
+    vPortFree(path);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    buf->st_dev   = 0;                    // no device differentiation in FAT
+    buf->st_ino   = 0;                    // FAT has no inode numbers
+    // FAT does not track UNIX-style permissions; set all to readable/writable/exec
+    if (fno.fattrib & AM_DIR) {
+        buf->st_mode |= S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH | S_IFDIR;
+    } else {
+        buf->st_mode |= S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH | S_IFREG;
+    }
+    buf->st_nlink = 1;                    // FAT does not support hard links
+    buf->st_uid   = 0;                    // no UID/GID in FAT
+    buf->st_gid   = 0;
+    buf->st_rdev  = 0;                    // no special device info
+    buf->st_size  = fno.fsize;            // file size in bytes
+    // timestamps (FatFs has date/time in local format)
+    buf->st_atime = 0;                     // FAT does not track last access reliably
+    // convert FAT timestamps to time_t
+    buf->st_atime = 0; // FAT does not reliably track last access
+    buf->st_mtime = fatfs_to_time_t(fno.fdate, fno.ftime);
+    buf->st_ctime = buf->st_mtime;
+    errno = 0;
+    return 0;
 }
 
 int __in_hfa() __read(int fildes, void *buf, size_t count) {
@@ -902,21 +963,10 @@ e:
     return -1;
 }
 
-// easy and fast FNV-1a (32-bit)
-static uint32_t __in_hfa() get_hash(const char *pathname) {
-    uint32_t h = 2166136261u;
-    while (*pathname) {
-        unsigned char c = 
-        h ^= (unsigned char)*pathname++;
-        h *= 16777619u;
-    }
-    return h;
-}
-
 int __in_hfa() __unlinkat(int dirfd, const char* _pathname, int flags) {
     // TODO: dirfd, flags
     init_pfiles();
-	char* pathname = __realpath(_pathname, 0);
+	char* pathname = __realpathat(_pathname, 0, AT_SYMLINK_NOFOLLOW);
 	if (!pathname) { errno = ENOMEM; return -1; }
     vTaskSuspendAll();
     uint32_t hash = get_hash(pathname);
@@ -950,13 +1000,35 @@ ok:
 }
 
 int __in_hfa() __rename(const char * f1, const char * f2) {
-    init_pfiles();
-    // TODO: links
-    FRESULT fr = f_rename(f1, f2);
-    if (fr != FR_OK) {
-        errno = map_ff_fresult_to_errno(fr);
+    if (!f1 || !f2) {
+        errno = EFAULT;
         return -1;
     }
+    vTaskSuspendAll();
+    init_pfiles();
+    char* path = __realpathat(f1, 0, AT_SYMLINK_NOFOLLOW);
+    uint32_t hash = get_hash(path);
+    posix_link_t* lnk = lookup_exact(hash, path);
+    char* path2 = __realpathat(f2, 0, AT_SYMLINK_NOFOLLOW);
+    FRESULT fr = f_rename(path, path2);
+    if (fr != FR_OK) {
+        vPortFree(path);
+        vPortFree(path2);
+        errno = map_ff_fresult_to_errno(fr);
+    	xTaskResumeAll();
+        return -1;
+    }
+    if (lnk) {
+        vPortFree(lnk->fname);
+        lnk->fname = path2;
+        lnk->hash = get_hash(path2);
+        if (lnk->type == 'O')
+            replace_orig(path, hash, lnk);
+    } else {
+        vPortFree(path2);
+    }
+    vPortFree(path);
+	xTaskResumeAll();
     errno = 0;
     return 0;
 }
@@ -964,7 +1036,7 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
 int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _new, int flag) {
     /// TODO: fde, fdn
     init_pfiles();
-	char* existing = __realpath(_existing, 0);
+	char* existing = __realpathat(_existing, 0, flag);
 	if (!existing) { errno = ENOMEM; return -1; }
 	char* new = __realpath(_new, 0);
 	if (!new) { vPortFree(existing); errno = ENOMEM; return -1; }

@@ -66,8 +66,11 @@ char* __libc() __strchrnul(const char *s, int c)
 
 weak_alias(__strchrnul, strchrnul);
 
-char* __libc() __realpath(const char *restrict filename, char *restrict resolved)
-{
+char* __libc() __realpath(const char *restrict filename, char *restrict resolved) {
+	return __realpathat(filename, resolved, AT_SYMLINK_FOLLOW);
+}
+char* __libc() __realpathat(const char *restrict filename, char *restrict resolved, int at) {
+///	goutf("realpathat(%s, %s, %d)\n", filename, resolved ? resolved : "null", at);
 	char* stack = (char*)pvPortMalloc(PATH_MAX+1);
 	if (!stack) { errno = ENOMEM; return 0; }
 	char* output = (char*)pvPortMalloc(PATH_MAX);
@@ -152,14 +155,18 @@ restart:
 			 * directories, processing .. can skip readlink. */
 			if (!check_dir) goto skip_readlink;
 		}
-		ssize_t k = __readlinkat2(AT_FDCWD, output, stack, p, true);
+		ssize_t k = 0;
+		if ((at & AT_SYMLINK_NOFOLLOW) && (stack[p] == 0))
+			k = __readlinkat2(AT_FDCWD, output, stack, p, true);
 		if (k == p) goto toolong;
 		if (!k) {
-			errno = ENOENT;
-			goto err;
+			check_dir = 0;
+			if (l0) q += l;
+			check_dir = stack[p];
+			continue;
 		}
 		if (k < 0) {
-			if (errno != EINVAL) goto err;
+		///	if (errno != EINVAL) goto err;
 skip_readlink:
 			check_dir = 0;
 			if (up) {
