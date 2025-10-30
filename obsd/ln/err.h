@@ -40,6 +40,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 
 #ifndef __dead
@@ -52,18 +53,25 @@
 
 __BEGIN_DECLS
 
+extern const char* __progname;
+
 inline static  void	err(int, const char*, ...)	__attribute__((__format__ (printf, 2, 3)));
 inline static  void	verr(int, const char*, __va_list ap) __attribute__((__format__ (printf, 2, 0)));
 
 inline static  void	err(int eval, const char* fmt, ...)	{
 	va_list ap;
-    va_start(ap, fmt);
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
-    va_end(ap);	
-	exit(eval);
+	va_start(ap, fmt);
+	verr(eval, fmt, ap);
+	va_end(ap);
 }
 inline static  void	verr(int eval, const char* fmt, __va_list ap) {
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
+	int sverrno = errno;
+	(void)fprintf(stderr, "%s: ", __progname);
+	if (fmt != NULL) {
+		(void)vfprintf(stderr, fmt, ap);
+		(void)fprintf(stderr, ": ");
+	}
+	(void)fprintf(stderr, "%s\n", strerror(sverrno));
 	exit(eval);
 }
 
@@ -72,36 +80,55 @@ inline static  void	verrc(int, int, const char *, __va_list) __attribute__((__fo
 
 inline static  void	errc(int eval, int code, const char* fmt, ...)	{
 	va_list ap;
-    va_start(ap, fmt);
-	fprintf(stderr, "%d:", code);
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
-    va_end(ap);	
-	exit(eval);
+	va_start(ap, fmt);
+	verrc(eval, code, fmt, ap);
+	va_end(ap);
 }
 inline static  void	verrc(int eval, int code, const char* fmt, __va_list ap) {
-	fprintf(stderr, "%d:", code);
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
+	(void)fprintf(stderr, "%s: ", __progname);
+	if (fmt != NULL) {
+		(void)vfprintf(stderr, fmt, ap);
+		(void)fprintf(stderr, ": ");
+	}
+	(void)fprintf(stderr, "%s\n", strerror(code));
 	exit(eval);
 }
 
-#define	errx err
-#define	verrx verr
+inline static  void	errx(int, const char*, ...)	__attribute__((__format__ (printf, 2, 3)));
+inline static  void	verrx(int, const char*, __va_list ap) __attribute__((__format__ (printf, 2, 0)));
+
+inline static void errx(int eval, const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	verrx(eval, fmt, ap);
+	va_end(ap);
+}
+inline static void verrx(int eval, const char *fmt, va_list ap)
+{
+	(void)fprintf(stderr, "%s: ", __progname);
+	if (fmt != NULL)
+		(void)vfprintf(stderr, fmt, ap);
+	(void)fprintf(stderr, "\n");
+	exit(eval);
+}
 
 inline static void		warn(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
 inline static void		vwarn(const char *, __va_list) __attribute__((__format__ (printf, 1, 0)));
 
 inline static  void	warn(const char* fmt, ...)	{
 	va_list ap;
-    va_start(ap, fmt);
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
-    va_end(ap);	
+	va_start(ap, fmt);
+	vwarn(fmt, ap);
+	va_end(ap);
 }
 inline static  void	vwarn(const char* fmt, __va_list ap) {
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
+	int sverrno = errno;
+	(void)fprintf(stderr, "%s: ", __progname);
+	if (fmt != NULL) {
+		(void)vfprintf(stderr, fmt, ap);
+		(void)fprintf(stderr, ": ");
+	}
+	(void)fprintf(stderr, "%s\n", strerror(sverrno));
 }
 
 inline static void		warnc(int, const char *, ...) __attribute__((__format__ (printf, 2, 3)));
@@ -109,20 +136,34 @@ inline static void		vwarnc(int, const char *, __va_list) __attribute__((__format
 
 inline static  void	warnc(int code, const char* fmt, ...)	{
 	va_list ap;
-    va_start(ap, fmt);
-	fprintf(stderr, "%d:", code);
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
-    va_end(ap);	
+	va_start(ap, fmt);
+	vwarnc(code, fmt, ap);
+	va_end(ap);
 }
 inline static  void	vwarnc(int code, const char* fmt, __va_list ap) {
-	fprintf(stderr, "%d:", code);
-	if (fmt != NULL) vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
+	(void)fprintf(stderr, "%s: ", __progname);
+	if (fmt != NULL) {
+		(void)vfprintf(stderr, fmt, ap);
+		(void)fprintf(stderr, ": ");
+	}
+	(void)fprintf(stderr, "%s\n", strerror(code));
 }
 
-#define	warnx warn
-#define	vwarnx vwarn
+inline static void		warnx(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
+inline static void		vwarnx(const char *, __va_list) __attribute__((__format__ (printf, 1, 0)));
+
+inline static void warnx(const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	vwarnx(fmt, ap);
+	va_end(ap);
+}
+inline static void vwarnx(const char *fmt, va_list ap) {
+	(void)fprintf(stderr, "%s: ", __progname);
+	if (fmt != NULL)
+		(void)vfprintf(stderr, fmt, ap);
+	(void)fprintf(stderr, "\n");
+}
 
 __END_DECLS
 

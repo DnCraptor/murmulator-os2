@@ -88,5 +88,5 @@ pico_enable_stdio_usb(${PROJECT_NAME} 0)
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rename
         $<TARGET_FILE:${PROJECT_NAME}>
-        ${COMPILED_DIR}/${BUILD_NAME}
+        ${COMPILED_DIR}/bin/${BUILD_NAME}
 )

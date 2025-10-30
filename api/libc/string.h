@@ -29,20 +29,10 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 #include <stddef.h>
 
 /*
-void *memcpy (void *__restrict, const void *__restrict, size_t);
-void *memmove (void *, const void *, size_t);
-void *memset (void *, int, size_t);
 int memcmp (const void *, const void *, size_t);
 void *memchr (const void *, int, size_t);
 
-char *strcpy (char *__restrict, const char *__restrict);
-char *strncpy (char *__restrict, const char *__restrict, size_t);
-
-char *strcat (char *__restrict, const char *__restrict);
 char *strncat (char *__restrict, const char *__restrict, size_t);
-
-int strcmp (const char *, const char *);
-int strncmp (const char *, const char *, size_t);
 
 int strcoll (const char *, const char *);
 size_t strxfrm (char *__restrict, const char *__restrict, size_t);
@@ -101,9 +91,11 @@ inline static int strncmp(const char * s1, const char * s2, size_t sz) {
     return ((fn_ptr_t)_sys_table_ptrs[109])(s1, s2, sz);
 }
 
-/*
-char *strerror (int);
-*/
+inline static char* strerror (int code) {
+    typedef char* (*fn_ptr_t)(int);
+    return ((fn_ptr_t)_sys_table_ptrs[353])(code);
+}
+
 #ifdef __cplusplus
 }
 #endif

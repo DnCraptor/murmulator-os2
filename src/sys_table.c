@@ -458,6 +458,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __exit, // 350
     __dirname, // 351
     __basename, // 352
+    strerror, // 353
  //   __getopt_long, // 
   //  __getopt_long_only, // 
     // TODO:

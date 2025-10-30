@@ -58,7 +58,6 @@ main(int argc, char *argv[])
 	struct stat sb;
 	int ch, exitval;
 	char *sourcedir;
-
 	if (pledge("stdio rpath cpath", NULL) == -1)
 		err(1, "pledge");
 
@@ -196,6 +195,8 @@ usage(void)
 	(void)fprintf(stderr,
 	    "usage: %s [-fhLnPs] source [target]\n"
 	    "       %s [-fLPs] source ... [directory]\n",
-	    PICO_BUILD_NAME, PICO_BUILD_NAME);
+	    __progname, __progname);
 	exit(1);
 }
+
+const char* __progname = PICO_BUILD_NAME;
