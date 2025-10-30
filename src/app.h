@@ -30,6 +30,7 @@ void overflowHook( TaskHandle_t pxTask, char *pcTaskName );
 void vCmdTask(void *pv);
 void app_signal(void);
 int kill(uint32_t task_number);
+void __exit(int status);
 
 #ifdef __cplusplus
 }

@@ -32,6 +32,14 @@ typedef unsigned int mode_t;
 #define O_SYNC      0x1000  /* write according to synchronized I/O file integrity completion */
 #define O_NOFOLLOW  0x2000  /* do not follow symbolic links */
 
+#ifndef AT_FDCWD
+#define AT_FDCWD (-100)
+#endif
+#define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_REMOVEDIR 0x200
+#define AT_SYMLINK_FOLLOW 0x400
+#define AT_EACCESS 0x200
+
 /*
  * openat() — open a file relative to a directory file descriptor
  *

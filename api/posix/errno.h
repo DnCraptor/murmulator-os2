@@ -15,6 +15,7 @@ extern "C" {
 #define ENOMEM    12  /* Not enough memory */
 #define EACCES    13  /* Permission denied */
 #define EFAULT    14  /* Bad address: pointer points outside accessible memory */
+#define EBUSY     16
 #define EEXIST    17  /* File exists */
 #define ENOTDIR   20  /* Not a directory */
 #define EISDIR    21  /* Is a directory */
@@ -24,6 +25,8 @@ extern "C" {
 #define ENOSPC    28  /* No space left on device */
 #define ESPIPE    29  /* Illegal seek */
 #define ERANGE    34
+#define ENAMETOOLONG    36
+#define ELOOP     40
 #define EOVERFLOW 75  /* Value too large for defined data type */
 
 #ifndef M_OS_API_SYS_TABLE_BASE

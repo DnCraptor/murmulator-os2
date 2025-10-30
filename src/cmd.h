@@ -43,6 +43,7 @@ typedef struct {
     bootb_fini_ptr_t _fini_fn;
     bootb_sig_ptr_t sig_fn;
     list_t* /*sect_entry_t*/ sections;
+    void* _fini_ctx;
 } bootb_ctx_t;
 
 typedef struct {

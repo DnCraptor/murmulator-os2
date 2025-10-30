@@ -1,3 +1,5 @@
+#include "FreeRTOS.h"
+#include "task.h"
 #include "app.h"
 #include <pico/platform.h>
 #include <hardware/flash.h>
@@ -1271,9 +1273,9 @@ static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
         ctx->ret_code = -3;
         return;
     }
-    void* _fini_ctx = 0;
+    bootb_ctx->_fini_ctx = 0;
     if (bootb_ctx->_init_fn) {
-        _fini_ctx = bootb_ctx->_init_fn();
+        bootb_ctx->_fini_ctx = bootb_ctx->_init_fn();
         #if DEBUG_APP_LOAD
         goutf("_init done: %p\n", _fini_ctx);
         #endif
@@ -1289,7 +1291,7 @@ static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
     goutf("EXEC RET_CODE: %d -> _fini: %p\n", res, bootb_ctx->bootb[3]);
     #endif
     if (bootb_ctx->_fini_fn) {
-        bootb_ctx->_fini_fn(_fini_ctx);
+        bootb_ctx->_fini_fn(bootb_ctx->_fini_ctx);
         #if DEBUG_APP_LOAD
         gouta("_fini done\n");
         #endif
@@ -1487,4 +1489,24 @@ int __in_hfa() kill(uint32_t task_number) {
 
 void __not_in_flash_func(reboot_me)(void) {
     reboot_is_requested = true;
+}
+
+void __exit(int status) {
+    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    cmd_ctx_t* ctx = (cmd_ctx_t*)pvTaskGetThreadLocalStoragePointer(th, 0);
+    if (ctx) {
+        bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
+        #if DEBUG_APP_LOAD
+        goutf("EXEC RET_CODE: %d -> _fini: %p\n", res, bootb_ctx->bootb[3]);
+        #endif
+        if (bootb_ctx->_fini_fn) {
+            bootb_ctx->_fini_fn(bootb_ctx->_fini_ctx);
+            #if DEBUG_APP_LOAD
+            gouta("_fini done\n");
+            #endif
+        }
+        ctx->ret_code = status;
+        remove_ctx(ctx);
+    }
+    vTaskDelete(th);;
 }

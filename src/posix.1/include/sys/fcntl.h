@@ -101,7 +101,7 @@ int __openat(int dfd, const char *path, int flags, mode_t mode);
 
 /* Directory file descriptor special value */
 #ifndef AT_FDCWD
-#define AT_FDCWD        -100    /* Use current working directory */
+#define AT_FDCWD        (-100)    /* Use current working directory */
 #endif
 
 long __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize);

@@ -23,6 +23,13 @@ inline static char* realpath (const char *restrict filename, char *restrict reso
     return ((fn_ptr_t)_sys_table_ptrs[341])(filename, resolved);
 }
 
+inline static void __exit(int status) {
+    typedef void (*fn_ptr_t)(int);
+    ((fn_ptr_t)_sys_table_ptrs[350])(status);
+}
+#define exit(status) __exit(status); __unreachable()
+
+
 /// TODO:
 #if 0
 #include <features.h>

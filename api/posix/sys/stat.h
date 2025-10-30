@@ -88,6 +88,44 @@ typedef long time_t;
 #define S_IWOTH  0002  /* write permission, others */
 #define S_IXOTH  0001  /* execute/search permission, others */
 
+/* Test if something is a normal file.  */
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+
+/* Test if something is a directory.  */
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
+
+/* Test if something is a character special file.  */
+#ifndef S_ISCHR
+#define S_ISCHR(m) (((m) & S_IFMT) == S_IFCHR)
+#endif
+
+/* Test if something is a block special file.  */
+#ifndef S_ISBLK
+#define S_ISBLK(m) (((m) & S_IFMT) == S_IFBLK)
+#endif
+
+/* Test if something is a socket.  */
+#ifndef S_ISSOCK
+# ifdef S_IFSOCK
+#   define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
+# else
+#   define S_ISSOCK(m) 0
+# endif
+#endif
+
+/* Test if something is a FIFO.  */
+#ifndef S_ISFIFO
+# ifdef S_IFIFO
+#  define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
+# else
+#  define S_ISFIFO(m) 0
+# endif
+#endif
+
 /* Structure describing a file */
 struct stat {
     dev_t     st_dev;     /* ID of device containing file */

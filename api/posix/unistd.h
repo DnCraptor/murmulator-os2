@@ -13,6 +13,8 @@ extern "C" {
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
 #endif
 
+#define PATH_MAX 255
+
 #ifndef AT_FDCWD
 #define AT_FDCWD (-100)
 #endif

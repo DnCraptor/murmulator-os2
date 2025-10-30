@@ -36,6 +36,8 @@
 #include "poll.h"
 
 #include "__stdio.h"
+#include "__getopt.h"
+#include "__libgen.h"
 
 // TODO: think about it
 //extern int __cxa_pure_virtual();
@@ -445,6 +447,19 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __realpath, // 341
     __tmpnam, // 342
     __tmpfile, // 343
+    // misc
+    __getopt, // 344
+    &__optarg, // 345
+    &__optind, // 346
+    &__opterr, // 347
+    &__optopt, // 348
+    &__optreset,  // 349
+    // libc
+    __exit, // 350
+    __dirname, // 351
+    __basename, // 352
+ //   __getopt_long, // 
+  //  __getopt_long_only, // 
     // TODO:
     0
 };
