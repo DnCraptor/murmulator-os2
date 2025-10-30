@@ -123,6 +123,7 @@ inline static void graphics_set_con_pos(int x, int y) {
     ((graphics_set_con_pos_ptr_t)_sys_table_ptrs[42])(x, y);
 }
 inline static void graphics_set_con_color(uint8_t color, uint8_t bgcolor) {
+    typedef void (*graphics_set_con_color_ptr_t)(uint8_t color, uint8_t bgcolor);
     ((graphics_set_con_color_ptr_t)_sys_table_ptrs[43])(color, bgcolor);
 }
 
@@ -304,6 +305,7 @@ typedef struct cmd_ctx {
     volatile cmd_exec_stage_t stage;
     void* user_data;
     bool forse_flash;
+    TaskHandle_t parent_task;
 } cmd_ctx_t;
 
 inline static TaskHandle_t xTaskGetCurrentTaskHandle( void ) {

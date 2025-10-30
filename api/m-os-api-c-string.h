@@ -5,9 +5,8 @@
 extern "C" {
 #endif
 
-size_t strlen(const char * s);
-char* strncpy(char* t, const char * s, size_t sz);
-void* memcpy(void *__restrict dst, const void *__restrict src, size_t sz);
+#include <string.h>
+#include "task.h"
 
 typedef struct string {
     size_t size; // string size excluding end-0

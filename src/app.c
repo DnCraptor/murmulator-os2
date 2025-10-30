@@ -1312,6 +1312,51 @@ static void __in_hfa() vAppDetachedTask(void *pv) {
     goutf("vAppDetachedTask: [%p] <<<\n", ctx);
     #endif
     vTaskDelete( NULL );
+    __unreachable();
+}
+
+static void __in_hfa() vAppAttachedTask(void *pv) {
+    cmd_ctx_t* ctx = (cmd_ctx_t*)pv;
+    #if DEBUG_APP_LOAD
+    goutf("vAppAttachedTask: %s [%p]\n", ctx->orig_cmd, ctx);
+    #endif
+    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    vTaskSetThreadLocalStoragePointer(th, 0, ctx);
+    exec_sync(ctx);
+    #if DEBUG_APP_LOAD
+    goutf("xTaskNotifyGive [%p]->[%p]\n", ctx, ctx->parent_task);
+    #endif
+    xTaskNotifyGive(ctx->parent_task);
+    #if DEBUG_APP_LOAD
+    goutf("vAppAttachedTask: [%p] <<<\n", ctx);
+    #endif
+    vTaskDelete( NULL );
+    __unreachable();
+}
+
+void __in_hfa() __exit(int status) {
+    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    cmd_ctx_t* ctx = (cmd_ctx_t*)pvTaskGetThreadLocalStoragePointer(th, 0);
+    if (ctx) {
+        bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
+        #if DEBUG_APP_LOAD
+        goutf("EXEC RET_CODE: %d -> _fini: %p\n", status, bootb_ctx->_fini_ctx);
+        #endif
+        if (bootb_ctx->_fini_fn) {
+            bootb_ctx->_fini_fn(bootb_ctx->_fini_ctx);
+            #if DEBUG_APP_LOAD
+            gouta("_fini done\n");
+            #endif
+        }
+        ctx->ret_code = status;
+        if (ctx->parent_task) {
+            xTaskNotifyGive(ctx->parent_task);
+        } else {
+            remove_ctx(ctx); // detached case, noboty can cleanup it except there
+        }
+    }
+    vTaskDelete( NULL );
+    __unreachable();
 }
 
 void __in_hfa() exec(cmd_ctx_t* ctx) {
@@ -1322,24 +1367,36 @@ void __in_hfa() exec(cmd_ctx_t* ctx) {
         #endif
         if (ctx->detached) {
             cmd_ctx_t* ctxi = clone_ctx(ctx);
+            ctxi->parent_task = 0;
             #if DEBUG_APP_LOAD
             goutf("Clone ctx [%p]->[%p]\n", ctx, ctxi);
             #endif
             xTaskCreate(vAppDetachedTask, ctxi->argv[0], 1024/*x 4 = 4096*/, ctxi, configMAX_PRIORITIES - 1, NULL);
             cleanup_ctx(ctx);
         } else {
-            exec_sync(ctx);
+            #if DEBUG_APP_LOAD
+            goutf("ctx [%p]\n", ctx);
+            #endif
+            ctx->parent_task = xTaskGetCurrentTaskHandle();
+            xTaskCreate(vAppAttachedTask, ctx->argv[0], 1024/*x 4 = 4096*/, ctx, configMAX_PRIORITIES - 1, NULL);
+            #if DEBUG_APP_LOAD
+            goutf("ctx [%p], ulTaskNotifyTake[%p]\n", ctx, ctx->parent_task);
+            #endif
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            #if DEBUG_APP_LOAD
+            goutf("ctx [%p], ulTaskNotifyTake passed\n", ctx);
+            #endif
             cleanup_bootb_ctx(ctx);
             if (ctx->stage != PREPARED) { // it is expected cmd/cmd0 will prepare ctx for next run for application, in other case - cleanup ctx
                 cleanup_ctx(ctx);
             }
-#if DEBUG_HEAP_SIZE
-    {
-        vShowAlloc();
-        size_t free_sz = xPortGetFreeHeapSize();
-        goutf(" free_sz: %d\n", free_sz);
-    }
-#endif
+            #if DEBUG_HEAP_SIZE
+            {
+                vShowAlloc();
+                size_t free_sz = xPortGetFreeHeapSize();
+                goutf(" free_sz: %d\n", free_sz);
+            }
+            #endif
             #if DEBUG_APP_LOAD
             goutf("EXEC [%p] <<\n", ctx);
             #endif
@@ -1489,24 +1546,4 @@ int __in_hfa() kill(uint32_t task_number) {
 
 void __not_in_flash_func(reboot_me)(void) {
     reboot_is_requested = true;
-}
-
-void __exit(int status) {
-    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
-    cmd_ctx_t* ctx = (cmd_ctx_t*)pvTaskGetThreadLocalStoragePointer(th, 0);
-    if (ctx) {
-        bootb_ctx_t* bootb_ctx = ctx->pboot_ctx;
-        #if DEBUG_APP_LOAD
-        goutf("EXEC RET_CODE: %d -> _fini: %p\n", res, bootb_ctx->bootb[3]);
-        #endif
-        if (bootb_ctx->_fini_fn) {
-            bootb_ctx->_fini_fn(bootb_ctx->_fini_ctx);
-            #if DEBUG_APP_LOAD
-            gouta("_fini done\n");
-            #endif
-        }
-        ctx->ret_code = status;
-        remove_ctx(ctx);
-    }
-    vTaskDelete(th);;
 }

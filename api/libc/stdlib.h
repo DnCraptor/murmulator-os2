@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#ifndef NULL
 #if __cplusplus >= 201103L
 #define NULL nullptr
 #elif defined(__cplusplus)
@@ -12,11 +13,17 @@ extern "C" {
 #else
 #define NULL ((void*)0)
 #endif
+#endif
 
 #define __NEED_size_t
 #define __NEED_wchar_t
 
 #include <stddef.h>
+
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
 
 inline static char* realpath (const char *restrict filename, char *restrict resolved) {
     typedef char* (*fn_ptr_t)(const char *__restrict, char *__restrict);

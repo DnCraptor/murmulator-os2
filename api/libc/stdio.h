@@ -32,6 +32,8 @@ typedef long long _off_t;
 #endif
 
 #include <stddef.h>
+#include <errno.h>
+#include <stdarg.h>
 
 #ifndef _OWN_IO_FILE 
 struct _IO_FILE { char __x; };

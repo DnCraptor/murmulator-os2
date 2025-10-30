@@ -84,6 +84,7 @@ typedef struct cmd_ctx {
     volatile cmd_exec_stage_t stage;
     void* user_data;
     bool forse_flash;
+    TaskHandle_t parent_task;
 } cmd_ctx_t;
 
 cmd_ctx_t* get_cmd_startup_ctx(); // system
