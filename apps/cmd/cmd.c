@@ -1,8 +1,3 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include "m-os-api-c-string.h"
 
 // #define DEBUG
@@ -33,7 +28,7 @@ inline static char* get_ctx_var(cmd_ctx_t* src, const char* k) {
     return ((fn_ptr_t)_sys_table_ptrs[140])(src, k);
 }
 inline static void graphics_set_con_color(uint8_t color, uint8_t bgcolor) {
-    typedef void (*graphics_set_con_color_ptr_t)(uint8_t color, uint8_t bgcolor);
+    typedef void (*graphics_set_con_color_ptr_t)(uint8_t, uint8_t);
     ((graphics_set_con_color_ptr_t)_sys_table_ptrs[43])(color, bgcolor);
 }
 inline static bool cmd_enter_helper(cmd_ctx_t* ctx, string_t* s_cmd) {
@@ -60,6 +55,13 @@ inline static void cmd_tab(cmd_ctx_t* ctx, string_t* s_cmd) {
     typedef void (*fn_ptr_t)(cmd_ctx_t* ctx, string_t* s_cmd);
     ((fn_ptr_t)_sys_table_ptrs[233])(ctx, s_cmd);
 }
+inline static void gouta(char* string) {
+    typedef void (*t_ptr_t)(char*);
+    ((t_ptr_t)_sys_table_ptrs[127])(string);
+}
+typedef void (*goutf_ptr_t)(const char *__restrict str, ...) _ATTRIBUTE ((__format__ (__printf__, 1, 2)));
+#define goutf(...) ((goutf_ptr_t)_sys_table_ptrs[41])(__VA_ARGS__)
+
 #define CHAR_CODE_BS    8
 #define CHAR_CODE_UP    17
 #define CHAR_CODE_DOWN  18
@@ -67,6 +69,15 @@ inline static void cmd_tab(cmd_ctx_t* ctx, string_t* s_cmd) {
 #define CHAR_CODE_TAB   '\t'
 #define CHAR_CODE_ESC   0x1B
 #define CHAR_CODE_EOF   0xFF
+
+inline static char getch(void) {
+    typedef char (*fn_ptr_t)(void);
+    return ((fn_ptr_t)_sys_table_ptrs[122])();
+}
+inline static void putc0(char c) {
+    typedef void (*fn_ptr_t)(char);
+    ((fn_ptr_t)_sys_table_ptrs[123])(c);
+}
 
 static string_t* s_cmd = NULL;
 
@@ -80,20 +91,20 @@ inline static void cmd_backspace() {
 }
 
 inline static void type_char(char c) {
-    putc(c, stdout);
+    putc0(c);
     string_push_back_c(s_cmd, c);
 }
 
 inline static void prompt(cmd_ctx_t* ctx) {
     const char* cd = get_ctx_var(ctx, "CD");
     graphics_set_con_color(13, 0);
-    printf("[%s]", cd);
+    goutf("[%s]", cd);
     graphics_set_con_color(7, 0);
-    printf("$ ");
+    gouta("$ ");
 }
 
 inline static bool cmd_enter(cmd_ctx_t* ctx) {
-    putc('\n', stdout);
+    putc0('\n');
     if ( cmd_enter_helper(ctx, s_cmd) ) {
         return true;
     }
@@ -116,7 +127,7 @@ inline static void cmd_up(cmd_ctx_t* ctx) {
     cmd_history_idx--;
     int idx = history_steps(ctx, cmd_history_idx, s_cmd);
     if (cmd_history_idx < 0) cmd_history_idx = idx;
-    printf("%s", s_cmd->p);
+    gouta(s_cmd->p);
 }
 
 inline static void cmd_down(cmd_ctx_t* ctx) {
@@ -124,7 +135,7 @@ inline static void cmd_down(cmd_ctx_t* ctx) {
     if (cmd_history_idx == -2) cmd_history_idx = -1;
     cmd_history_idx++;
     history_steps(ctx, cmd_history_idx, s_cmd);
-    printf("%s", s_cmd->p);
+    gouta(s_cmd->p);
 }
 
 int main(int argc, char** argv) {
@@ -135,7 +146,7 @@ int main(int argc, char** argv) {
     prompt(ctx);
     cmd_history_idx = -2;
     while(1) {
-        char c = getchar();
+        char c = getch();
         if (c) {
             if (c == CHAR_CODE_BS) cmd_backspace();
             else if (c == CHAR_CODE_UP) cmd_up(ctx);
@@ -143,7 +154,7 @@ int main(int argc, char** argv) {
             else if (c == CHAR_CODE_TAB) cmd_tab(ctx, s_cmd);
             else if (c == CHAR_CODE_ESC) {
                 blimp(15, 1);
-                printf("\n");
+                gouta("\n");
                 string_resize(s_cmd, 0);
                 prompt(ctx);
             }
