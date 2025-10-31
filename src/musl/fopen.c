@@ -7,7 +7,7 @@
 #include <string.h>
 #include <errno.h>
 
-FILE *__ofl_add(FILE *f)
+FILE* __libc() __ofl_add(FILE *f)
 {
 	FILE **head = __ofl_lock();
 	f->next = *head;
@@ -114,7 +114,7 @@ FILE* __libc() __fopen(const char *restrict filename, const char *restrict mode)
 	return 0;
 }
 
-long __syscall_ret(unsigned long r)
+long __libc() __syscall_ret(unsigned long r)
 {
 	if (r > -4096UL) {
 		errno = -r;
@@ -177,4 +177,12 @@ fail2:
 fail:
 	__fclose(f);
 	return NULL;
+}
+
+int __libc() __fileno(FILE* f) {
+	if (!f) {
+		errno = EINVAL;
+		return -1;
+	}
+	return f->fd;
 }

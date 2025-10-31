@@ -25,3 +25,11 @@ char* __libc() __basename(char *s)
 }
 
 weak_alias(__basename, __xpg_basename);
+
+#include "cmd.h"
+
+const char* __libc() __getprogname(void) {
+	cmd_ctx_t* ctx = get_cmd_ctx();
+	if (!ctx || ctx->argc < 1 || !ctx->argv[0]) return "null";
+	return __basename(ctx->argv[0]);
+}

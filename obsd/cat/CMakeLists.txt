@@ -17,7 +17,7 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.22)
 include(pico_sdk_import.cmake)
 
-project(ln C CXX ASM)
+project(cat C CXX ASM)
 pico_sdk_init()
 
 SET(BUILD_NAME "${PROJECT_NAME}")
@@ -43,7 +43,7 @@ message(STATUS "")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/runtime" "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 
 add_executable(${PROJECT_NAME}
-    ln.c
+    cat.c
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -52,8 +52,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
-pico_set_program_name(${PROJECT_NAME} "Murmulator OS Applications: OpenBSD ln")
-pico_set_program_version(${PROJECT_NAME} "ln")
+pico_set_program_name(${PROJECT_NAME} "Murmulator OS Applications: OpenBSD cat")
+pico_set_program_version(${PROJECT_NAME} "cat")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     murmulator_runtime

@@ -360,6 +360,11 @@ inline static FILE* tmpfile(void) {
     return ((fn_ptr_t)_sys_table_ptrs[343])();
 }
 
+inline static int fileno(FILE* f) {
+    typedef int (*fn_ptr_t)(FILE*);
+    return ((fn_ptr_t)_sys_table_ptrs[355])(f);
+}
+
 /*
 
 #if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \
@@ -370,7 +375,6 @@ FILE *open_memstream(char **, size_t *);
 FILE *fdopen(int, const char *);
 FILE *popen(const char *, const char *);
 int pclose(FILE *);
-int fileno(FILE *);
 int dprintf(int, const char *__restrict, ...);
 int vdprintf(int, const char *__restrict, __isoc_va_list);
 void flockfile(FILE *);

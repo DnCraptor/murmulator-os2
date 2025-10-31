@@ -18,6 +18,7 @@ struct option {
 
 int __getopt_long(int, char *const *, const char *, const struct option *, int *);
 int __getopt_long_only(int, char *const *, const char *, const struct option *, int *);
+const char* __getprogname(void);
 
 #define no_argument        0
 #define required_argument  1

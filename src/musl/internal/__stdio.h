@@ -149,6 +149,7 @@ char* __realpath(const char *restrict filename, char *restrict resolved);
 char* __realpathat(const char *restrict filename, char *restrict resolved, int at);
 char* __tmpnam(char *buf);
 FILE* __tmpfile(void);
+int __fileno(FILE*);
 
 #ifdef __cplusplus
 }
