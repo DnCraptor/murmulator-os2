@@ -62,7 +62,6 @@ main(int argc, char *argv[])
 
 	if (pledge("stdio rpath", NULL) == -1)
 		err(1, "pledge");
-
 	while ((ch = getopt(argc, argv, "benstuv")) != -1) {
 		switch (ch) {
 		case 'b':

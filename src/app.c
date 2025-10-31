@@ -1283,6 +1283,7 @@ static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
     #if DEBUG_APP_LOAD
     goutf("EXEC main: [%p]\n", bootb_ctx->main);
     goutf("EXEC signal: [%p]\n", bootb_sync_signal);
+    goutf("EXEC ctx->argc: %d\n", ctx->argc);
     #endif
     bootb_sync_signal = bootb_ctx->sig_fn;
     int res = bootb_ctx->main_fn ? bootb_ctx->main_fn(ctx->argc, ctx->argv) : -3;

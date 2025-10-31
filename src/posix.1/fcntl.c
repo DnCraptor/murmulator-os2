@@ -508,8 +508,9 @@ err:
 }
 
 int __in_hfa() __close(int fildes) {
-    if (fildes <= STDERR_FILENO) {
-        goto e;
+    if (fildes <= STDERR_FILENO) { // just ignore close request for std descriptors
+        errno = 0;
+        return 0;
     }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
