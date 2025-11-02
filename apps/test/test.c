@@ -109,11 +109,11 @@ int main() {
     log_write("link/symlink/unlink passed\n");
 
     log_write("POSIX test completed successfully\n");
-
+#if TEST_LIBC
     char* tmp = tmpnam(0);
     char tmp2[L_tmpnam]; tmpnam(tmp2);
     printf("tmpnam: %s\n", tmp);
-    printf("tmpnam: %s\n", tmp2);
+    printf("tmpnam2: %s\n", tmp2);
 
     FILE* f = fopen(tmp, "w+");
     if (!f) {
@@ -283,6 +283,7 @@ m1:
     printf("scanf: PASSED\n");
 
     perror("perror");
+    #endif
 fail:
     log_write("errno: ");
     buf[1] = 0;

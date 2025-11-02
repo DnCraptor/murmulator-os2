@@ -67,9 +67,9 @@ char* __libc() __strchrnul(const char *s, int c)
 weak_alias(__strchrnul, strchrnul);
 
 char* __libc() __realpath(const char *restrict filename, char *restrict resolved) {
-	return __realpathat(filename, resolved, AT_SYMLINK_FOLLOW);
+	return __realpathat(AT_FDCWD, filename, resolved, AT_SYMLINK_FOLLOW);
 }
-char* __libc() __realpathat(const char *restrict filename, char *restrict resolved, int at) {
+char* __libc() __realpathat(int dfd, const char *restrict filename, char *restrict resolved, int flags) {
 ///	goutf("realpathat(%s, %s, %d)\n", filename, resolved ? resolved : "null", at);
 	char* stack = (char*)pvPortMalloc(PATH_MAX+1);
 	if (!stack) { errno = ENOMEM; return 0; }
@@ -156,8 +156,8 @@ restart:
 			if (!check_dir) goto skip_readlink;
 		}
 		ssize_t k = 0;
-		if ((at & AT_SYMLINK_NOFOLLOW) && (stack[p] == 0))
-			k = __readlinkat2(AT_FDCWD, output, stack, p, true);
+		if ((flags & AT_SYMLINK_NOFOLLOW) && (stack[p] == 0))
+			k = __readlinkat2(dfd, output, stack, p, true);
 		if (k == p) goto toolong;
 		if (!k) {
 			check_dir = 0;
@@ -197,6 +197,18 @@ skip_readlink:
  	output[q] = 0;
 
 	if (output[0] != '/') {
+#if 0 /// TODO: dfd to be taken into account
+		if (dfd != AT_FDCWD) {
+			char dpath[PATH_MAX];
+			if (!__fd_to_path(dfd, dpath, sizeof(dpath))) {
+				errno = EBADF;
+				goto err;
+			}
+			if (snprintf(stack, PATH_MAX, "%s/%s", dpath, output) >= PATH_MAX)
+				goto toolong;
+			strcpy(output, stack);
+		} else ...
+#endif
 		if (!getcwd(stack, PATH_MAX+1)) goto err;
 		l = strlen(stack);
 		/* Cancel any initial .. components. */

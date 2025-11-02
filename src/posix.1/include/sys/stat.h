@@ -94,8 +94,8 @@ struct stat {
     dev_t     st_rdev;    /* device ID (if special file) */
     off_t     st_size;    /* total size, in bytes */
     time_t    st_atime;   /* time of last access */
-    time_t    st_mtime;   /* time of last modification */
-    time_t    st_ctime;   /* time of last status change */
+    time_t    st_mtime;   /* time of last modification (content) */
+    time_t    st_ctime;   /* time of last status (metadata) or content change */
 };
 
 /**
@@ -128,12 +128,9 @@ struct stat {
  *     - Use fstat() for already opened file descriptors.
  */
 int __stat(const char *path, struct stat *buf);
-inline static int stat(const char *path, struct stat *buf) {
-    return __stat(path, buf);
-}
-
 int __fstat(int fildes, struct stat *buf);
 int __lstat(const char *path, struct stat *buf); // for symbolic links
+int __fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
 
 #ifdef __cplusplus
 }

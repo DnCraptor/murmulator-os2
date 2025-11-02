@@ -12,6 +12,7 @@ extern "C" {
 #define EINTR     4   /* Interrupted system call */
 #define EIO       5   /* I/O error */
 #define EBADF     9   /* Bad file descriptor */
+#define	EAGAIN    11  /* No more processes */
 #define ENOMEM    12  /* Not enough memory */
 #define EACCES    13  /* Permission denied */
 #define EFAULT    14  /* Bad address: pointer points outside accessible memory */

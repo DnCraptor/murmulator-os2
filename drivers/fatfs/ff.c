@@ -4012,9 +4012,6 @@ FRESULT __in_hfa() f_read (
 /*-----------------------------------------------------------------------*/
 /* Write File                                                            */
 /*-----------------------------------------------------------------------*/
-void gouta(char* buf);
-void* pvPortMalloc(size_t sz); // 32
-void vPortFree(void*); // 33
 
 inline static FRESULT __always_inline (_f_write) (
 	FIL* fp,			/* Open file to be written */
@@ -4135,21 +4132,6 @@ FRESULT __in_hfa() f_write (
 	UINT* bw			/* Number of bytes written */
 )
 {
-	if (fp == 0) { // stdin
-		// TODO:
-		return FR_INVALID_DRIVE;
-	}
-	if (fp <= 2) { // stdout/stderr
-		// TODO: tune up tty
-		char* b = pvPortMalloc(btw + 1);
-		if (!b) return FR_NOT_ENOUGH_CORE;
-		memcpy(b, buff, btw);
-		b[btw] = 0;
-		gouta(b);
-		vPortFree(b);
-		*bw = btw;
-		return FR_OK;
-	}
 	FRESULT res;
 	if (fp->chained) {
 	    // goutf("f_write: %p (%d)\n", fp->chained, btw);

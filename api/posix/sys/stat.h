@@ -6,6 +6,16 @@
 extern "C" {
 #endif
 
+#ifndef AT_FDCWD
+#define AT_FDCWD (-100)
+#endif
+#ifndef AT_SYMLINK_NOFOLLOW
+#define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_REMOVEDIR 0x200
+#define AT_SYMLINK_FOLLOW 0x400
+#define AT_EACCESS 0x200
+#endif
+
 #ifndef M_OS_API_SYS_TABLE_BASE
 #define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
@@ -142,6 +152,50 @@ struct stat {
 };
 
 /**
+* Retrieves information about a file or directory relative to a directory file descriptor.
+*
+* @param dirfd
+  File descriptor referring to an open directory. If set to AT_FDCWD,
+  'pathname' is interpreted relative to the current working directory.
+*
+* @param pathname
+  Path to the target file or directory, relative to 'dirfd' if it is not absolute.
+  May be NULL only if 'flags' includes AT_EMPTY_PATH and the target is specified
+  by 'dirfd' itself.
+* @param buf
+  Pointer to a 'struct stat' object where file status information will be stored.
+  Must not be NULL and must reference writable memory.
+*
+* @param flags
+  Bitmask of options controlling behavior:
+    - AT_SYMLINK_NOFOLLOW : Do not follow symbolic links.
+    - AT_EMPTY_PATH       : If 'pathname' is empty, operate on the directory
+                            referred to by 'dirfd' itself.
+* @return
+  On success: returns 0 and fills 'buf' with file status information.
+  On failure: returns -1 and sets errno to indicate the specific error.
+*
+* @errors
+  EACCES   - Permission denied to search a directory component of the path.
+  ENOENT   - File or directory does not exist.
+  ENOTDIR  - A component of the path prefix is not a directory.
+  ELOOP    - Too many symbolic links encountered while resolving pathname.
+  EBADF    - 'dirfd' is not a valid open file descriptor, or it does not refer to a directory
+              when required.
+  EINVAL   - Invalid flag specified in 'flags'.
+  EFAULT   - 'pathname' or 'buf' points outside accessible address space.
+*
+* @notes
+  - Equivalent to stat() when 'dirfd' is AT_FDCWD and 'flags' includes AT_SYMLINK_FOLLOW.
+  - Use lstat() or AT_SYMLINK_NOFOLLOW to obtain information about the link itself
+    rather than its target.
+  - Use fstat() to obtain information about an already open file descriptor.
+*/
+inline static int fstatat(int dirfd, const char *pathname, struct stat *buf, int flags) {
+    typedef int (*fn_ptr_t)(int, const char*, struct stat*, int);
+    return ((fn_ptr_t)_sys_table_ptrs[267])(dirfd, pathname, buf, flags);
+}
+/**
  * Retrieves information about a file or directory specified by pathname.
  *
  * @param path
@@ -171,8 +225,7 @@ struct stat {
  *     - Use fstat() for already opened file descriptors.
  */
 inline static int stat(const char *path, struct stat *buf) {
-    typedef int (*fn_ptr_t)(const char*, struct stat*);
-    return ((fn_ptr_t)_sys_table_ptrs[267])(path, buf);
+    return fstatat(AT_FDCWD, path, buf, AT_SYMLINK_FOLLOW);
 }
 
 inline static int fstat(int fildes, struct stat *buf) {

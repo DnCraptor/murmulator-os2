@@ -103,6 +103,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/freertos_config
     ${CMAKE_CURRENT_SOURCE_DIR}/src/posix.1/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src/musl/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/obsd/include
 )
 
 configure_file(memmap.ld.in memmap.ld @ONLY)

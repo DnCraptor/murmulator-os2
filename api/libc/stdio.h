@@ -201,10 +201,12 @@ inline static int putchar(int c) {
 #ifndef AT_FDCWD
 #define AT_FDCWD (-100)
 #endif
+#ifndef AT_SYMLINK_NOFOLLOW
 #define AT_SYMLINK_NOFOLLOW 0x100
 #define AT_REMOVEDIR 0x200
 #define AT_SYMLINK_FOLLOW 0x400
 #define AT_EACCESS 0x200
+#endif
 
 inline static int remove(const char * fn) {
     typedef int (*fn_ptr_t)(int dirfd, const char *pathname, int flags);

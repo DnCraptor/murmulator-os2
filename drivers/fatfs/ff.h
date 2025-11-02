@@ -224,9 +224,9 @@ typedef struct FIL {
     struct FIL* chained;
 	// injected for posix.1 support fstat
 	unsigned long ctime;
+	unsigned long mode; // .extfs saved mode for 'O' type
 	unsigned long pending_descriptors;
 } FIL;
-
 
 
 /* Directory object structure (DIR) */

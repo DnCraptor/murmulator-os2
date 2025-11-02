@@ -181,7 +181,8 @@ linkit(char *target, char *source, int isdir)
 	if ((fflag && unlink(source) == -1 && errno != ENOENT) ||
 	    (sflag ? symlink(target, source) :
 	    linkat(AT_FDCWD, target, AT_FDCWD, source,
-	    Pflag ? 0 : AT_SYMLINK_FOLLOW))) {
+	    Pflag ? 0 : AT_SYMLINK_FOLLOW))
+	) {
 		warn("%s", source);
 		return (1);
 	}

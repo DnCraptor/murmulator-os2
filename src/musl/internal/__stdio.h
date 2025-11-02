@@ -146,7 +146,7 @@ int __vsscanf(const char *restrict s, const char *restrict fmt, va_list ap);
 void __perror(const char *msg);
 int __setvbuf(FILE *__restrict, char *__restrict, int, size_t);
 char* __realpath(const char *restrict filename, char *restrict resolved);
-char* __realpathat(const char *restrict filename, char *restrict resolved, int at);
+char* __realpathat(int dfd, const char *restrict filename, char *restrict resolved, int flags);
 char* __tmpnam(char *buf);
 FILE* __tmpfile(void);
 int __fileno(FILE*);

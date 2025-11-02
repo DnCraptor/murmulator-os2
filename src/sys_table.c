@@ -39,6 +39,8 @@
 #include "__getopt.h"
 #include "__libgen.h"
 
+#include "fts.h"
+
 // TODO: think about it
 //extern int __cxa_pure_virtual();
 
@@ -366,7 +368,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // API v.27 POSIX.1 (Base)
     __openat, // 265
     __close, // 266
-    __stat, // 267
+    __fstatat, // 267
     __fstat, // 268
     __lstat, // 269
     __read, // 270
@@ -461,8 +463,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     strerror, // 353
     __getprogname, // 354
     __fileno, // 355
- //   __getopt_long, // 
-  //  __getopt_long_only, // 
+    // Open BSD
+    fts_open, // 356
     // TODO:
     0
 };
