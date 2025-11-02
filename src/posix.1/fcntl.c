@@ -520,7 +520,7 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
     }
     // TODO: /dev/... , /proc/..., symlink
     init_pfiles();
-    char* path = __realpathat(dfd, _path, 0, dfd);
+    char* path = __realpathat(dfd, _path, 0, AT_SYMLINK_FOLLOW);
     if (!path) return -1; // errno from __realpathat
     size_t n;
     FIL* pf = array_lookup_first_closed(pfiles, &n);
@@ -579,12 +579,10 @@ e:
 }
 
 int __in_hfa() __fstatat(int dfd, const char *_path, struct stat *buf, int flags) {
-    goutf("__fstatat(%d...\n", dfd);
     if (!buf || !_path) {
         errno = EFAULT;
         return -1;
     }
-    goutf("__fstatat(%d, %s, ...)\n", dfd, _path);
     init_pfiles();
     // TODO: devices...
     char* path = __realpathat(dfd, _path, 0, flags);
@@ -1036,7 +1034,6 @@ e:
 }
 
 int __in_hfa() __unlinkat(int dfd, const char* _pathname, int flags) {
-    gouta("__unlinkat\n");
     init_pfiles();
 	char* pathname = __realpathat(dfd, _pathname, 0, flags);
 	if (!pathname) { return -1; }
@@ -1109,7 +1106,6 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
 }
 
 int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _new, int flag) {
-    gouta("__linkat\n");
     init_pfiles();
 	char* existing = __realpathat(fde, _existing, 0, flag);
 	if (!existing) { return -1; }
