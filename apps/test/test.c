@@ -15,9 +15,12 @@ static void log_write(const char* msg) {
 int main() {
     log_write("Starting POSIX test\n");
 
-    const char* test_file = "test_posix_file.txt";
+    const char* test_file = "/test/test_posix_file.txt";
     char buf[256];
     int ret;
+
+    if (mkdir("/test", 0777) < 0) { log_write("mkdir failed\n"); goto fail; }
+    log_write("mkdir succeeded\n");
 
     // 1. open
     int fd = open(test_file, O_RDWR | O_CREAT | O_TRUNC, 0666);
@@ -94,19 +97,31 @@ int main() {
     if (ret < 0) { log_write("close fd failed\n"); goto fail; }
     log_write("close fd succeeded\n");
 
-    if (link(test_file, "/test_file.lnk") < 0) {
+    if (link(test_file, "/test/test_file.lnk") < 0)
         { log_write("link failed\n"); goto fail; }
-    }
-    if (unlink(test_file) < 0) {
+    log_write("link succeeded\n");
+
+    if (unlink(test_file) < 0)
         { log_write("unlink failed\n"); goto fail; }
-    }
-    if (symlink("test_file.lnk", test_file) < 0) {
+    log_write("unlink succeeded\n");
+
+    if (symlink("test/test_file.lnk", test_file) < 0)
         { log_write("symlink failed\n"); goto fail; }
-    }
-    if (unlink(test_file) < 0 || unlink("test_file.lnk") < 0) {
+    log_write("symlink succeeded\n");
+
+    if (symlink("/test", "/test.lnk") < 0)
+        { log_write("symlink for dir failed\n"); goto fail; }
+    log_write("symlink for dir succeeded\n");
+
+    int fd_lnk = open("/test.lnk/test_posix_file.txt", O_RDWR);
+    if (fd_lnk < 0) { log_write("open /test.lnk/test_posix_file.txt failed\n"); goto fail; }
+    log_write("open /test.lnk/test_posix_file.txt succeeded\n");
+
+    close(fd_lnk);
+
+    if (unlink(test_file) < 0 || unlink("test/test_file.lnk") < 0 || unlink("/test.lnk") < 0 || unlink("/test") < 0)
         { log_write("unlink failed\n"); goto fail; }
-    }
-    log_write("link/symlink/unlink passed\n");
+    log_write("unlink succeeded\n");
 
     log_write("POSIX test completed successfully\n");
 #if TEST_LIBC

@@ -26,7 +26,7 @@ char* __realpath(const char *restrict filename, char *restrict resolved);
 char* __realpathat(int dfd, const char *restrict filename, char *restrict resolved, int at);
 
 // easy and fast FNV-1a (32-bit)
-static uint32_t __in_hfa() get_hash(const char *pathname) {
+uint32_t __in_hfa() get_hash(const char *pathname) {
     uint32_t h = 2166136261u;
     while (*pathname) {
         unsigned char c = 
@@ -89,26 +89,10 @@ static time_t __in_hfa() fatfs_to_time_t(WORD fdate, WORD ftime) {
     return simple_mktime(&t); // mktime(&t);
 }
 
-typedef struct {
-    char type; // 'H' - hardlink, 'S' - symlink, 'O' - original file info
-    uint32_t hash; // to fast lookup (avoid strcmp for each record)
-    char* fname; // current record name, zero terminated (cannonical with leading slash, like "/tmp/file")
-    union {
-        struct { // for 'H' links only, no own flags, valid for all users
-            uint32_t ohash;
-            char* ofname;
-        } hlink;
-        struct {
-            uint32_t mode;
-            char* owner;
-        } desc;
-    };
-} posix_link_t;
-
 static posix_link_t* posix_links = 0;
 static size_t posix_links_cnt = 0;
 
-static void __in_hfa() posix_add_link(
+static posix_link_t* __in_hfa() posix_add_link(
     uint32_t hash,
     const char* path, 
     char type, 
@@ -116,7 +100,9 @@ static void __in_hfa() posix_add_link(
     const char* opath, 
     bool allocated
 ) {
+    // goutf("[posix_add_link] %c %s [%o]\n", type, path, ohash);
     posix_link_t* lnk = (posix_link_t*)pvPortMalloc((posix_links_cnt + 1) * sizeof(posix_link_t));
+    if (!lnk) return lnk;
     if (posix_links) {
         memcpy(lnk, posix_links, posix_links_cnt * sizeof(posix_link_t));
         vPortFree(posix_links);
@@ -136,6 +122,7 @@ static void __in_hfa() posix_add_link(
         lnk->desc.mode = type == 'S' ? (S_IFLNK | 0777) : ohash;
         lnk->desc.owner = 0; // no group/owner support for now
     }
+    return lnk;
 }
 
 static FRESULT __in_hfa() extfs_flush() {
@@ -178,7 +165,7 @@ ok:
     return r;
 }
 
-static posix_link_t* __in_hfa() lookup_exact(uint32_t hash, const char* path) {
+posix_link_t* __in_hfa() lookup_exact(uint32_t hash, const char* path) {
     posix_link_t* lnk = posix_links;
     if (!lnk) return 0;
     for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
@@ -254,6 +241,37 @@ err:
 	xTaskResumeAll();
     return false; // nothing
 }
+
+static FRESULT __in_hfa() append_to_extfs(posix_link_t* lnk) {
+    // goutf("[append_to_extfs] %c %s [%o]\n", lnk->type, lnk->fname, lnk->desc.mode);
+    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+    if (!pf) { return FR_DISK_ERR; } // ??
+    FRESULT r = f_open(pf, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
+    if (r != FR_OK) goto ex;
+    r = f_lseek(pf, f_size(pf));
+    if (r != FR_OK) goto err;
+    UINT bw;
+    f_write(pf, &lnk->type, 1, &bw);
+    r = f_write(pf, &lnk->hash, sizeof(lnk->hash), &bw);
+    if (r != FR_OK) { /// TODO: error handling
+        goto err;
+    }
+    uint16_t sz = (uint16_t)strlen(lnk->fname);
+    f_write(pf, &sz, sizeof(sz), &bw);
+    f_write(pf, lnk->fname, sz, &bw);
+    f_write(pf, &lnk->desc.mode, sizeof(lnk->desc.mode), &bw);
+    if (lnk->type == 'H') {
+        sz = (uint16_t)strlen(lnk->hlink.ofname);
+        f_write(pf, &sz, sizeof(sz), &bw);
+        f_write(pf, lnk->hlink.ofname, sz, &bw);
+    }
+err:
+    f_close(pf);
+ex:
+    vPortFree(pf);
+    return r;
+}
+
 static FRESULT __in_hfa() extfs_add_link(
     const char* path,
     uint32_t hash,
@@ -261,34 +279,14 @@ static FRESULT __in_hfa() extfs_add_link(
     uint32_t ohash, // means mode for 'O' type
     const char *opath
 ) {
-    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
-    if (!pf) { errno = ENOMEM; return -1; }
     vTaskSuspendAll();
-    posix_add_link(hash, path, type, ohash, opath, false);
-    FRESULT r = f_open(pf, "/.extfs", FA_OPEN_ALWAYS | FA_WRITE);
-    if (r != FR_OK) goto ex;
-    f_lseek(pf, f_size(pf));
-    UINT bw;
-    f_write(pf, &type, 1, &bw);
-    r = f_write(pf, &hash, sizeof(hash), &bw);
-    if (r != FR_OK) { /// TODO: error handling
-        goto err;
-    }
-    uint16_t sz = (uint16_t)strlen(path);
-    f_write(pf, &sz, sizeof(sz), &bw);
-    f_write(pf, path, sz, &bw);
-    f_write(pf, &ohash, sizeof(ohash), &bw);
-    if (type == 'H') {
-        sz = (uint16_t)strlen(opath);
-        f_write(pf, &sz, sizeof(sz), &bw);
-        f_write(pf, opath, sz, &bw);
-    }
-err:
-    f_close(pf);
+    FRESULT r;
+    posix_link_t* lnk = posix_add_link(hash, path, type, ohash, opath, false);
+    if (!lnk) { r = FR_DISK_ERR; goto ex; }
+    r = append_to_extfs(lnk);
 ex:
-    vPortFree(pf);
-	xTaskResumeAll();
-    return (r == FR_OK) ? FR_OK : FR_DISK_ERR;
+    xTaskResumeAll();
+    return r;
 }
 
 static FRESULT __in_hfa() extfs_add_hlink(
@@ -500,7 +498,7 @@ inline static uint32_t __in_hfa() fatfs_mode_to_posix(BYTE fattrib) {
     }
     return posix_mode;
 }
-/*
+/**
  * openat() — open a file relative to a directory file descriptor
  *
  * Parameters:
@@ -509,11 +507,41 @@ inline static uint32_t __in_hfa() fatfs_mode_to_posix(BYTE fattrib) {
  *   flags – file status flags and access modes (see below)
  *   mode  – permissions to use if a new file is created
  *
+ * flags (choose one):
+ *   O_RDONLY – open for reading only
+ *   O_WRONLY – open for writing only
+ *   O_RDWR – open for both reading and writing
+ * 
+ * Additional flag options (combine with access mode using bitwise OR):
+ *   O_CREAT – create the file if it does not exist (requires 'mode')
+ *   O_EXCL – with O_CREAT, fail if the file already exists
+ *   O_TRUNC – truncate file to zero length if it already exists
+ *   O_APPEND – append writes to the end of file
+ *   O_NONBLOCK – non-blocking I/O
+ *   O_DIRECTORY – fail if the path is not a directory
+ *   O_NOFOLLOW – do not follow symbolic links
+ *   O_CLOEXEC – set close-on-exec (FD_CLOEXEC) on new descriptor
+ *   O_SYNC – write operations wait for completion of file integrity updates
+ *   O_DSYNC – write operations wait for data integrity completion
+ *   O_TMPFILE – create an unnamed temporary file in the given directory (requires O_RDWR or O_WRONLY)
+ * 
+ * mode bits (used only with O_CREAT to define new file permissions):
+ *   S_IRUSR – read permission for owner
+ *   S_IWUSR – write permission for owner
+ *   S_IXUSR – execute/search permission for owner
+ *   S_IRGRP – read permission for group
+ *   S_IWGRP – write permission for group
+ *   S_IXGRP – execute/search permission for group
+ *   S_IROTH – read permission for others
+ *   S_IWOTH – write permission for others
+ *   S_IXOTH – execute/search permission for others
+ * 
  * Returns:
  *   On success: a new file descriptor (non-negative)
  *   On error:  -1 and errno is set appropriately
  */
 int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
+    // goutf("[__openat] %d, %s, %d, %d\n", dfd, _path, flags, mode);
     if (!_path) {
         errno = ENOTDIR;
         return -1;
@@ -545,8 +573,21 @@ err:
     pf->ctime = fatfs_to_time_t(fno.fdate, fno.ftime);
     uint32_t hash = get_hash(path);
     posix_link_t* lnk = lookup_exact(hash, path);
-    pf->mode = lnk && lnk->type != 'H' ? lnk->desc.mode : fatfs_mode_to_posix(fno.fattrib);
-    vPortFree(path);
+    pf->mode = lnk && lnk->type != 'H' ? lnk->desc.mode : (flags & O_CREAT ? (mode | S_IFREG) : fatfs_mode_to_posix(fno.fattrib));
+    if (!lnk) {
+        vTaskSuspendAll();
+        lnk = posix_add_link(hash, path, 'O', pf->mode, 0, true);
+        if (!lnk) {
+            vPortFree(path);
+            xTaskResumeAll();
+            errno = ENOMEM;
+            return -1;
+        }
+        FRESULT fr = append_to_extfs(lnk); // TODO:
+        xTaskResumeAll();
+    } else {
+        vPortFree(path);
+    }
     errno = 0;
     return (int)n;
 }
@@ -1199,39 +1240,29 @@ int __in_hfa() __symlinkat(const char *existing, int fd, const char* _new) {
     return 0;
 }
 
-long __in_hfa() __readlinkat2(int fd, const char *restrict _path, char *restrict buf, size_t bufsize, int reqursive) {
+long __in_hfa() __readlinkat(int fd, const char *restrict _path, char *restrict buf, size_t bufsize) {
     init_pfiles();
-	char* path = reqursive ? _path : __realpathat(fd, _path, 0, AT_SYMLINK_FOLLOW);
+	char* path = __realpathat(fd, _path, 0, AT_SYMLINK_FOLLOW);
 	if (!path) { return -1; }
-    if (path[0] != '/') {
-        size_t sz = strlen(path) + 1;
-        char* sp = (char*)pvPortMalloc(sz + 1);
-        if (!sp) {
-            if(!reqursive) vPortFree(path);
-            errno = ENOMEM;
-            return -1;
-        }
-        sp[0] = '/';
-        memcpy(sp + 1, path, sz);
-        if(!reqursive) vPortFree(path);
-        path = sp;
-        reqursive = false; // to cleanup allocated
-    }
     if (!is_symlink(get_hash(path), path)) {
-        if(!reqursive) vPortFree(path);
+        vPortFree(path);
         errno = EINVAL;
         return -1;
     }
+    int res = __readlinkat_internal(path, buf, bufsize);
+    vPortFree(path);
+    return res;
+}
+
+long __in_hfa() __readlinkat_internal(const char *restrict path, char *restrict buf, size_t bufsize) {
     FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
     if (!pf) { vPortFree(path); errno = ENOMEM; return -1; }
     FRESULT fr = f_open(pf, path, FA_READ);
     if (fr != FR_OK) {
-        if(!reqursive) vPortFree(path);
         vPortFree(pf);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    if(!reqursive) vPortFree(path);
     UINT br;
     fr = f_read(pf, buf, bufsize, &br);
     f_close(pf);
@@ -1250,6 +1281,26 @@ long __in_hfa() __readlinkat2(int fd, const char *restrict _path, char *restrict
     return res;
 }
 
-long __in_hfa() __readlinkat(int fd, const char *restrict _path, char *restrict buf, size_t bufsize) {
-    return __readlinkat2(fd, _path, buf, bufsize, false);
+int __in_hfa() __mkdirat(int dirfd, const char *pathname, mode_t mode) {
+    init_pfiles();
+	char* path = __realpathat(dirfd, pathname, 0, AT_SYMLINK_FOLLOW);
+	if (!path) { return -1; }
+    FRESULT fr = f_mkdir(path);
+    if (fr != FR_OK) {
+        vPortFree(path);
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    uint32_t hash = get_hash(path);
+    vTaskSuspendAll();
+    posix_link_t* lnk = posix_add_link(hash, path, 'O', (mode | S_IFDIR), 0, true);
+    if (!lnk) {
+        xTaskResumeAll();
+        errno = ENOMEM;
+        return -1;
+    }
+    fr = append_to_extfs(lnk); // todo
+    xTaskResumeAll();
+    errno = 0;
+    return 0;
 }

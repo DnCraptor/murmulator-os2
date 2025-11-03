@@ -463,8 +463,10 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     strerror, // 353
     __getprogname, // 354
     __fileno, // 355
+    // posix
+    __mkdirat, // 356
     // Open BSD
-    fts_open, // 356
+    fts_open, // 357
     // TODO:
     0
 };

@@ -84,7 +84,7 @@ inline static int fcntl(int fd, int cmd, ...) {
     return __fcntl(fd, cmd, 0);
 }
 
-/*
+/**
  * openat() — open a file relative to a directory file descriptor
  *
  * Parameters:
@@ -93,6 +93,35 @@ inline static int fcntl(int fd, int cmd, ...) {
  *   flags – file status flags and access modes (see below)
  *   mode  – permissions to use if a new file is created
  *
+ * flags (choose one):
+ *   O_RDONLY – open for reading only
+ *   O_WRONLY – open for writing only
+ *   O_RDWR – open for both reading and writing
+ * 
+ * Additional flag options (combine with access mode using bitwise OR):
+ *   O_CREAT – create the file if it does not exist (requires 'mode')
+ *   O_EXCL – with O_CREAT, fail if the file already exists
+ *   O_TRUNC – truncate file to zero length if it already exists
+ *   O_APPEND – append writes to the end of file
+ *   O_NONBLOCK – non-blocking I/O
+ *   O_DIRECTORY – fail if the path is not a directory
+ *   O_NOFOLLOW – do not follow symbolic links
+ *   O_CLOEXEC – set close-on-exec (FD_CLOEXEC) on new descriptor
+ *   O_SYNC – write operations wait for completion of file integrity updates
+ *   O_DSYNC – write operations wait for data integrity completion
+ *   O_TMPFILE – create an unnamed temporary file in the given directory (requires O_RDWR or O_WRONLY)
+ * 
+ * mode bits (used only with O_CREAT to define new file permissions):
+ *   S_IRUSR – read permission for owner
+ *   S_IWUSR – write permission for owner
+ *   S_IXUSR – execute/search permission for owner
+ *   S_IRGRP – read permission for group
+ *   S_IWGRP – write permission for group
+ *   S_IXGRP – execute/search permission for group
+ *   S_IROTH – read permission for others
+ *   S_IWOTH – write permission for others
+ *   S_IXOTH – execute/search permission for others
+ * 
  * Returns:
  *   On success: a new file descriptor (non-negative)
  *   On error:  -1 and errno is set appropriately
@@ -105,7 +134,29 @@ int __openat(int dfd, const char *path, int flags, mode_t mode);
 #endif
 
 long __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize);
-long __readlinkat2(int fd, const char *restrict _path, char *restrict buf, size_t bufsize, int reqursive);
+// without several steps, expected path is canonical
+long __readlinkat_internal(const char *restrict path, char *restrict buf, size_t bufsize);
+
+typedef struct {
+    char type; // 'H' - hardlink, 'S' - symlink, 'O' - original file info
+    uint32_t hash; // to fast lookup (avoid strcmp for each record)
+    char* fname; // current record name, zero terminated (cannonical with leading slash, like "/tmp/file")
+    union {
+        struct { // for 'H' links only, no own flags, valid for all users
+            uint32_t ohash;
+            char* ofname;
+        } hlink;
+        struct {
+            uint32_t mode;
+            char* owner;
+        } desc;
+    };
+} posix_link_t;
+
+// easy and fast FNV-1a (32-bit)
+uint32_t get_hash(const char* path);
+
+posix_link_t* lookup_exact(uint32_t hash, const char* path);
 
 #ifdef __cplusplus
 }

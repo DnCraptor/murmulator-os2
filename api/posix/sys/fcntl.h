@@ -40,15 +40,44 @@ typedef unsigned int mode_t;
 #define AT_SYMLINK_FOLLOW 0x400
 #define AT_EACCESS 0x200
 
-/*
+/**
  * openat() — open a file relative to a directory file descriptor
  *
  * Parameters:
  *   dfd   – directory file descriptor (use AT_FDCWD for current directory)
  *   path  – pathname of the file to open
- *   oflag – file status flags and access modes (see below)
+ *   flags – file status flags and access modes (see below)
  *   mode  – permissions to use if a new file is created
  *
+ * flags (choose one):
+ *   O_RDONLY – open for reading only
+ *   O_WRONLY – open for writing only
+ *   O_RDWR – open for both reading and writing
+ * 
+ * Additional flag options (combine with access mode using bitwise OR):
+ *   O_CREAT – create the file if it does not exist (requires 'mode')
+ *   O_EXCL – with O_CREAT, fail if the file already exists
+ *   O_TRUNC – truncate file to zero length if it already exists
+ *   O_APPEND – append writes to the end of file
+ *   O_NONBLOCK – non-blocking I/O
+ *   O_DIRECTORY – fail if the path is not a directory
+ *   O_NOFOLLOW – do not follow symbolic links
+ *   O_CLOEXEC – set close-on-exec (FD_CLOEXEC) on new descriptor
+ *   O_SYNC – write operations wait for completion of file integrity updates
+ *   O_DSYNC – write operations wait for data integrity completion
+ *   O_TMPFILE – create an unnamed temporary file in the given directory (requires O_RDWR or O_WRONLY)
+ * 
+ * mode bits (used only with O_CREAT to define new file permissions):
+ *   S_IRUSR – read permission for owner
+ *   S_IWUSR – write permission for owner
+ *   S_IXUSR – execute/search permission for owner
+ *   S_IRGRP – read permission for group
+ *   S_IWGRP – write permission for group
+ *   S_IXGRP – execute/search permission for group
+ *   S_IROTH – read permission for others
+ *   S_IWOTH – write permission for others
+ *   S_IXOTH – execute/search permission for others
+ * 
  * Returns:
  *   On success: a new file descriptor (non-negative)
  *   On error:  -1 and errno is set appropriately

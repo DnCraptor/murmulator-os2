@@ -15,8 +15,7 @@
 char* copy_str(const char* s); // cmd
 
 /// TODO: by process ctx
-char* __libc() getcwd(char *buf, size_t size)
-{
+char* __libc() getcwd(char *buf, size_t size) {
 	if (!size) {
 		errno = EINVAL;
 		return 0;
@@ -26,10 +25,24 @@ char* __libc() getcwd(char *buf, size_t size)
 	}
 	buf[0] = '/';
 	buf[1] = 0;
-//	if (buf[0] != '/') {
-//		errno = ENOENT;
-//		return 0;
-//	}
+	errno = 0;
+	return buf;
+}
+
+/// TODO:
+/// linux: snprintf(path, sizeof(path), "/proc/self/fd/%d", dirfd); readlink(path, path, sizeof(path)-1);
+/// bsd/macos: fcntl(fd, F_GETPATH, buf)
+char* __libc() get_dir(int dfd, char* buf, size_t size) {
+	if (!size) {
+		errno = EINVAL;
+		return 0;
+	}
+	if (!buf) {
+		buf = (char*)pvPortMalloc(2); /// TODO: <<
+	}
+	buf[0] = '/';
+	buf[1] = 0;
+	errno = 0;
 	return buf;
 }
 
@@ -75,14 +88,22 @@ char* __libc() __realpathat(int dfd, const char *restrict filename, char *restri
 	if (!stack) { errno = ENOMEM; return 0; }
 	char* output = (char*)pvPortMalloc(PATH_MAX);
 	if (!output) { vPortFree(stack); errno = ENOMEM; return 0; }
-	size_t p, q, l, l0, cnt=0, nup=0;
+	size_t p, q, l, l0, cnt=0, nup=0, j=0;
 	int check_dir=0;
 
 	if (!filename) {
 		errno = EINVAL;
 		goto err;
 	}
-	l = strnlen(filename, PATH_MAX+1);
+	if (filename[0] != '/' && filename[0] != '\\') {
+		if (dfd == AT_FDCWD) {
+			if(!getcwd(output, PATH_MAX)) goto err;
+		} else {
+			if(!get_dir(dfd, output, PATH_MAX))  goto err;
+		}
+		j = strlen(output);
+	}
+	l = strnlen(filename, PATH_MAX+1) + j;
 	if (!l) {
 		errno = ENOENT;
 		goto err;
@@ -90,8 +111,13 @@ char* __libc() __realpathat(int dfd, const char *restrict filename, char *restri
 	if (l >= PATH_MAX) goto toolong;
 	p = PATH_MAX - l;
 	q = 0;
-	for (int i = 0; i < l+1; ++i) {
-		char c = filename[i];
+	int i = 0;
+	for (; i < j; ++i) {
+		char c = output[i];
+		(stack+p)[i] = (c == '\\') ? '/' : c;
+	}
+	for (; i < l+1; ++i) {
+		char c = filename[i-j];
 		(stack+p)[i] = (c == '\\') ? '/' : c;
 	}
 
@@ -156,8 +182,16 @@ restart:
 			if (!check_dir) goto skip_readlink;
 		}
 		ssize_t k = 0;
-		if ((flags & AT_SYMLINK_NOFOLLOW) && (stack[p] == 0))
-			k = __readlinkat2(dfd, output, stack, p, true);
+		posix_link_t* lnk = lookup_exact(get_hash(output), output);
+		if (lnk) {
+			if (lnk->type == 'H') {
+				strncpy(output, lnk->hlink.ofname, PATH_MAX);
+				k = strlen(output);
+			} else if (lnk->type == 'S' && !(flags & AT_SYMLINK_NOFOLLOW) && (stack[p] != 0)) {
+				k = __readlinkat_internal(output, stack, p);
+			}
+		}
+goutf("output: %s\n", output);
 		if (k == p) goto toolong;
 		if (!k) {
 			check_dir = 0;
@@ -193,38 +227,7 @@ skip_readlink:
 		 * absolute base path. */
 		goto restart;
 	}
-
  	output[q] = 0;
-
-	if (output[0] != '/') {
-#if 0 /// TODO: dfd to be taken into account
-		if (dfd != AT_FDCWD) {
-			char dpath[PATH_MAX];
-			if (!__fd_to_path(dfd, dpath, sizeof(dpath))) {
-				errno = EBADF;
-				goto err;
-			}
-			if (snprintf(stack, PATH_MAX, "%s/%s", dpath, output) >= PATH_MAX)
-				goto toolong;
-			strcpy(output, stack);
-		} else ...
-#endif
-		if (!getcwd(stack, PATH_MAX+1)) goto err;
-		l = strlen(stack);
-		/* Cancel any initial .. components. */
-		p = 0;
-		while (nup--) {
-			while(l>1 && stack[l-1]!='/') l--;
-			if (l>1) l--;
-			p += 2;
-			if (p<q) p++;
-		}
-		if (q-p && stack[l-1]!='/') stack[l++] = '/';
-		if (l + (q-p) + 1 >= PATH_MAX) goto toolong;
-		memmove(output + l, output + p, q - p + 1);
-		memcpy(output, stack, l);
-		q = l + q-p;
-	}
 
 	char* res = resolved ? memcpy(resolved, output, q+1) : copy_str(output);
 	vPortFree(output);

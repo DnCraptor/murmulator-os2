@@ -238,6 +238,15 @@ inline static int lstat(const char *path, struct stat *buf) {
     return ((fn_ptr_t)_sys_table_ptrs[269])(path, buf);
 }
 
+inline static int mkdirat(int dirfd, const char *pathname, mode_t mode) {
+    typedef int (*fn_ptr_t)(int, const char*, mode_t);
+    return ((fn_ptr_t)_sys_table_ptrs[356])(dirfd, pathname, mode);
+}
+
+inline static int mkdir(const char *pathname, mode_t mode) {
+    return mkdirat(AT_FDCWD, pathname, mode);
+}
+
 #ifdef __cplusplus
 }
 #endif
