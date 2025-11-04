@@ -97,7 +97,6 @@ main(int argc, char *argv[])
 	if (argc == 0) {
 		if (pledge("stdio", NULL) == -1)
 			err(1, "pledge");
-
 		cat_file(NULL);
 	} else {
 		for (; *argv != NULL; argv++)

@@ -1453,7 +1453,7 @@ void __in_hfa() vCmdTask(void *pv) {
 #endif
         if (!ctx->argc && !ctx->argv) {
             ctx->argc = 1;
-            ctx->argv = (char**)pvPortMalloc(sizeof(char*));
+            ctx->argv = (char**)pvPortCalloc(2, sizeof(char*));
             char* comspec = get_ctx_var(ctx, "COMSPEC");
             ctx->argv[0] = copy_str(comspec);
             if(ctx->orig_cmd) vPortFree(ctx->orig_cmd);

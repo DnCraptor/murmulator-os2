@@ -12,6 +12,7 @@ extern "C" {
 #ifndef AT_SYMLINK_NOFOLLOW
 #define AT_SYMLINK_NOFOLLOW 0x100
 #define AT_REMOVEDIR 0x200
+#define AT_REMOVEANY 0x2000
 #define AT_SYMLINK_FOLLOW 0x400
 #define AT_EACCESS 0x200
 #endif

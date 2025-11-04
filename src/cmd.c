@@ -22,7 +22,7 @@ cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
     memcpy(res, src, sizeof(cmd_ctx_t));
     if (src->argc && src->argv) {
         res->argc = src->argc;
-        res->argv = (char**)pvPortMalloc(sizeof(char*) * res->argc);
+        res->argv = (char**)pvPortCalloc(res->argc + 1, sizeof(char*));
         for(int i = 0; i < src->argc; ++i) {
             res->argv[i] = copy_str(src->argv[i]);
         }
@@ -265,24 +265,20 @@ bool __in_hfa() exists(cmd_ctx_t* ctx) {
     }
     char* path = get_ctx_var(ctx, "PATH");
     if (path) {
-        size_t sz = strlen(path);
-        char* e = path;
-        while(e++ <= path + sz) {
-            if (*e == ';' || *e == ':' || *e == ',' || *e == 0) {
-                res = concat2(path, e - path, cmd);
-                // goutf("try path %s\n", res);
-                r = (f_stat(res, pfileinfo) == FR_OK) && !(pfileinfo->fattrib & AM_DIR);
-                if (r) {
-                    goto r1;
-                }
-                vPortFree(res);
-                res = 0;
-                if(!*e) {
-                    goto r1;
-                }
-                path = e;
-                sz = strlen(path);
+        while (path && *path) {
+            char* end = path;
+            while (*end != 0 && *end != ';' && *end != ':' && *end != ',') end++; // lookup for the end of string
+            size_t len = end - path;
+            res = concat2(path, len, cmd);
+            // goutf("try path %s\n", res);
+            r = (f_stat(res, pfileinfo) == FR_OK) && !(pfileinfo->fattrib & AM_DIR);
+            if (r) {
+                goto r1;
             }
+            vPortFree(res);
+            res = 0;
+            if (!*end) break;
+            path += len + 1;
         }
     }
 r1:
@@ -547,7 +543,8 @@ inline static bool __in_hfa() prepare_ctx(string_t* pcmd, cmd_ctx_t* ctx) {
     }
 
     ctx->argc = lst->size;
-    ctx->argv = (char**)pvPortCalloc(sizeof(char*), lst->size);
+    // +1, because of ISO C std (C99 §5.1.2.2.1) said: "The value of argv[argc] shall be a null pointer"
+    ctx->argv = (char**)pvPortCalloc(lst->size + 1, sizeof(char*));
     node_t* n = lst->first;
     for(size_t i = 0; i < lst->size && n != NULL; ++i, n = n->next) {
         ctx->argv[i] = copy_str(c_str(n->data));
