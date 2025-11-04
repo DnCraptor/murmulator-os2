@@ -182,16 +182,27 @@ restart:
 			if (!check_dir) goto skip_readlink;
 		}
 		ssize_t k = 0;
+		// goutf("output: %s\n", output);
 		posix_link_t* lnk = lookup_exact(get_hash(output), output);
 		if (lnk) {
+		    // goutf("lnk->type: %c\n", lnk->type);
 			if (lnk->type == 'H') {
-				strncpy(stack, lnk->hlink.ofname, p);
-				k = strlen(stack);
-			} else if (lnk->type == 'S' && !(flags & AT_SYMLINK_NOFOLLOW) && (stack[p] != 0)) {
-				k = __readlinkat_internal(output, stack, p);
+				if ((flags & AT_HLINK_NOFOLLOW) && stack[p] == 0) { // do not resolve last path element for hlink
+					// goutf("nofolow: %s, %d\n", stack, p);
+				} else {
+					strncpy(stack, lnk->hlink.ofname, p);
+					k = strlen(stack);
+				}
+			} else if (lnk->type == 'S') {
+				if ((flags & AT_SYMLINK_NOFOLLOW) && stack[p] == 0) { // do not resolve last path element for symlink
+					// goutf("nofolow: %s, %d\n", stack, p);
+				} else {
+					// goutf("!lnk: %s\n", output);
+					k = __readlinkat_internal(output, stack, p);
+					// if (k) goutf("stack: %s\n", stack);
+				}
 			}
 		}
-		// goutf("output: %s\n", output);
 		if (k == p) goto toolong;
 		if (!k) {
 			check_dir = 0;

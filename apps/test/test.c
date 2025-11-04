@@ -114,11 +114,11 @@ int main() {
     log_write("---\n");
     close(fd_lnk);
 
-    if (unlink(test_file) < 0)
-        { log_write("unlink failed\n"); goto fail; }
-    log_write("unlink succeeded\n");
+    if (unlink("/test/test_file.lnk") < 0)
+        { log_write("unlink /test/test_file.lnk failed\n"); goto fail; }
+    log_write("unlink test_file.lnk succeeded\n");
 
-    if (symlink("test/test_file.lnk", test_file) < 0)
+    if (symlink(test_file, "test/test_file.lnk") < 0)
         { log_write("symlink failed\n"); goto fail; }
     log_write("symlink succeeded\n");
 
@@ -141,8 +141,9 @@ int main() {
     log_write("open /test.lnk/test_posix_file.txt succeeded\n");
     close(fd_lnk);
 
-    if (unlink(test_file) < 0 || unlink("test/test_file.lnk") < 0 || unlink("/test.lnk") < 0 || unlink("/test") < 0)
-        { log_write("unlink failed\n"); goto fail; }
+    if (unlink(test_file) < 0 || unlink("test/test_file.lnk") < 0 ||
+        unlink("/test.lnk") < 0 || unlinkat(AT_FDCWD, "/test", AT_REMOVEDIR) < 0
+    ) { log_write("unlink failed\n"); goto fail; }
     log_write("unlink succeeded\n");
 
     log_write("POSIX test completed successfully\n");

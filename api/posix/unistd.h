@@ -185,7 +185,7 @@ inline static int unlinkat(int dirfd, const char *pathname, int flags) {
     return ((fn_ptr_t)_sys_table_ptrs[306])(dirfd, pathname, flags);
 }
 inline static int unlink(const char *existing) {
-    return unlinkat(AT_FDCWD, existing, 0);
+    return unlinkat(AT_FDCWD, existing, AT_SYMLINK_NOFOLLOW);
 }
 
 inline static int symlinkat(const char *existing, int fd, const char *new) {

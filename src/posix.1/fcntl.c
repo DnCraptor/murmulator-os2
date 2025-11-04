@@ -554,7 +554,7 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
     // TODO: /dev/... , /proc/..., symlink
     init_pfiles();
     char* path = __realpathat(dfd, _path, 0, AT_SYMLINK_FOLLOW);
-    goutf("[__openat] %d, %s, %d, %o\n", dfd, path ? path : "null", flags, mode);
+    // goutf("[__openat] %d, %s, %d, %o\n", dfd, path ? path : "null", flags, mode);
     if (!path) return -1; // errno from __realpathat
     size_t n;
     FIL* pf = array_lookup_first_closed(pfiles, &n);
@@ -1121,7 +1121,7 @@ e:
 
 int __in_hfa() __unlinkat(int dfd, const char* _pathname, int flags) {
     init_pfiles();
-	char* pathname = __realpathat(dfd, _pathname, 0, flags);
+	char* pathname = __realpathat(dfd, _pathname, 0, flags | AT_HLINK_NOFOLLOW);
 	if (!pathname) { return -1; }
     FRESULT fr;
     FILINFO info;
