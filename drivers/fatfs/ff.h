@@ -200,10 +200,7 @@ typedef struct {
 #endif
 } FFOBJID;
 
-
-
 /* File object structure (FIL) */
-
 typedef struct FIL {
 	FFOBJID	obj;			/* Object identifier (must be the 1st member to detect invalid object pointer) */
 	BYTE	flag;			/* File status flags */
@@ -225,12 +222,10 @@ typedef struct FIL {
 	// injected for posix.1 support fstat
 	unsigned long ctime;
 	unsigned long mode; // .extfs saved mode for 'O' type
-	unsigned long pending_descriptors;
+	unsigned long pending_descriptors; // zero for just open, non-zero blocks close; each posix dup increments it
 } FIL;
 
-
 /* Directory object structure (DIR) */
-
 typedef struct {
 	FFOBJID	obj;			/* Object identifier */
 	DWORD	dptr;			/* Current read/write offset */

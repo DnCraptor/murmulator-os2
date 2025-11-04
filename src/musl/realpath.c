@@ -83,7 +83,7 @@ char* __libc() __realpath(const char *restrict filename, char *restrict resolved
 	return __realpathat(AT_FDCWD, filename, resolved, AT_SYMLINK_FOLLOW);
 }
 char* __libc() __realpathat(int dfd, const char *restrict filename, char *restrict resolved, int flags) {
-///	goutf("realpathat(%s, %s, %d)\n", filename, resolved ? resolved : "null", at);
+    // goutf("realpathat(%d, %s, %s, %d)\n", dfd, filename, resolved ? resolved : "null", flags);
 	char* stack = (char*)pvPortMalloc(PATH_MAX+1);
 	if (!stack) { errno = ENOMEM; return 0; }
 	char* output = (char*)pvPortMalloc(PATH_MAX);
@@ -185,13 +185,13 @@ restart:
 		posix_link_t* lnk = lookup_exact(get_hash(output), output);
 		if (lnk) {
 			if (lnk->type == 'H') {
-				strncpy(output, lnk->hlink.ofname, PATH_MAX);
-				k = strlen(output);
+				strncpy(stack, lnk->hlink.ofname, p);
+				k = strlen(stack);
 			} else if (lnk->type == 'S' && !(flags & AT_SYMLINK_NOFOLLOW) && (stack[p] != 0)) {
 				k = __readlinkat_internal(output, stack, p);
 			}
 		}
-goutf("output: %s\n", output);
+		// goutf("output: %s\n", output);
 		if (k == p) goto toolong;
 		if (!k) {
 			check_dir = 0;

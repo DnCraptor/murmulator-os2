@@ -81,10 +81,13 @@ int main() {
     buf[ret] = '\0';
     log_write("read dup succeeded\n");
 
-    // 11. close duplicate
+    // 11. close duplicates
     ret = close(fd_dup);
     if (ret < 0) { log_write("close fd_dup failed\n"); goto fail; }
     log_write("close fd_dup succeeded\n");
+    ret = close(fd2);
+    if (ret < 0) { log_write("close fd2 failed\n"); goto fail; }
+    log_write("close fd2 succeeded\n");
 
     // 12. write via original to ensure it's still valid
     const char* text4 = "Line 4\n";
@@ -101,6 +104,16 @@ int main() {
         { log_write("link failed\n"); goto fail; }
     log_write("link succeeded\n");
 
+    int fd_lnk = open("/test/test_file.lnk", O_RDONLY);
+    if (fd_lnk < 0) { log_write("open /test/test_file.lnk failed\n"); goto fail; }
+    ret = read(fd_lnk, buf, sizeof(buf)-1);
+    if (ret <= 0) { log_write("read /test/test_file.lnk failed\n"); goto fail; }
+    buf[ret] = 0;
+    log_write("---\n");
+    log_write(buf);
+    log_write("---\n");
+    close(fd_lnk);
+
     if (unlink(test_file) < 0)
         { log_write("unlink failed\n"); goto fail; }
     log_write("unlink succeeded\n");
@@ -109,14 +122,23 @@ int main() {
         { log_write("symlink failed\n"); goto fail; }
     log_write("symlink succeeded\n");
 
+    fd_lnk = open("/test/test_file.lnk", O_RDONLY);
+    if (fd_lnk < 0) { log_write("open /test/test_file.lnk symlink failed\n"); goto fail; }
+    ret = read(fd_lnk, buf, sizeof(buf)-1);
+    if (ret <= 0) { log_write("read /test/test_file.lnk symlink failed\n"); goto fail; }
+    buf[ret] = 0;
+    log_write("-symlink-\n");
+    log_write(buf);
+    log_write("-symlink-\n");
+    close(fd_lnk);
+
     if (symlink("/test", "/test.lnk") < 0)
         { log_write("symlink for dir failed\n"); goto fail; }
     log_write("symlink for dir succeeded\n");
 
-    int fd_lnk = open("/test.lnk/test_posix_file.txt", O_RDWR);
+    fd_lnk = open("/test.lnk/test_posix_file.txt", O_RDONLY);
     if (fd_lnk < 0) { log_write("open /test.lnk/test_posix_file.txt failed\n"); goto fail; }
     log_write("open /test.lnk/test_posix_file.txt succeeded\n");
-
     close(fd_lnk);
 
     if (unlink(test_file) < 0 || unlink("test/test_file.lnk") < 0 || unlink("/test.lnk") < 0 || unlink("/test") < 0)

@@ -205,7 +205,7 @@ static uint32_t __in_hfa() posix_unlink(const char* path, uint32_t hash, posix_l
     if (!lnk) return 0; // nothing
     for (uint32_t i = 0; i < posix_links_cnt; ++i, ++lnk) {
         if (lnk->hash == hash && strcmp(path, lnk->fname) == 0) {
-            uint32_t omode = 0777;
+            uint32_t omode = S_IFREG | 0777;
             if (lnk->type == 'O' && rename_to) { // original removement (additional handling is required)
                 omode = lnk->desc.mode;
                 *rename_to = lookup_by_orig(hash, path);
@@ -471,13 +471,19 @@ static int __in_hfa() map_ff_fresult_to_errno(FRESULT fr) {
 }
 
 inline static bool __in_hfa() is_closed_desc(const FDESC* fd) {
+    if (fd && !fd->fp) return true;
     return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }
 
 static FIL* __in_hfa() array_lookup_first_closed(array_t* arr, size_t* pn) {
     for (size_t i = 3; i < arr->size; ++i) {
         FDESC* fd = (FDESC*)array_get_at(arr, i);
-        if (!fd || !fd->fp) continue;
+        if (!fd) continue; // placeholder, just skip it
+        if (!fd->fp) {
+            fd->fp = (FIL*)pvPortMalloc(sizeof(FIL));
+            *pn = i;
+            return fd->fp;
+        }
         if (is_closed_desc(fd)) {
             *pn = i;
             return fd->fp;
@@ -541,7 +547,6 @@ inline static uint32_t __in_hfa() fatfs_mode_to_posix(BYTE fattrib) {
  *   On error:  -1 and errno is set appropriately
  */
 int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
-    // goutf("[__openat] %d, %s, %d, %d\n", dfd, _path, flags, mode);
     if (!_path) {
         errno = ENOTDIR;
         return -1;
@@ -549,6 +554,7 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
     // TODO: /dev/... , /proc/..., symlink
     init_pfiles();
     char* path = __realpathat(dfd, _path, 0, AT_SYMLINK_FOLLOW);
+    goutf("[__openat] %d, %s, %d, %o\n", dfd, path ? path : "null", flags, mode);
     if (!path) return -1; // errno from __realpathat
     size_t n;
     FIL* pf = array_lookup_first_closed(pfiles, &n);
@@ -557,6 +563,12 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
         if (!fd) { vPortFree(path); errno = ENOMEM; return -1; }
         pf = fd->fp;
         n = array_push_back(pfiles, fd);
+        if (n == 0) {
+            dealloc_file(fd);
+            vPortFree(path);
+            errno = ENOMEM;
+            return -1;
+        }
     }
     pf->pending_descriptors = 0;
     BYTE ff_mode = map_flags_to_ff_mode(flags);
@@ -593,21 +605,19 @@ err:
 }
 
 int __in_hfa() __close(int fildes) {
-    if (fildes <= STDERR_FILENO) { // just ignore close request for std descriptors
-        errno = 0;
-        return 0;
-    }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
     FIL* fp = fd->fp;
-    if ((intptr_t)fp <= STDERR_FILENO) {
-        goto e;
+    if ((intptr_t)fp <= STDERR_FILENO) {  // just ignore close request for std descriptors
+        errno = 0;
+        return 0;
     }
     if (fp->pending_descriptors) {
         --fp->pending_descriptors;
+        fd->fp = 0; // it was a pointer to other FIL in other descriptor, so cleanup it, to do not use by FDESC in 2 places
         errno = 0;
         return 0;
     }
@@ -629,13 +639,13 @@ int __in_hfa() __fstatat(int dfd, const char *_path, struct stat *buf, int flags
     char* path = __realpathat(dfd, _path, 0, flags);
     FILINFO fno;
     FRESULT fr = f_stat(path, &fno);
-    vPortFree(path);
     if (fr != FR_OK) {
+        vPortFree(path);
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    uint32_t hash = get_hash(path);
-    posix_link_t* lnk = lookup_exact(hash, path);
+    posix_link_t* lnk = lookup_exact(get_hash(path), path);
+    vPortFree(path);
     buf->st_dev   = 0;                    // no device differentiation in FAT
     buf->st_ino   = 0;                    // FAT has no inode numbers
     buf->st_mode  = lnk && lnk->type != 'H' ? lnk->desc.mode : fatfs_mode_to_posix(fno.fattrib);
@@ -666,20 +676,20 @@ int __in_hfa() __fstat(int fildes, struct stat *buf) {
         goto e;
     }
     memset(buf, 0, sizeof(struct stat));
-    if (fildes == STDIN_FILENO) { // stdin
-        buf->st_mode  = S_IFCHR | S_IRUSR | S_IRGRP | S_IROTH;
-        goto ok;
-    }
-    if (fildes <= STDERR_FILENO) { // stdout/stderr
-        buf->st_mode  = S_IFCHR | S_IWUSR | S_IWGRP | S_IWOTH;
-        goto ok;
-    }
     init_pfiles();
     FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
     FIL* fp = fd->fp;
+    if ((intptr_t)fp == STDIN_FILENO) { // stdin
+        buf->st_mode  = S_IFCHR | S_IRUSR | S_IRGRP | S_IROTH;
+        goto ok;
+    }
+    if ((intptr_t)fp <= STDERR_FILENO) { // stdout/stderr
+        buf->st_mode  = S_IFCHR | S_IWUSR | S_IWGRP | S_IWOTH;
+        goto ok;
+    }
     buf->st_dev   = 0;                    // no device differentiation in FAT
     buf->st_ino   = 0;                    // FAT has no inode numbers
     buf->st_mode  = fp->mode;
@@ -689,10 +699,10 @@ int __in_hfa() __fstat(int fildes, struct stat *buf) {
     buf->st_rdev  = 0;                    // no special device info
     buf->st_size  = f_size(fp);           // file size in bytes
     // timestamps (FatFs has date/time in local format)
-    buf->st_atime = 0;                     // FAT does not track last access reliably
     // convert FAT timestamps to time_t
     buf->st_mtime = fp->ctime;
     buf->st_ctime = fp->ctime;
+    buf->st_atime = fp->ctime;
 ok:
     errno = 0;
     return 0;
@@ -709,6 +719,7 @@ int __in_hfa() __lstat(const char *_path, struct stat *buf) {
     init_pfiles();
     char* path = __realpathat(AT_FDCWD, _path, 0, AT_SYMLINK_NOFOLLOW);
     if (!path) {
+        // __realpathat has one error codes set
         return -1;
     }
     FILINFO fno;
@@ -718,21 +729,40 @@ int __in_hfa() __lstat(const char *_path, struct stat *buf) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-    uint32_t hash = get_hash(path);
-    posix_link_t* lnk = lookup_exact(hash, path);
-    vPortFree(path);
+    posix_link_t* lnk = lookup_exact(get_hash(path), path);
     buf->st_dev   = 0;                    // no device differentiation in FAT
     buf->st_ino   = 0;                    // FAT has no inode numbers
-    buf->st_mode = lnk ? ((lnk->type != 'H') ? lnk->desc.mode : (S_IFLNK | 0777)) : 0777;
     buf->st_nlink = 1;                    // FAT does not support hard links
     buf->st_uid   = 0;                    // no UID/GID in FAT
     buf->st_gid   = 0;
     buf->st_rdev  = 0;                    // no special device info
+    buf->st_ctime = fatfs_to_time_t(fno.fdate, fno.ftime); // own symlink
+    if (!lnk) {
+        buf->st_mode = ((fno.fattrib & AM_DIR) ? S_IFDIR : S_IFREG) | 0777;
+    } else {
+        switch (lnk->type) {
+            case 'O': buf->st_mode = lnk->desc.mode; break; // real object (original)
+            case 'H': buf->st_mode = S_IFLNK | 0777; break; // hlink (W/A should not be there, because recolved by __realpathat)
+            case 'S': { // slink
+                buf->st_mode = lnk->desc.mode;
+                struct stat obuf;
+                if (__stat(path, &obuf) < 0) {
+                    vPortFree(path);
+                    return -1;
+                }
+                buf->st_size = obuf.st_size;
+                buf->st_mtime = obuf.st_mtime;
+                buf->st_atime = obuf.st_ctime;
+                goto ex;
+            }
+        }
+    }
     buf->st_size  = fno.fsize;            // file size in bytes
     // timestamps (FatFs has date/time in local format)
-    buf->st_mtime = fatfs_to_time_t(fno.fdate, fno.ftime);
+    buf->st_mtime = buf->st_ctime;
     buf->st_atime = buf->st_mtime;
-    buf->st_ctime = buf->st_mtime;
+ex:
+    vPortFree(path);
     errno = 0;
     return 0;
 }
@@ -772,7 +802,13 @@ int __in_hfa() __read(int fildes, void *buf, size_t count) {
         errno = 0;
         return n;
     }
-    if ( (fp->mode & S_IFREG) && (fp->mode & (S_IRUSR | S_IRGRP | S_IROTH)) ) {
+
+    if (!S_ISREG(fp->mode)) {
+        errno = S_ISDIR(fp->mode) ? EISDIR : EINVAL;
+        return -1;
+    }
+    
+    if ( fp->mode & (S_IRUSR | S_IRGRP | S_IROTH) ) {
         UINT br;
         FRESULT fr = f_read(fp, buf, count, &br);
         if (fr != FR_OK) {
@@ -792,9 +828,11 @@ int __in_hfa() __readv(int fd, const struct iovec *iov, int iovcnt) {
         if (iov->iov_len == 0) continue;
         int sz = __read(fd, iov->iov_base, iov->iov_len);
         if (sz < 0) {
-            return -1;
+            return res > 0 ? res : -1;
         }
+        if (sz == 0) break;
         res += sz;
+        if (sz < iov->iov_len) break;
     }
     return res;
 }
@@ -829,7 +867,11 @@ e:
         errno = 0;
 		return count;
     }
-    if ( (fp->mode & S_IFREG) && (fp->mode & (S_IWUSR | S_IWGRP | S_IWOTH)) ) {
+    if (!S_ISREG(fp->mode)) {
+        errno = S_ISDIR(fp->mode) ? EISDIR : EINVAL;
+        return -1;
+    }
+    if ( fp->mode & (S_IWUSR | S_IWGRP | S_IWOTH) ) {
         UINT br;
     /// TODO: support devices
         FRESULT fr = f_write(fp, buf, count, &br);
@@ -851,9 +893,11 @@ int __in_hfa() __writev(int fd, const struct iovec *iov, int iovcnt) {
         if (iov->iov_len == 0) continue;
         int sz = __write(fd, iov->iov_base, iov->iov_len);
         if (sz < 0) {
-            return -1;
+            return res > 0 ? res : -1;
         }
+        if (sz == 0) break;
         res += sz;
+        if (sz < iov->iov_len) break;
     }
     return res;
 }
@@ -868,16 +912,17 @@ int __in_hfa() __dup(int oldfd) {
         goto e;
     }
     FIL* fp = fd->fp;
-    ++fp->pending_descriptors;
     fd = (FDESC*)pvPortMalloc(sizeof(FDESC));
     if (!fd) { errno = ENOMEM; return -1; }
     fd->fp = fp;
     fd->flags = 0;
     int res = array_push_back(pfiles, fd);
     if (!res) {
+        vPortFree(fd);
         errno = ENOMEM;
         return -1;
     }
+    ++fp->pending_descriptors;
     errno = 0;
     return res;
 e:
@@ -908,13 +953,15 @@ int __in_hfa() __dup3(int oldfd, int newfd, int flags) {
     } else {
         __close(newfd);
     }
-    ++fd0->fp->pending_descriptors;
-    if ((intptr_t)fd1->fp > STDERR_FILENO && !fd1->fp->pending_descriptors) { // not STD and not in use by other descriptors, so we can remove it
+    FIL* fp0 = fd0->fp;
+    FIL* fp1 = fd1->fp;
+    if ((intptr_t)fp1 > STDERR_FILENO && !fp1->pending_descriptors) { // not STD and not in use by other descriptors, so we can remove it
         vPortFree(fd1->fp);
     }
-    fd1->fp = fd0->fp;
-    fd1->flags = flags;
+    fd1->fp = fp0;
+    fd1->flags = 0;
     pfiles->p[newfd] = fd1;
+    fp0->pending_descriptors++;
     errno = 0;
     return newfd;
 e:
@@ -951,13 +998,14 @@ int __in_hfa() __fcntl(int fd, int cmd, int flags) {
     init_pfiles();
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
     if (!fdesc || is_closed_desc(fdesc)) goto e;
-    int ret = 0;
+    int ret;
     switch (cmd) {
         case F_GETFD:
             ret = fdesc->flags & FD_CLOEXEC;
             break;
         case F_SETFD:
             fdesc->flags = (fdesc->flags & ~FD_CLOEXEC) | (flags & FD_CLOEXEC);
+            ret = 0;
             break;
         case F_GETFL:
             ret = fdesc->flags;
@@ -965,13 +1013,14 @@ int __in_hfa() __fcntl(int fd, int cmd, int flags) {
         case F_SETFL:
             /* Only allow O_APPEND, O_NONBLOCK, etc. — silently ignore unsupported bits */
             fdesc->flags = (fdesc->flags & ~(O_APPEND | O_NONBLOCK)) | (flags & (O_APPEND | O_NONBLOCK));
+            ret = 0;
             break;
         default:
             errno = EINVAL;
             return -1;
     }
     errno = 0;
-    return 0;
+    return ret;
 e:
     errno = EBADF;
     return -1;
@@ -983,18 +1032,19 @@ int __in_hfa() __llseek(unsigned int fd,
              off_t *result,
              unsigned int whence
 ) {
+    if (!result) { errno = EFAULT; return -1; }
     off_t offset = offset_low | ((off_t)offset_high << 32);
     if (fd < 0) goto e;
     init_pfiles();
-    // Standard descriptors cannot be seeked
-    if (fd <= STDERR_FILENO) {
-        errno = ESPIPE; // Illegal seek
-        return -1;
-    }
     FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
     if (!fdesc || is_closed_desc(fdesc)) goto e;
     FIL* fp = fdesc->fp;
-    FSIZE_t new_pos;
+    // Standard descriptors cannot be seeked
+    if ((intptr_t)fp <= STDERR_FILENO) {
+        errno = ESPIPE; // Illegal seek
+        return -1;
+    }
+    int64_t new_pos;
     switch (whence) {
         case SEEK_SET:
             new_pos = offset;
@@ -1030,17 +1080,15 @@ e:
 long __in_hfa() __lseek_p(int fd, long offset, int whence) {
     if (fd < 0) goto e;
     init_pfiles();
+    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+    if (!fdesc || is_closed_desc(fdesc)) goto e;
+    FIL* fp = fdesc->fp;
+    int64_t new_pos;
     // Standard descriptors cannot be seeked
-    if (fd <= STDERR_FILENO) {
+    if ((intptr_t)fp <= STDERR_FILENO) {
         errno = ESPIPE; // Illegal seek
         return -1;
     }
-    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
-    if (!fdesc || is_closed_desc(fdesc)) goto e;
-
-    FIL* fp = fdesc->fp;
-    FSIZE_t new_pos;
-
     switch (whence) {
         case SEEK_SET:
             new_pos = offset;
@@ -1055,18 +1103,15 @@ long __in_hfa() __lseek_p(int fd, long offset, int whence) {
             errno = EINVAL;
             return -1;
     }
-
     if (new_pos < 0) {
         errno = EINVAL;
         return -1;
     }
-
     FRESULT fr = f_lseek(fp, new_pos);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
-
     errno = 0;
     return f_tell(fp);
 e:
@@ -1078,10 +1123,29 @@ int __in_hfa() __unlinkat(int dfd, const char* _pathname, int flags) {
     init_pfiles();
 	char* pathname = __realpathat(dfd, _pathname, 0, flags);
 	if (!pathname) { return -1; }
+    FRESULT fr;
+    FILINFO info;
+    fr = f_stat(pathname, &info);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+inval:
+        vPortFree(pathname);
+        return -1;
+    }
+    if (flags & AT_REMOVEDIR) {
+        if (!(info.fattrib & AM_DIR)) {
+            errno = ENOTDIR;
+            goto inval;
+        }
+    } else {
+        if (info.fattrib & AM_DIR) {
+            errno = EISDIR;
+            goto inval;
+        }
+    }
     vTaskSuspendAll();
     uint32_t hash = get_hash(pathname);
     posix_link_t* rename_to = 0;
-    FRESULT fr;
     uint32_t omode = posix_unlink(pathname, hash, &rename_to);
     if (omode) {
         if (rename_to) {
@@ -1110,6 +1174,7 @@ ok:
     return 0;
 }
 
+// TODO: __renameat
 int __in_hfa() __rename(const char * f1, const char * f2) {
     if (!f1 || !f2) {
         errno = EFAULT;
@@ -1123,6 +1188,7 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
     posix_link_t* lnk = lookup_exact(hash, path);
     char* path2 = __realpathat(AT_FDCWD, f2, 0, AT_SYMLINK_NOFOLLOW);
 	if (!path2) { vPortFree(path); return -1; }
+    /// TODO: POSIX rename() допускает переименование каталогов (если f2 указывает на существующий каталог, то поведение зависит от того, пуст ли он).
     FRESULT fr = f_rename(path, path2);
     if (fr != FR_OK) {
         vPortFree(path);
@@ -1137,6 +1203,7 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
         lnk->hash = get_hash(path2);
         if (lnk->type == 'O')
             replace_orig(path, hash, lnk);
+        extfs_flush();
     } else {
         vPortFree(path2);
     }
@@ -1147,6 +1214,10 @@ int __in_hfa() __rename(const char * f1, const char * f2) {
 }
 
 int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _new, int flag) {
+    if (!_existing || ! _new) {
+        errno = EFAULT;
+        return -1;
+    }
     init_pfiles();
 	char* existing = __realpathat(fde, _existing, 0, flag);
 	if (!existing) { return -1; }
@@ -1165,6 +1236,12 @@ int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _ne
             vPortFree(fno);
             vPortFree(existing);
             errno = map_ff_fresult_to_errno(fr);
+            return -1;
+        }
+        if (fno->fattrib & AM_DIR) {
+            vPortFree(fno);
+            vPortFree(existing);
+            errno = EPERM; // Operation not permitted for directories
             return -1;
         }
         omode = fatfs_mode_to_posix(fno->fattrib);
@@ -1207,6 +1284,10 @@ int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _ne
     return 0;
 }
 int __in_hfa() __symlinkat(const char *existing, int fd, const char* _new) {
+    if (!existing || !_new) {
+        errno = EFAULT;
+        return -1;
+    }
     init_pfiles();
 	char* new = __realpathat(fd, _new, 0, AT_SYMLINK_NOFOLLOW);
 	if (!new) { return -1; }
