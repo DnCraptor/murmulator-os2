@@ -1132,15 +1132,17 @@ inval:
         vPortFree(pathname);
         return -1;
     }
-    if (flags & AT_REMOVEDIR) {
-        if (!(info.fattrib & AM_DIR)) {
-            errno = ENOTDIR;
-            goto inval;
-        }
-    } else {
-        if (info.fattrib & AM_DIR) {
-            errno = EISDIR;
-            goto inval;
+    if (!(flags & AT_REMOVEANY)) { // W/A to support unlink in libc remove style
+        if (flags & AT_REMOVEDIR) {
+            if (!(info.fattrib & AM_DIR)) {
+                errno = ENOTDIR;
+                goto inval;
+            }
+        } else {
+            if (info.fattrib & AM_DIR) {
+                errno = EISDIR;
+                goto inval;
+            }
         }
     }
     vTaskSuspendAll();

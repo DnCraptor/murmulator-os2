@@ -204,13 +204,14 @@ inline static int putchar(int c) {
 #ifndef AT_SYMLINK_NOFOLLOW
 #define AT_SYMLINK_NOFOLLOW 0x100
 #define AT_REMOVEDIR 0x200
+#define AT_REMOVEANY 0x2000
 #define AT_SYMLINK_FOLLOW 0x400
 #define AT_EACCESS 0x200
 #endif
 
 inline static int remove(const char * fn) {
     typedef int (*fn_ptr_t)(int dirfd, const char *pathname, int flags);
-    return ((fn_ptr_t)_sys_table_ptrs[306])(AT_FDCWD, fn, AT_REMOVEDIR);
+    return ((fn_ptr_t)_sys_table_ptrs[306])(AT_FDCWD, fn, AT_REMOVEANY);
 }
 inline static int rename(const char * fn, const char * nn) {
     typedef int (*fn_ptr_t)(const char *,const char *);

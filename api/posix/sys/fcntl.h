@@ -36,7 +36,9 @@ typedef unsigned int mode_t;
 #define AT_FDCWD (-100)
 #endif
 #define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_HLINK_NOFOLLOW 0x1000 // not standart (just for unlink)
 #define AT_REMOVEDIR 0x200
+#define AT_REMOVEANY 0x2000 // not standart (just for unlink)
 #define AT_SYMLINK_FOLLOW 0x400
 #define AT_EACCESS 0x200
 
