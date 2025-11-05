@@ -36,16 +36,9 @@
 #define	_FTS_H_
 
 typedef struct {
-	struct _ftsent *fts_cur;	/* current node */
-	struct _ftsent *fts_child;	/* linked list of children */
-	struct _ftsent **fts_array;	/* sort array */
-	dev_t fts_dev;			/* starting device # */
-	char *fts_path;			/* path for this descent */
-	int fts_rfd;			/* fd for root */
-	size_t fts_pathlen;		/* sizeof(path) */
-	int fts_nitems;			/* elements in the sort array */
-	int (*fts_compar)();		/* compare function */
-
+    struct _ftsent *fts_root;         /* корень обхода */
+    struct _ftsent *fts_cur;          /* текущий элемент */
+    int (*fts_compar)(const struct _ftsent **, const struct _ftsent **); /* callback сортировки */
 #define	FTS_COMFOLLOW	0x0001		/* follow command line symlinks */
 #define	FTS_LOGICAL	0x0002		/* logical walk */
 #define	FTS_NOCHDIR	0x0004		/* don't change directories */
@@ -61,21 +54,14 @@ typedef struct {
 } FTS;
 
 typedef struct _ftsent {
-	struct _ftsent *fts_cycle;	/* cycle node */
-	struct _ftsent *fts_parent;	/* parent directory */
-	struct _ftsent *fts_link;	/* next file in directory */
-	long fts_number;	        /* local numeric value */
-	void *fts_pointer;	        /* local address value */
-	char *fts_accpath;		/* access path */
-	char *fts_path;			/* root path */
-	int fts_errno;			/* errno for this node */
-	int fts_symfd;			/* fd for symlink */
-	size_t fts_pathlen;		/* strlen(fts_path) */
-	size_t fts_namelen;		/* strlen(fts_name) */
-
-	ino_t fts_ino;			/* inode */
-	dev_t fts_dev;			/* device */
-	nlink_t fts_nlink;		/* link count */
+    char *fts_path;           /* полный путь к файлу/директории */
+	char *fts_accpath;        /* путь для доступа (для fchmodat/fstatat и пр.) */
+    char *fts_name;           /* имя последнего компонента */
+    struct stat fts_stat;     /* информация о файле */
+	struct stat *fts_statp;   /* NULL если stat не запрошен, иначе &fts_stat */
+    struct FTSENT *fts_parent;
+    struct FTSENT *fts_children;
+    struct FTSENT *fts_next;
 
 #define	FTS_ROOTPARENTLEVEL	-1
 #define	FTS_ROOTLEVEL		 0
@@ -107,17 +93,13 @@ typedef struct _ftsent {
 #define	FTS_SKIP	 4		/* discard node */
 	unsigned short fts_instr;	/* fts_set() instructions */
 
-	unsigned short fts_spare;	/* unused */
-
-	struct stat *fts_statp;		/* stat(2) information */
-	char fts_name[1];		/* file name */
+	int fts_errno;
 } FTSENT;
 
 __BEGIN_DECLS
 FTSENT	*fts_children(FTS *, int);
 int	 fts_close(FTS *);
-FTS	*fts_open(char * const *, int,
-	    int (*)(const FTSENT **, const FTSENT **));
+FTS	*fts_open(char * const *, int, int (*)(const FTSENT **, const FTSENT **));
 FTSENT	*fts_read(FTS *);
 int	 fts_set(FTS *, FTSENT *, int);
 __END_DECLS

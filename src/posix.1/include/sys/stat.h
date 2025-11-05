@@ -93,6 +93,10 @@ typedef long time_t;
 #define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #endif
 
+#ifndef S_ISLNK
+#define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
+#endif
+
 /* Test if something is a character special file.  */
 #ifndef S_ISCHR
 #define S_ISCHR(m) (((m) & S_IFMT) == S_IFCHR)

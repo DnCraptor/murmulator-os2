@@ -467,6 +467,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __mkdirat, // 356
     // Open BSD
     fts_open, // 357
+    fts_close, // 358
     // TODO:
     0
 };
