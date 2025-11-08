@@ -32,6 +32,7 @@
 #include "sys/ioctl.h"
 #include "sys/stat.h"
 #include "unistd.h"
+#include "dirent.h"
 #include "errno.h"
 #include "poll.h"
 
@@ -410,7 +411,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __readv, // 304
     __llseek, // 305
     __unlinkat, // 306
-    __rename, // 307
+    __renameat, // 307
     // libc
     __vfscanf, // 308
     __vsnprintf, // 309
@@ -468,6 +469,13 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // Open BSD
     fts_open, // 357
     fts_close, // 358
+    fts_children, // 359
+    fts_read, // 360
+    fts_set, // 361
+    // posix
+    __opendir, // 362
+    __closedir, // 363
+    __readdir, // 364
     // TODO:
     0
 };

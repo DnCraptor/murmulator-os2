@@ -1,9 +1,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <fts.h>
 #include "sys_table.h"
+
 char* copy_str(const char* s); // TODO: from cmd.h
 
 FTS* __in_hfa() fts_open(
@@ -173,7 +175,6 @@ int __in_hfa() fts_close(FTS *fts)
     return 0;
 }
 
-#if 0
 FTSENT* __in_hfa() fts_read(FTS *fts) {
     if (!fts || !fts->fts_cur) return NULL;
 
@@ -183,17 +184,16 @@ FTSENT* __in_hfa() fts_read(FTS *fts) {
     if (S_ISDIR(cur->fts_stat.st_mode) &&
         !(fts->fts_options & FTS_NAMEONLY)) {
 
-        DIR *dp = opendir(cur->fts_path);
+        DIR* dp = __opendir(cur->fts_path);
         if (dp) {
             struct dirent *de;
             FTSENT *prev = NULL;
-            while ((de = readdir(dp)) != NULL) {
+            while ((de = __readdir(dp)) != NULL) {
                 if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) {
                     if (!(fts->fts_options & FTS_SEEDOT)) continue;
                 }
 
-                FTSENT *child = (FTSENT*)pvPortMalloc(sizeof(FTSENT));
-                memset(child, 0, sizeof(FTSENT));
+                FTSENT *child = (FTSENT*)pvPortCalloc(1, sizeof(FTSENT));
                 child->fts_name = copy_str(de->d_name);
                 size_t len = strlen(cur->fts_path) + 1 + strlen(de->d_name) + 1;
                 child->fts_path = pvPortMalloc(len);
@@ -210,11 +210,18 @@ FTSENT* __in_hfa() fts_read(FTS *fts) {
                 else cur->fts_children = child;
                 prev = child;
             }
-            closedir(dp);
+            __closedir(dp);
         }
     }
 
     fts->fts_cur = cur->fts_next ? cur->fts_next : cur->fts_children;
     return cur;
 }
-#endif
+
+FTSENT* __in_hfa() fts_children(FTS* fts, int n) {
+    /// TODO:
+}
+
+int __in_hfa() fts_set(FTS* fts, FTSENT* e, int v) {
+    /// TODO:
+}

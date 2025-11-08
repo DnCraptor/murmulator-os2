@@ -13,7 +13,8 @@
 #include <stdint.h>
 #include <string.h>
 #include "sys_table.h"
-char* copy_str(const char* s); // cmd
+
+char* copy_str(const char* s); // cmd.h
 
 /// TODO: by process ctx
 void __in_hfa() __getcwd(char *buff, UINT len) {
@@ -1176,19 +1177,18 @@ ok:
     return 0;
 }
 
-// TODO: __renameat
-int __in_hfa() __rename(const char * f1, const char * f2) {
+int __in_hfa() __renameat(int dfd1, const char * f1, int dfd2, const char * f2) {
     if (!f1 || !f2) {
         errno = EFAULT;
         return -1;
     }
     vTaskSuspendAll();
     init_pfiles();
-    char* path = __realpathat(AT_FDCWD, f1, 0, AT_SYMLINK_NOFOLLOW);
+    char* path = __realpathat(dfd1, f1, 0, AT_SYMLINK_NOFOLLOW);
 	if (!path) { return -1; }
     uint32_t hash = get_hash(path);
     posix_link_t* lnk = lookup_exact(hash, path);
-    char* path2 = __realpathat(AT_FDCWD, f2, 0, AT_SYMLINK_NOFOLLOW);
+    char* path2 = __realpathat(dfd2, f2, 0, AT_SYMLINK_NOFOLLOW);
 	if (!path2) { vPortFree(path); return -1; }
     /// TODO: POSIX rename() допускает переименование каталогов (если f2 указывает на существующий каталог, то поведение зависит от того, пуст ли он).
     FRESULT fr = f_rename(path, path2);

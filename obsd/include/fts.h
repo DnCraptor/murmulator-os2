@@ -115,8 +115,19 @@ inline static int fts_close(FTS* fts) {
     return ((fn_ptr_t)_sys_table_ptrs[358])(fts);
 }
 
-FTSENT	*fts_children(FTS *, int);
-FTSENT	*fts_read(FTS *);
-int	 fts_set(FTS *, FTSENT *, int);
+inline static FTSENT* fts_children(FTS* fts, int n) {
+    typedef FTSENT* (*fn_ptr_t)(FTS*, int);
+    return ((fn_ptr_t)_sys_table_ptrs[359])(fts, n);
+}
+
+inline static FTSENT* fts_read(FTS * fts) {
+    typedef FTSENT* (*fn_ptr_t)(FTS*);
+    return ((fn_ptr_t)_sys_table_ptrs[360])(fts);
+}
+
+inline static int fts_set(FTS* fts, FTSENT* e, int v) {
+    typedef int (*fn_ptr_t)(FTS*, FTSENT*, int);
+    return ((fn_ptr_t)_sys_table_ptrs[361])(fts, e, v);
+}
 
 #endif /* !_FTS_H_ */

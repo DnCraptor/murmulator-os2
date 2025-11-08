@@ -213,9 +213,12 @@ inline static int remove(const char * fn) {
     typedef int (*fn_ptr_t)(int dirfd, const char *pathname, int flags);
     return ((fn_ptr_t)_sys_table_ptrs[306])(AT_FDCWD, fn, AT_REMOVEANY);
 }
+inline static int renameat(int dfd, const char * fn, int dfnn, const char * nn) {
+    typedef int (*fn_ptr_t)(int, const char *, int, const char *);
+    return ((fn_ptr_t)_sys_table_ptrs[307])(dfd, fn, dfnn, nn);
+}
 inline static int rename(const char * fn, const char * nn) {
-    typedef int (*fn_ptr_t)(const char *,const char *);
-    return ((fn_ptr_t)_sys_table_ptrs[307])(fn, nn);
+    return renameat(AT_FDCWD, fn, AT_FDCWD, nn);
 }
 
 inline static int fputs(const char *__restrict s, FILE *__restrict f) {
