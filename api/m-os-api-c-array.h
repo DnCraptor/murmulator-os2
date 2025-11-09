@@ -21,12 +21,12 @@ typedef struct array {
 } array_t;
 
 inline static array_t* new_array_v(alloc_fn_ptr_t allocator, dealloc_fn_ptr_t deallocator, size_fn_ptr_t size_fn) {
-    array_t* res = malloc(sizeof(array_t));
+    array_t* res = (array_t*)malloc(sizeof(array_t));
     res->allocator = allocator ? allocator : (alloc_fn_ptr_t)pvPortMalloc;
     res->deallocator = deallocator ? deallocator : vPortFree;
     res->size_fn = size_fn;
     res->alloc = 10 * sizeof(void*);
-    res->p = malloc(res->alloc);
+    res->p = (void**)malloc(res->alloc);
     res->size = 0;
     return res;
 }
@@ -46,7 +46,7 @@ inline static int array_reserve(array_t* arr, size_t sz_bytes) {
     if (sz_bytes <= arr->alloc)
         return 0;
 
-    void** p = malloc(sz_bytes);
+    void** p = (void**)malloc(sz_bytes);
     if (!p) return -1;
     if (arr->p && arr->size > 0) {
         memcpy(p, arr->p, arr->size * sizeof(void*));

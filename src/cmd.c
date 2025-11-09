@@ -62,6 +62,7 @@ cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
     res->forse_flash = src->forse_flash;
     return res;
 }
+void cleanup_pfiles(cmd_ctx_t* ctx);
 void __in_hfa() cleanup_ctx(cmd_ctx_t* src) {
     // goutf("cleanup_ctx: [%p]\n", src);
     if (src->argv) {
@@ -104,6 +105,7 @@ void __in_hfa() cleanup_ctx(cmd_ctx_t* src) {
         src->user_data = 0;
     }
     src->forse_flash = false;
+    cleanup_pfiles(src);
     // gouta("cleanup_ctx <<\n");
 }
 void cleanup_bootb_ctx(cmd_ctx_t* ctx); // app

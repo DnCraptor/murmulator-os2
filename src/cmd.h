@@ -11,6 +11,7 @@ extern "C" {
 #include "FreeRTOS.h"
 #include "task.h"
 #include "../../api/m-os-api-c-list.h"
+#include "../../api/m-os-api-c-array.h"
 
 size_t get_heap_total();
 
@@ -85,6 +86,7 @@ typedef struct cmd_ctx {
     void* user_data;
     bool forse_flash;
     TaskHandle_t parent_task;
+    array_t /*of FDESC*/ *pfiles; // open files per process
 } cmd_ctx_t;
 
 cmd_ctx_t* get_cmd_startup_ctx(); // system

@@ -13,8 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "sys_table.h"
-
-char* copy_str(const char* s); // cmd.h
+#include "cmd.h" // cmd_ctx_t* get_cmd_ctx(); char* copy_str(const char* s); // cmd.h
 
 /// TODO: by process ctx
 void __in_hfa() __getcwd(char *buff, UINT len) {
@@ -323,9 +322,6 @@ ex:
     return r;
 }
 
-// TODO: per process context
-static array_t* pfiles = 0;
-
 typedef struct FDESC_s {
     FIL* fp;
     unsigned int flags;
@@ -347,69 +343,91 @@ static void* __in_hfa() alloc_file(void) {
 static void __in_hfa() dealloc_file(void* p) {
     if (!p) return;
     FDESC* d = (FDESC*)p;
-    if ((intptr_t)d->fp > 2) vPortFree(d->fp);
+    if ((intptr_t)d->fp > STDERR_FILENO) vPortFree(d->fp);
     vPortFree(p);
 }
 
-static void __in_hfa() init_pfiles() {
-    if (pfiles) return;
-    FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
-    if (!pf) { errno = ENOMEM; return; }
+static void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
+    static bool posix_links_initialized = 0;
     vTaskSuspendAll();
-    pfiles = new_array_v(alloc_file, dealloc_file, NULL);
-    FRESULT r = f_open(pf, "/.extfs", FA_READ);
-    if (r == FR_OK) {
-        UINT br;
-        char type;
-        uint32_t hash;
-        uint16_t strsize;
-        while(!f_eof(pf)) {
-            if (f_read(pf, &type, 1, &br) != FR_OK || br != 1) break;
-            if (f_read(pf, &hash, sizeof(hash), &br) != FR_OK || br != sizeof(hash)) break;
-            if (f_read(pf, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) break;
-            char* buf = pvPortMalloc(strsize + 1);
-            if (!buf) break;
-            buf[strsize] = 0;
-            if (f_read(pf, buf, strsize, &br) != FR_OK || strsize != br) {
-                vPortFree(buf);
-                break;
-            }
-            uint32_t ohash = 0; // mode for 'O' case
-            if (f_read(pf, &ohash, sizeof(ohash), &br) != FR_OK || br != sizeof(ohash)) goto brk2;
-            char* obuf = 0;
-            if (type == 'H') {
-                if (f_read(pf, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) goto brk1;
-                obuf = (char*)pvPortMalloc(strsize + 1);
-                if (obuf) {
-                    obuf[strsize] = 0;
-                    if (f_read(pf, obuf, strsize, &br) != FR_OK || strsize != br) {
-                        brk1: vPortFree(obuf);
-                        brk2: vPortFree(buf);
-                        break;
+    if (!posix_links_initialized) {
+        FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
+        if (!pf) { errno = ENOMEM; goto ex; }
+        posix_links_initialized = 1;
+        FRESULT r = f_open(pf, "/.extfs", FA_READ);
+        if (r == FR_OK) {
+            UINT br;
+            char type;
+            uint32_t hash;
+            uint16_t strsize;
+            while(!f_eof(pf)) {
+                if (f_read(pf, &type, 1, &br) != FR_OK || br != 1) break;
+                if (f_read(pf, &hash, sizeof(hash), &br) != FR_OK || br != sizeof(hash)) break;
+                if (f_read(pf, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) break;
+                char* buf = pvPortMalloc(strsize + 1);
+                if (!buf) break;
+                buf[strsize] = 0;
+                if (f_read(pf, buf, strsize, &br) != FR_OK || strsize != br) {
+                    vPortFree(buf);
+                    break;
+                }
+                uint32_t ohash = 0; // mode for 'O' case
+                if (f_read(pf, &ohash, sizeof(ohash), &br) != FR_OK || br != sizeof(ohash)) goto brk2;
+                char* obuf = 0;
+                if (type == 'H') {
+                    if (f_read(pf, &strsize, sizeof(strsize), &br) != FR_OK || br != sizeof(strsize) || strsize < 2) goto brk1;
+                    obuf = (char*)pvPortMalloc(strsize + 1);
+                    if (obuf) {
+                        obuf[strsize] = 0;
+                        if (f_read(pf, obuf, strsize, &br) != FR_OK || strsize != br) {
+                            brk1: vPortFree(obuf);
+                            brk2: vPortFree(buf);
+                            break;
+                        }
                     }
                 }
+                posix_add_link(hash, buf, type, ohash, obuf, true);
             }
-            posix_add_link(hash, buf, type, ohash, obuf, true);
+            f_close(pf);
         }
-        f_close(pf);
+        vPortFree(pf);
     }
-    vPortFree(pf);
+    if (!ctx || ctx->pfiles) goto ex;
+    ctx->pfiles = new_array_v(alloc_file, dealloc_file, NULL);
 
     // W/A for predefined file descriptors:
     FDESC* d;
     d = (FDESC*)pvPortMalloc(sizeof(FDESC));
     d->fp = (void*)STDIN_FILENO;
     d->flags = 0;
-    array_push_back(pfiles, d); // 0 - stdin
+    array_push_back(ctx->pfiles, d); // 0 - stdin
     d = (FDESC*)pvPortMalloc(sizeof(FDESC));
     d->fp = (void*)STDOUT_FILENO;
     d->flags = 0;
-    array_push_back(pfiles, d); // 1 - stdout
+    array_push_back(ctx->pfiles, d); // 1 - stdout
     d = (FDESC*)pvPortMalloc(sizeof(FDESC));
     d->fp = (void*)STDERR_FILENO;
     d->flags = 0;
-    array_push_back(pfiles, d); // 2 - stderr
+    array_push_back(ctx->pfiles, d); // 2 - stderr
+ex:
 	xTaskResumeAll();
+}
+
+void __in_hfa() cleanup_pfiles(cmd_ctx_t* ctx) {
+    if (!ctx || !ctx->pfiles) return;
+    for (size_t i = 0; i < ctx->pfiles->size; ++i) {
+        FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, i);
+        if (!fd) continue; // placeholder, just skip it
+        if ((intptr_t)fd->fp > STDERR_FILENO) {
+            if (fd->fp->obj.fs != 0) {
+                f_close(fd->fp);
+            }
+            vPortFree(fd->fp);
+        }
+        vPortFree(fd);
+    }
+    vPortFree(ctx->pfiles);
+    ctx->pfiles = 0;
 }
 
 static BYTE __in_hfa() map_flags_to_ff_mode(int flags) {
@@ -553,17 +571,18 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
         return -1;
     }
     // TODO: /dev/... , /proc/..., symlink
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
     char* path = __realpathat(dfd, _path, 0, AT_SYMLINK_FOLLOW);
     // goutf("[__openat] %d, %s, %d, %o\n", dfd, path ? path : "null", flags, mode);
     if (!path) return -1; // errno from __realpathat
     size_t n;
-    FIL* pf = array_lookup_first_closed(pfiles, &n);
+    FIL* pf = array_lookup_first_closed(ctx->pfiles, &n);
     if (!pf) {
         FDESC* fd = (FDESC*)alloc_file();
         if (!fd) { vPortFree(path); errno = ENOMEM; return -1; }
         pf = fd->fp;
-        n = array_push_back(pfiles, fd);
+        n = array_push_back(ctx->pfiles, fd);
         if (n == 0) {
             dealloc_file(fd);
             vPortFree(path);
@@ -606,8 +625,9 @@ err:
 }
 
 int __in_hfa() __close(int fildes) {
-    init_pfiles();
-    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, fildes);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
@@ -635,7 +655,8 @@ int __in_hfa() __fstatat(int dfd, const char *_path, struct stat *buf, int flags
         errno = EFAULT;
         return -1;
     }
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
     // TODO: devices...
     char* path = __realpathat(dfd, _path, 0, flags);
     FILINFO fno;
@@ -677,8 +698,9 @@ int __in_hfa() __fstat(int fildes, struct stat *buf) {
         goto e;
     }
     memset(buf, 0, sizeof(struct stat));
-    init_pfiles();
-    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, fildes);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
@@ -717,7 +739,8 @@ int __in_hfa() __lstat(const char *_path, struct stat *buf) {
         errno = EFAULT;
         return -1;
     }
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
     char* path = __realpathat(AT_FDCWD, _path, 0, AT_SYMLINK_NOFOLLOW);
     if (!path) {
         // __realpathat has one error codes set
@@ -778,8 +801,9 @@ int __in_hfa() __read(int fildes, void *buf, size_t count) {
         errno = EBADF;
         return -1;
     }
-    init_pfiles();
-    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, fildes);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
@@ -848,8 +872,9 @@ e:
         errno = EBADF;
         return -1;
     }
-    init_pfiles();
-    FDESC* fd = (FDESC*)array_get_at(pfiles, fildes);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, fildes);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
@@ -907,8 +932,9 @@ int __in_hfa() __dup(int oldfd) {
     if (oldfd < 0) {
         goto e;
     }
-    init_pfiles();
-    FDESC* fd = (FDESC*)array_get_at(pfiles, oldfd);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, oldfd);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
@@ -917,7 +943,7 @@ int __in_hfa() __dup(int oldfd) {
     if (!fd) { errno = ENOMEM; return -1; }
     fd->fp = fp;
     fd->flags = 0;
-    int res = array_push_back(pfiles, fd);
+    int res = array_push_back(ctx->pfiles, fd);
     if (!res) {
         vPortFree(fd);
         errno = ENOMEM;
@@ -937,16 +963,17 @@ int __in_hfa() __dup3(int oldfd, int newfd, int flags) {
         errno = EINVAL;  // POSIX требует EINVAL при dup3(oldfd == newfd)
         return -1;
     }
-    init_pfiles();
-    FDESC* fd0 = (FDESC*)array_get_at(pfiles, oldfd);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fd0 = (FDESC*)array_get_at(ctx->pfiles, oldfd);
     if (fd0 == 0 || is_closed_desc(fd0)) goto e;
-    FDESC* fd1 = (FDESC*)array_get_at(pfiles, newfd);
+    FDESC* fd1 = (FDESC*)array_get_at(ctx->pfiles, newfd);
     if (fd1 == 0) {
-        if (array_resize(pfiles, newfd + 1) < 0) {
+        if (array_resize(ctx->pfiles, newfd + 1) < 0) {
             errno = ENOMEM;
             return -1;
         }
-        fd1 = (FDESC*)array_get_at(pfiles, newfd);
+        fd1 = (FDESC*)array_get_at(ctx->pfiles, newfd);
         if (fd1 == 0) {
             errno = ENOMEM;
             return -1;
@@ -961,7 +988,7 @@ int __in_hfa() __dup3(int oldfd, int newfd, int flags) {
     }
     fd1->fp = fp0;
     fd1->flags = 0;
-    pfiles->p[newfd] = fd1;
+    ctx->pfiles->p[newfd] = fd1;
     fp0->pending_descriptors++;
     errno = 0;
     return newfd;
@@ -996,8 +1023,9 @@ int __in_hfa() __dup2(int oldfd, int newfd)
  */
 int __in_hfa() __fcntl(int fd, int cmd, int flags) {
     if (fd < 0) goto e;
-    init_pfiles();
-    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fdesc = (FDESC*)array_get_at(ctx->pfiles, fd);
     if (!fdesc || is_closed_desc(fdesc)) goto e;
     int ret;
     switch (cmd) {
@@ -1036,8 +1064,9 @@ int __in_hfa() __llseek(unsigned int fd,
     if (!result) { errno = EFAULT; return -1; }
     off_t offset = offset_low | ((off_t)offset_high << 32);
     if (fd < 0) goto e;
-    init_pfiles();
-    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fdesc = (FDESC*)array_get_at(ctx->pfiles, fd);
     if (!fdesc || is_closed_desc(fdesc)) goto e;
     FIL* fp = fdesc->fp;
     // Standard descriptors cannot be seeked
@@ -1080,8 +1109,9 @@ e:
 
 long __in_hfa() __lseek_p(int fd, long offset, int whence) {
     if (fd < 0) goto e;
-    init_pfiles();
-    FDESC* fdesc = (FDESC*)array_get_at(pfiles, fd);
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FDESC* fdesc = (FDESC*)array_get_at(ctx->pfiles, fd);
     if (!fdesc || is_closed_desc(fdesc)) goto e;
     FIL* fp = fdesc->fp;
     int64_t new_pos;
@@ -1121,7 +1151,8 @@ e:
 }
 
 int __in_hfa() __unlinkat(int dfd, const char* _pathname, int flags) {
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
 	char* pathname = __realpathat(dfd, _pathname, 0, flags | AT_HLINK_NOFOLLOW);
 	if (!pathname) { return -1; }
     FRESULT fr;
@@ -1182,8 +1213,9 @@ int __in_hfa() __renameat(int dfd1, const char * f1, int dfd2, const char * f2) 
         errno = EFAULT;
         return -1;
     }
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
     vTaskSuspendAll();
-    init_pfiles();
     char* path = __realpathat(dfd1, f1, 0, AT_SYMLINK_NOFOLLOW);
 	if (!path) { return -1; }
     uint32_t hash = get_hash(path);
@@ -1220,7 +1252,8 @@ int __in_hfa() __linkat(int fde, const char* _existing, int fdn, const char* _ne
         errno = EFAULT;
         return -1;
     }
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
 	char* existing = __realpathat(fde, _existing, 0, flag);
 	if (!existing) { return -1; }
     uint32_t ohash = get_hash(existing);
@@ -1290,7 +1323,8 @@ int __in_hfa() __symlinkat(const char *existing, int fd, const char* _new) {
         errno = EFAULT;
         return -1;
     }
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
 	char* new = __realpathat(fd, _new, 0, AT_SYMLINK_NOFOLLOW);
 	if (!new) { return -1; }
     uint32_t hash = get_hash(new);
@@ -1324,7 +1358,8 @@ int __in_hfa() __symlinkat(const char *existing, int fd, const char* _new) {
 }
 
 long __in_hfa() __readlinkat(int fd, const char *restrict _path, char *restrict buf, size_t bufsize) {
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
 	char* path = __realpathat(fd, _path, 0, AT_SYMLINK_FOLLOW);
 	if (!path) { return -1; }
     if (!is_symlink(get_hash(path), path)) {
@@ -1365,7 +1400,8 @@ long __in_hfa() __readlinkat_internal(const char *restrict path, char *restrict 
 }
 
 int __in_hfa() __mkdirat(int dirfd, const char *pathname, mode_t mode) {
-    init_pfiles();
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
 	char* path = __realpathat(dirfd, pathname, 0, AT_SYMLINK_FOLLOW);
 	if (!path) { return -1; }
     FRESULT fr = f_mkdir(path);
