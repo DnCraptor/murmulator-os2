@@ -1,9 +1,8 @@
 #include "errno.h"
+#include "cmd.h"
 #include "sys_table.h"
 
-static int global_errno = 0;
-
 int* __in_hfa() __errno_location() {
-    // TODO: per process from context
-    return &global_errno;
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    return &ctx->proc_errno;
 }

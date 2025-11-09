@@ -5,6 +5,7 @@
 #include "sys/stat.h"
 #include "errno.h"
 #include "unistd.h"
+#include "dirent.h"
 
 #include "ff.h"
 #include "../../api/m-os-api-c-array.h"
@@ -330,7 +331,7 @@ typedef struct FDESC_s {
 static void* __in_hfa() alloc_file(void) {
     FDESC* d = (FDESC*)pvPortMalloc(sizeof(FDESC));
     if (!d) return NULL;
-    d->fp = (FIL*)pvPortMalloc(sizeof(FIL));
+    d->fp = (FIL*)pvPortCalloc(1, sizeof(FIL));
     if (!d->fp) {
         vPortFree(d);
         return NULL;
@@ -344,6 +345,19 @@ static void __in_hfa() dealloc_file(void* p) {
     if (!p) return;
     FDESC* d = (FDESC*)p;
     if ((intptr_t)d->fp > STDERR_FILENO) vPortFree(d->fp);
+    vPortFree(p);
+}
+
+static void* __in_hfa() alloc_dir(void) {
+    return pvPortCalloc(1, sizeof(DIR));
+}
+
+static void __in_hfa() dealloc_dir(void* p) {
+    if (!p) return;
+    f_closedir(p);
+    if (((DIR*)p)->dirent) {
+        vPortFree(((DIR*)p)->dirent);
+    }
     vPortFree(p);
 }
 
@@ -394,6 +408,7 @@ static void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
     }
     if (!ctx || ctx->pfiles) goto ex;
     ctx->pfiles = new_array_v(alloc_file, dealloc_file, NULL);
+    ctx->pdirs = new_array_v(alloc_dir, dealloc_dir, NULL);
 
     // W/A for predefined file descriptors:
     FDESC* d;
@@ -427,6 +442,8 @@ void __in_hfa() cleanup_pfiles(cmd_ctx_t* ctx) {
         vPortFree(fd);
     }
     vPortFree(ctx->pfiles);
+    delete_array(ctx->pdirs);
+    vPortFree(ctx->pdirs);
     ctx->pfiles = 0;
 }
 
@@ -565,7 +582,7 @@ inline static uint32_t __in_hfa() fatfs_mode_to_posix(BYTE fattrib) {
  *   On success: a new file descriptor (non-negative)
  *   On error:  -1 and errno is set appropriately
  */
-int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
+int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) { // TODO: O_DIRECTORY
     if (!_path) {
         errno = ENOTDIR;
         return -1;
@@ -1422,4 +1439,91 @@ int __in_hfa() __mkdirat(int dirfd, const char *pathname, mode_t mode) {
     xTaskResumeAll();
     errno = 0;
     return 0;
+}
+
+DIR* __in_hfa() __opendir(const char* _path) {
+    if (!_path) {
+        errno = EINVAL;
+        return 0;
+    }
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+	char* path = __realpathat(AT_FDCWD, _path, 0, AT_SYMLINK_FOLLOW);
+    if (!path) {
+        return 0;
+    }
+    DIR* pd = (DIR*)alloc_dir();
+    if (!pd) {
+        vPortFree(path);
+        errno = ENOMEM;
+        return 0;
+    }
+    FRESULT fr = f_opendir(pd, path);
+    if (fr != FR_OK) {
+        vPortFree(pd);
+        vPortFree(path);
+        errno = map_ff_fresult_to_errno(fr);
+        return 0;
+    }
+    for (size_t i = 0; i < ctx->pdirs->size; ++i) {
+        if (ctx->pdirs->p[i] == 0) {
+            ctx->pdirs->p[i] = pd;
+            goto ex;
+        }
+    }
+    array_push_back(ctx->pdirs, pd);
+ex:
+    vPortFree(path);
+    errno = 0;
+    return pd;
+}
+
+int __in_hfa() __closedir(DIR* d) {
+    if (!d) {
+        errno = EINVAL;
+        return 0;
+    }
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+    FRESULT fr = f_closedir(d);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return -1;
+    }
+    for (size_t i = 0; i < ctx->pdirs->size; ++i) {
+        if (ctx->pdirs->p[i] == d) {
+            ctx->pdirs->p[i] = 0;
+            break;
+        }
+    }
+    dealloc_dir(d);
+    errno = 0;
+    return 0;
+}
+
+struct dirent* __in_hfa() __readdir(DIR* d) {
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    if (!d || !ctx || !ctx->pdirs) {
+        errno = EINVAL;
+        return 0;
+    }
+    struct dirent* de;
+    if (!d->dirent) {
+        d->dirent = pvPortCalloc(1, sizeof(struct dirent));
+        if (!d->dirent) {
+            errno = ENOMEM;
+            return 0;
+        }
+    }
+    de = (struct dirent*)d->dirent;
+    FRESULT fr = f_readdir(d, &de->ff_info);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return 0;
+    }
+    if (de->ff_info.fname[0] == '\0') {
+        return 0;
+    }
+    de->d_name = de->ff_info.fname;
+    return de;
 }
