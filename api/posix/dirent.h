@@ -77,6 +77,7 @@ typedef struct {
 	BYTE*	dir;			/* Pointer to the directory item in the win[] */
 	BYTE	fn[12];			/* SFN (in/out) {body[8],ext[3],status[1]} */
 	DWORD	blk_ofs;		/* Offset of current entry block being processed (0xFFFFFFFF:Invalid) */
+	void*	dirent;         // last used struct dirent* (or 0 - if not used)
 } DIR;
 
 // The type DIR represents a directory stream. The structure of the type DIR is unspecified.

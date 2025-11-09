@@ -1507,7 +1507,6 @@ struct dirent* __in_hfa() __readdir(DIR* d) {
         errno = EINVAL;
         return 0;
     }
-    struct dirent* de;
     if (!d->dirent) {
         d->dirent = pvPortCalloc(1, sizeof(struct dirent));
         if (!d->dirent) {
@@ -1515,7 +1514,7 @@ struct dirent* __in_hfa() __readdir(DIR* d) {
             return 0;
         }
     }
-    de = (struct dirent*)d->dirent;
+    struct dirent* de = (struct dirent*)d->dirent;
     FRESULT fr = f_readdir(d, &de->ff_info);
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);

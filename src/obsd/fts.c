@@ -5,8 +5,7 @@
 #include <fcntl.h>
 #include <fts.h>
 #include "sys_table.h"
-
-char* copy_str(const char* s); // TODO: from cmd.h
+#include "cmd.h"
 
 FTS* __in_hfa() fts_open(
     char * const *path_argv,
