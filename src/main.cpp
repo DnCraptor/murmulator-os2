@@ -650,7 +650,7 @@ static void __in_hfa() startup_vga(void) {
             if (!pio9PD && !pio9PU) {
                 drv = TFT_DRV;
             } else {
-                drv = HDMI_DRV;
+    drv = HDMI_DRV;
             }
         }
         #else
@@ -832,7 +832,7 @@ void __in_hfa() init(void) {
 
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
-    qmi_hw->m[0].timing = 0x60007404; // 4x FLASH divisor    
+    flash_timings();
     sleep_ms(100);
     uint32_t overclocking = get_overclocking_khz();
     if (! set_sys_clock_khz(overclocking, 0) ) {
@@ -842,6 +842,8 @@ void __in_hfa() init(void) {
     rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
 #ifdef MURM2
     BUTTER_PSRAM_GPIO = rp2350a ?  8 : 47;
+#elif ZERO2
+    BUTTER_PSRAM_GPIO = 47;
 #else
     BUTTER_PSRAM_GPIO = rp2350a ? 19 : 47;
 #endif
