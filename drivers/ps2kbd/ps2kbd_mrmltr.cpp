@@ -162,7 +162,11 @@ static uint8_t ps2kbd_page_0[] {
 };
 
 
-__in_hfa() Ps2Kbd_Mrmltr::Ps2Kbd_Mrmltr(PIO pio, uint base_gpio, std::function<void(hid_keyboard_report_t *curr, hid_keyboard_report_t *prev)> keyHandler) :
+__in_hfa() Ps2Kbd_Mrmltr::Ps2Kbd_Mrmltr(
+    PIO pio,
+    uint base_gpio,
+    void (*keyHandler)(hid_keyboard_report_t*, hid_keyboard_report_t*)
+) :
   _pio(pio),
   _base_gpio(base_gpio),
   _double(false),

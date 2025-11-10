@@ -13,8 +13,6 @@
 #include "tusb.h"
 #include "hardware/pio.h"
 #include "hardware/gpio.h"
-#include <functional>
-
 
 typedef struct {
   uint8_t code;
@@ -34,7 +32,7 @@ private:
   bool _double;
   bool _overflow;
   
-  std::function<void(hid_keyboard_report_t *curr, hid_keyboard_report_t *prev)> _keyHandler;
+  void (*_keyHandler)(hid_keyboard_report_t*, hid_keyboard_report_t*);
 
   inline void clearActions() {
     _actions[0].page = 0;
@@ -59,7 +57,8 @@ public:
   Ps2Kbd_Mrmltr(
     PIO pio,
     uint base_gpio,
-    std::function<void(hid_keyboard_report_t *curr, hid_keyboard_report_t *prev)> keyHandler);
+    void (*keyHandler)(hid_keyboard_report_t*, hid_keyboard_report_t*)
+  );
   
   void init_gpio();
   

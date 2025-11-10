@@ -27,8 +27,8 @@ option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
 #set(MURM20 ON)
-set(ZERO2 ON)
-#set(PICO_PC ON)
+#set(ZERO2 ON)
+set(PICO_PC ON)
 #set(PICO_DV ON)
 
 #set(HID ON)
@@ -70,14 +70,15 @@ include(FreeRTOS_Kernel_import.cmake)
 
 if(MURM20)
     SET(BUILD_NAME "m2p2-${PROJECT_NAME}")
-elseif(ZERO2)
-    SET(BUILD_NAME "z0p2-${PROJECT_NAME}")
 elseif(PICO_PC)
     SET(BUILD_NAME "PCp2-${PROJECT_NAME}")
+    set(HID ON)
 elseif(PICO_DV)
     SET(BUILD_NAME "DVp2-${PROJECT_NAME}")
+    set(HID ON)
 elseif(ZERO2)
     SET(BUILD_NAME "z0p2-${PROJECT_NAME}")
+    set(HID ON)
 else()
     SET(BUILD_NAME "m1p2-${PROJECT_NAME}")
 endif()
@@ -395,6 +396,7 @@ elseif (PICO_PC)
         RESERVED_RAM=512
         OVERCLOCKING=${CPU_MHZ}
         #DEBUG_APP_LOAD=1
+        PICO_DEFAULT_LED_PIN=25
     )
 elseif (PICO_DV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -460,6 +462,7 @@ elseif (PICO_DV)
         RESERVED_RAM=512
         OVERCLOCKING=${CPU_MHZ}
         #DEBUG_APP_LOAD=1
+        PICO_DEFAULT_LED_PIN=25
     )
 else ()
     target_compile_definitions(${PROJECT_NAME} PRIVATE

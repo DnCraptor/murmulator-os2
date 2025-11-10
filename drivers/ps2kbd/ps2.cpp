@@ -35,8 +35,8 @@ extern "C" int16_t __in_hfa() keyboard_send(uint8_t data) {
 }
 
 static void __not_in_flash_func(process_kbd_report)(
-    hid_keyboard_report_t const* report,
-    hid_keyboard_report_t const* prev_report
+    hid_keyboard_report_t* report,
+    hid_keyboard_report_t* prev_report
 ) {
     goutf("TT\n");
 }
