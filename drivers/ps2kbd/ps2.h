@@ -32,7 +32,7 @@ uint32_t ps2getcode(void);
 
 void keyboard_init(void);
 void keyboard_deinit(void);
-void vKeyboardTicker(void*);
+void vHID(void*);
 
 void keyboard_toggle_led(uint8_t led);
 

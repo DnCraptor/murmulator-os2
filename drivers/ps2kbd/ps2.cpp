@@ -20,25 +20,30 @@ extern "C" void __in_hfa() usb_driver(bool on) {
 
 extern "C" bool __in_hfa() tud_msc_ejected() {
     gouta("[tud_msc_ejected] unsupported in HID build\n");
+    return true;
 }
 
 extern "C" void __in_hfa() set_tud_msc_ejected(bool v) {
     gouta("[set_tud_msc_ejected] unsupported in HID build\n");
 }
 
-extern "C" bool __in_hfa() set_usb_detached_handler(void* h) {}
+extern "C" bool __in_hfa() set_usb_detached_handler(void* h) {
+    return true;
+}
 
 extern "C" void  __in_hfa()pico_usb_drive_heartbeat() {}
 
 extern "C" int16_t __in_hfa() keyboard_send(uint8_t data) {
     /// TODO:
+   /// goutf("keyboard_send: %xh\n", data);
+    return 0;
 }
 
 static void __not_in_flash_func(process_kbd_report)(
     hid_keyboard_report_t* report,
     hid_keyboard_report_t* prev_report
 ) {
-    goutf("TT\n");
+    gouta("process_kbd_report\n");
 }
 
 Ps2Kbd_Mrmltr ps2kbd(
@@ -51,7 +56,7 @@ extern "C" void __in_hfa() keyboard_init(void) {
     ps2kbd.init_gpio();
 }
 
-extern "C" void __in_hfa() vKeyboardTicker(void* pv) {
+extern "C" void __in_hfa() vHID(void *pv) {
     while(1) {
         ps2kbd.tick();
         vTaskDelay(1);

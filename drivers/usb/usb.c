@@ -58,6 +58,7 @@ static usb_detached_handler_t usb_detached_handler = NULL;
 bool set_usb_detached_handler(usb_detached_handler_t h) {
     if (usb_detached_handler) return false;
     usb_detached_handler = h;
+    return true;
 }
 
 static void usb_task(void *pv) {

@@ -726,8 +726,10 @@ void __in_hfa() info(bool with_sd) {
 }
 
 void usb_on_boot() {
+    #if !HID
     usb_driver(true);
     for(;;) { vTaskDelay(10); }
+    #endif
 }
 
 void caseF10(void) {
@@ -856,6 +858,9 @@ void __in_hfa() init(void) {
 }
 
 static void __in_hfa() vPostInit(void *pv) {
+#if HID
+    xTaskCreate(vHID, "HID", 256/*x4=1024*/, NULL, configMAX_PRIORITIES - 1, NULL);
+#endif
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     kbd_state_t* ks = process_input_on_boot();
     // send kbd reset only after initial process passed
