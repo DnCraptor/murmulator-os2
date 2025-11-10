@@ -17,12 +17,6 @@ set(FREERTOS_KERNEL_PATH "../FreeRTOS-Kernel")
 set(FREERTOS_PORT GCC_ARM_CM33_NTZ_NONSECURE CACHE STRING "FreeRTOS port")
 
 cmake_minimum_required(VERSION 3.22)
-include(pico_sdk_import.cmake)
-
-project(murmulator-os C CXX ASM)
-pico_sdk_init()
-
-include(FreeRTOS_Kernel_import.cmake)
 
 option(VGA "Enable VGA" OFF)
 option(TFT "Enable TFT display" OFF)
@@ -32,7 +26,11 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
-#set(MURM20 ON)
+set(MURM20 ON)
+#set(ZERO2 ON)
+#set(PICO_PC ON)
+#set(PICO_DV ON)
+
 #set(HID ON)
 #set(VGA ON)
 set(VGAHDMI ON)
@@ -45,6 +43,17 @@ set(CPU_MHZ 378)
 set(FLASH_FREQ_MHZ "88")
 set(PSRAM_FREQ_MHZ "88")
 
+IF(ZERO2)
+    # For Board RP2350-PiZero
+    set(PICO_BOARD_HEADER_DIRS ${CMAKE_SOURCE_DIR}/src/boards)
+    set(PICO_BOARD waveshare_rp2350_pizero)
+    set(PICO_PLATFORM rp2350-arm-s)
+    set(CPU_MHZ 252)
+elseif(ZERO)
+    set(PICO_BOARD pico)
+    set(CPU_MHZ 252)
+endif()
+
 set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
@@ -52,8 +61,23 @@ if(NOT MOS_VERSION)
 set(MOS_VERSION "2.1.6")
 endif ()
 
+include(pico_sdk_import.cmake)
+
+project(murmulator-os C CXX ASM)
+pico_sdk_init()
+
+include(FreeRTOS_Kernel_import.cmake)
+
 if(MURM20)
     SET(BUILD_NAME "m2p2-${PROJECT_NAME}")
+elseif(ZERO2)
+    SET(BUILD_NAME "z0p2-${PROJECT_NAME}")
+elseif(PICO_PC)
+    SET(BUILD_NAME "PCp2-${PROJECT_NAME}")
+elseif(PICO_DV)
+    SET(BUILD_NAME "DVp2-${PROJECT_NAME}")
+elseif(ZERO2)
+    SET(BUILD_NAME "z0p2-${PROJECT_NAME}")
 else()
     SET(BUILD_NAME "m1p2-${PROJECT_NAME}")
 endif()
@@ -232,6 +256,197 @@ if (MURM20)
         PWM_PIN0=10
         PWM_PIN1=11
         BEEPER_PIN=9
+
+        M_API_VERSION=26
+        MIN_API_VERSION=14
+
+        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
+        RESERVED_RAM=512
+        OVERCLOCKING=${CPU_MHZ}
+        #DEBUG_APP_LOAD=1
+    )
+elseif (ZERO2)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        PSRAM_NO_FUGE=1
+        ZERO2=1
+        PICO_FLASH_SIZE_BYTES=16777216
+        MOS_VERSION_STR="${MOS_VERSION}"
+
+        # VGA 8 pins starts from pin:
+        VGA_BASE_PIN=32
+
+        # HDMI 8 pins starts from pin:
+        HDMI_BASE_PIN=32
+
+        # TFT
+        TFT_CS_PIN=12
+        TFT_RST_PIN=14
+        TFT_LED_PIN=15
+        TFT_DC_PIN=16
+        TFT_DATA_PIN=18
+        TFT_CLK_PIN=19
+
+        # SDCARD
+        SDCARD_SPI_BUS=spi1
+        SDCARD_PIN_SPI0_SCK=30
+        SDCARD_PIN_SPI0_MOSI=31
+        SDCARD_PIN_SPI0_MISO=40
+        SDCARD_PIN_SPI0_CS=43
+
+        # PS2 keyboard
+        KBD_CLOCK_PIN=2
+        KBD_DATA_PIN=3
+
+        # NES Gamepad
+        USE_NESPAD
+        NES_GPIO_CLK=20
+        NES_GPIO_LAT=21
+        NES_GPIO_DATA=26
+
+        # PSRAM
+        # PSRAM_MUTEX=1
+        PSRAM_SPINLOCK=1
+        PSRAM_ASYNC=1
+
+        PSRAM_PIN_CS=2
+        PSRAM_PIN_SCK=3
+        PSRAM_PIN_MOSI=4
+        PSRAM_PIN_MISO=5
+
+        WAV_IN_PIO=22
+    
+        PWM_PIN0=10
+        PWM_PIN1=11
+        BEEPER_PIN=12
+
+        M_API_VERSION=26
+        MIN_API_VERSION=14
+
+        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
+        RESERVED_RAM=512
+        OVERCLOCKING=${CPU_MHZ}
+        #DEBUG_APP_LOAD=1
+
+        PICO_DEFAULT_LED_PIN=25
+    )
+elseif (PICO_PC)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        PSRAM_NO_FUGE=1
+        PICO_PC=1
+        PICO_FLASH_SIZE_BYTES=16777216
+        MOS_VERSION_STR="${MOS_VERSION}"
+
+        # VGA 8 pins starts from pin:
+        VGA_BASE_PIN=12
+
+        # HDMI 8 pins starts from pin:
+        HDMI_BASE_PIN=12
+
+        # # TFT
+        # TFT_CS_PIN=12
+        # TFT_RST_PIN=14
+        # TFT_LED_PIN=15
+        # TFT_DC_PIN=16
+        # TFT_DATA_PIN=18
+        # TFT_CLK_PIN=19
+
+        # SDCARD
+        SDCARD_PIN_SPI0_MISO=4
+        SDCARD_PIN_SPI0_SCK=6
+        SDCARD_PIN_SPI0_MOSI=7
+        SDCARD_PIN_SPI0_CS=22
+
+        # PS2 keyboard
+        KBD_CLOCK_PIN=0
+        KBD_DATA_PIN=1
+
+        # NES Gamepad
+        USE_NESPAD
+        NES_GPIO_CLK=5    # UXT1-10
+        NES_GPIO_LAT=9    # UXT1-5
+        NES_GPIO_DATA=20  # UXT1-3
+        NES_GPIO_DATA2=21 # UXT1-4
+
+        # PSRAM
+        # PSRAM_MUTEX=1
+        PSRAM_SPINLOCK=1
+        PSRAM_ASYNC=1
+
+        PSRAM_PIN_CS=3   # not implemented
+        PSRAM_PIN_SCK=3  # not implemented
+        PSRAM_PIN_MOSI=3 # not implemented
+        PSRAM_PIN_MISO=3 # not implemented
+
+        WAV_IN_PIO=14
+        
+        PWM_PIN0=27
+        PWM_PIN1=28
+        BEEPER_PIN=26
+
+        M_API_VERSION=26
+        MIN_API_VERSION=14
+
+        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
+        RESERVED_RAM=512
+        OVERCLOCKING=${CPU_MHZ}
+        #DEBUG_APP_LOAD=1
+    )
+elseif (PICO_DV)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        PSRAM_NO_FUGE=1
+        PICO_DV=1
+        PICO_FLASH_SIZE_BYTES=16777216
+        MOS_VERSION_STR="${MOS_VERSION}"
+
+        # VGA 8 pins starts from pin:
+        VGA_BASE_PIN=6
+
+        # HDMI 8 pins starts from pin:
+        HDMI_BASE_PIN=6
+
+        # # TFT
+        # TFT_CS_PIN=12
+        # TFT_RST_PIN=14
+        # TFT_LED_PIN=15
+        # TFT_DC_PIN=16
+        # TFT_DATA_PIN=18
+        # TFT_CLK_PIN=19
+
+        # SDCARD
+        SDCARD_SPI_BUS=spi1
+        SDCARD_PIN_SPI0_MISO=19
+        SDCARD_PIN_SPI0_SCK=5
+        SDCARD_PIN_SPI0_MOSI=18
+        SDCARD_PIN_SPI0_CS=22
+
+        SDCARD_PIO=pio1
+        SDCARD_PIO_SM=0
+
+        # PS2 keyboard
+        KBD_CLOCK_PIN=2
+        KBD_DATA_PIN=3
+
+        # NES Gamepad
+        # USE_NESPAD
+        NES_GPIO_CLK=20
+        NES_GPIO_LAT=21
+        NES_GPIO_DATA=26
+
+        # PSRAM
+        # PSRAM_MUTEX=1
+        PSRAM_SPINLOCK=1
+        PSRAM_ASYNC=1
+
+        PSRAM_PIN_CS=3   # not implemented
+        PSRAM_PIN_SCK=3  # not implemented
+        PSRAM_PIN_MOSI=3 # not implemented
+        PSRAM_PIN_MISO=3 # not implemented
+
+        WAV_IN_PIO=14
+        
+        PWM_PIN0=26
+        PWM_PIN1=27
+        BEEPER_PIN=28
 
         M_API_VERSION=26
         MIN_API_VERSION=14
