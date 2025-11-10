@@ -1439,6 +1439,18 @@ void __in_hfa() overflowHook( TaskHandle_t pxTask, char *pcTaskName ) {
     goutf("WARN: stack overflow on task: '%s'\n", pcTaskName);
 }
 
+#if MURM2
+#define MOS_UF2_EXT ".m2p2"
+#elif PICO_PC
+#define MOS_UF2_EXT ".PCp2"
+#elif PICO_DV
+#define MOS_UF2_EXT ".DVp2"
+#elif ZERO2
+#define MOS_UF2_EXT ".z0p2"
+#else
+#define MOS_UF2_EXT ".m1p2"
+#endif
+
 void __in_hfa() vCmdTask(void *pv) {
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     cmd_ctx_t* ctx = get_cmd_startup_ctx();
@@ -1466,7 +1478,7 @@ void __in_hfa() vCmdTask(void *pv) {
         if (b_exists) {
             size_t len = strlen(ctx->orig_cmd); // TODO: more than one?
             // goutf("Command found: %s\n", ctx->orig_cmd);
-            if (len > 4 && (strcmp(ctx->orig_cmd + len - 5, ".m1p2") == 0 || strcmp(ctx->orig_cmd + len - 5, ".m2p2") == 0 )) {
+            if (len > 4 && strcmp(ctx->orig_cmd + len - 5, MOS_UF2_EXT) == 0) {
                 if(load_firmware(ctx->orig_cmd)) { // TODO: by ctx
                     ctx->stage = LOAD;
                     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
