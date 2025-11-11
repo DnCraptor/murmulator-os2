@@ -244,7 +244,7 @@ static const mod2key_t mod2key[] = {
     { KEYBOARD_MODIFIER_LEFTGUI,    0xE05B }
 };
 
-static void __not_in_flash_func(process_kbd_report)(
+extern "C" void __not_in_flash_func(process_kbd_report)(
     hid_keyboard_report_t* report,
     hid_keyboard_report_t* prev_report
 ) {
@@ -304,6 +304,7 @@ extern "C" void __in_hfa() keyboard_init(void) {
 
 extern "C" void __in_hfa() vHID(void *pv) {
     while(1) {
+        tuh_task();
         ps2kbd.tick();
         vTaskDelay(1);
     }

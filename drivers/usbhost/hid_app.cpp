@@ -59,7 +59,7 @@ struct input_bits_t {
 ///extern input_bits_t keyboard_bits;
 extern input_bits_t gamepad1_bits;
 
-void process_kbd_report(
+extern "C" void process_kbd_report(
   hid_keyboard_report_t const *report,
   hid_keyboard_report_t const *prev_report
 );
