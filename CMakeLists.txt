@@ -26,9 +26,12 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
+set(HID ON)
+
+set(MURM1x ON)
 #set(MURM20 ON)
 #set(ZERO2 ON)
-set(PICO_PC ON)
+#set(PICO_PC ON)
 #set(PICO_DV ON)
 
 #set(HID ON)
@@ -98,7 +101,7 @@ add_subdirectory(drivers/audio)
 if (HID)
     add_subdirectory(drivers/ps2kbd)
     # INCLUDE FILES THAT SHOULD BE COMPILED:
-    file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c")
+    file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c" "drivers/usbhost/*.c" "drivers/usbhost/*.cpp")
 else ()
     add_subdirectory(drivers/ps2)
     # INCLUDE FILES THAT SHOULD BE COMPILED:
@@ -130,6 +133,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/musl/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src/obsd/include
 )
+if (HID)
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usbhost
+    )
+endif()
 
 configure_file(memmap.ld.in memmap.ld @ONLY)
 pico_set_linker_script(${PROJECT_NAME} ${CMAKE_CURRENT_BINARY_DIR}/memmap.ld)
