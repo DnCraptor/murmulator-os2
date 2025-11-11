@@ -80,9 +80,8 @@ static const uint16_t hid2scancode[256] = {
     0x2D,
     0x15,
     0x2C, // 1D HID_KEY_Z
-    2,
-    3,
-    3,
+    2, // 1
+    3, // 2
     4,
     5,
     6,
