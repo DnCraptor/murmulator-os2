@@ -40,24 +40,10 @@
 static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 
 // Each HID instance can has multiple reports
-static struct
-{
+static struct {
   uint8_t report_count;
   tuh_hid_report_info_t report_info[MAX_REPORT];
-}hid_info[CFG_TUH_HID];
-
-struct input_bits_t {
-  bool a: true;
-  bool b: true;
-  bool select: true;
-  bool start: true;
-  bool right: true;
-  bool left: true;
-  bool up: true;
-  bool down: true;
-};
-///extern input_bits_t keyboard_bits;
-extern input_bits_t gamepad1_bits;
+} hid_info[CFG_TUH_HID];
 
 extern "C" void process_kbd_report(
   hid_keyboard_report_t const *report,

@@ -1121,9 +1121,21 @@ enum
     {0     , 0      }, /* 0x66 */ \
     {'='   , '='    }, /* 0x67 */ \
 
+struct input_bits_t {
+    bool a: true;
+    bool b: true;
+    bool select: true;
+    bool start: true;
+    bool up: true;
+    bool down: true;
+    bool left: true;
+    bool right: true;
+};
+
+extern input_bits_t gamepad1_bits;
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* _TUSB_HID_H__ */

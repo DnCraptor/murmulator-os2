@@ -3,6 +3,7 @@
 #include "ps2.h"
 #include "ps2kbd_mrmltr.h"
 #include "sys_table.h"
+#include "hid.h"
 
 extern "C" bool handleScancode(uint32_t ps2scancode);
 
@@ -300,6 +301,7 @@ Ps2Kbd_Mrmltr ps2kbd(
 );
 
 extern "C" void __in_lfa() keyboard_init(void) {
+    tuh_init(BOARD_TUH_RHPORT);
     ps2kbd.init_gpio();
 }
 

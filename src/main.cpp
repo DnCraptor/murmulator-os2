@@ -757,6 +757,19 @@ void selectDRV2(void) {
     override_drv = VGA_DRV;
 }
 
+struct input_bits_t {
+    bool a: true;
+    bool b: true;
+    bool select: true;
+    bool start: true;
+    bool up: true;
+    bool down: true;
+    bool left: true;
+    bool right: true;
+};
+
+input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, false };
+
 kbd_state_t* __in_hfa() process_input_on_boot() {
     char* y = (char*)0x20000000 + (512 << 10) - 4;
 	bool magicUnlink = (y[0] == 0xFF && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
@@ -770,17 +783,20 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
         if ( sc == 1 /* Esc */) {
             break;
         }
-        if ( (nespad_state & DPAD_START) && (nespad_state & DPAD_SELECT) || (sc ==0x44) /*F10*/ ) {
+        if ( (nespad_state & DPAD_START) && (nespad_state & DPAD_SELECT) ||
+             (gamepad1_bits.start && gamepad1_bits.select) ||
+             (sc ==0x44) /*F10*/ 
+        ) {
             caseF10();
         }
         // F12 or ENTER or START Boot to USB FIRMWARE UPDATE mode
-        if ((nespad_state & DPAD_START) || (sc == 0x58) /*F12*/ || (sc == 0x1C) /*ENTER*/) {
+        if ((nespad_state & DPAD_START) || gamepad1_bits.start || (sc == 0x58) /*F12*/ || (sc == 0x1C) /*ENTER*/) {
             caseF12();
         }
         // F11 or SPACE or SELECT unlink prev uf2 firmware
-        if (magicUnlink || (nespad_state & DPAD_SELECT) || (sc == 0x57) /*F11*/  || (sc == 0x39) /*SPACE*/) {
+        if (magicUnlink || (nespad_state & DPAD_SELECT) || gamepad1_bits.select || (sc == 0x57) /*F11*/  || (sc == 0x39) /*SPACE*/) {
             if (FR_OK == f_mount(&fs, SD, 1)) {
-                if (nespad_state & DPAD_B) {
+                if ((nespad_state & DPAD_B) || gamepad1_bits.b) {
                     usb_on_boot();
                 }
                 unlink_firmware(); // return to M-OS
@@ -790,12 +806,12 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
             usb_on_boot();
         }
         // DPAD A/TAB start with HDMI, if default is VGA, and vice versa
-        if ((nespad_state & DPAD_A) || (sc == 0x0F) /*TAB*/) {
+        if ((nespad_state & DPAD_A) || gamepad1_bits.a || (sc == 0x0F) /*TAB*/) {
             selectDRV1();
             break;
         }
         // DPAD B start with VGA, if default is TV
-        if ((nespad_state & DPAD_B)) {
+        if ((nespad_state & DPAD_B) || gamepad1_bits.b) {
             selectDRV2();
             break;
         }
@@ -821,6 +837,7 @@ void test_cycle(kbd_state_t* ks) {
         nespad_read();
         int y = graphics_con_y();
         goutf("Scancodes tester: %Xh   \n", ks->input);
+        if (!nespad_state || nespad_state == 0xFF) nespad_state = *(uint8_t*)&gamepad1_bits;
         goutf("Joysticks' states: %02Xh %02Xh\n", nespad_state, nespad_state2);
         vTaskDelay(50);
         graphics_set_con_pos(0, y);
@@ -880,7 +897,7 @@ static void __in_hfa() vPostInit(void *pv) {
         __unreachable();
     }
 
-    if (nespad_state & DPAD_SELECT) {
+    if ((nespad_state & DPAD_SELECT) || gamepad1_bits.select) {
         set_default_vars();
     } else {
         load_config_sys();
