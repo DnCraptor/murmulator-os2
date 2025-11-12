@@ -7,7 +7,7 @@
 #include "sys_table.h"
 #include "cmd.h"
 
-FTS* __in_hfa() fts_open(
+FTS* __libc() fts_open(
     char * const *path_argv,
     int options,
     int (*compar)(const FTSENT **, const FTSENT **)
@@ -134,7 +134,7 @@ FTS* __in_hfa() fts_open(
     return fts;
 }
 
-int __in_hfa() fts_close(FTS *fts)
+int __libc() fts_close(FTS *fts)
 {
     if (!fts) {
         errno = EINVAL;
@@ -174,7 +174,7 @@ int __in_hfa() fts_close(FTS *fts)
     return 0;
 }
 
-FTSENT* __in_hfa() fts_read(FTS *fts) {
+FTSENT* __libc() fts_read(FTS *fts) {
     if (!fts || !fts->fts_cur) return NULL;
 
     FTSENT *cur = fts->fts_cur;
@@ -217,10 +217,10 @@ FTSENT* __in_hfa() fts_read(FTS *fts) {
     return cur;
 }
 
-FTSENT* __in_hfa() fts_children(FTS* fts, int n) {
+FTSENT* __libc() fts_children(FTS* fts, int n) {
     /// TODO:
 }
 
-int __in_hfa() fts_set(FTS* fts, FTSENT* e, int v) {
+int __libc() fts_set(FTS* fts, FTSENT* e, int v) {
     /// TODO:
 }

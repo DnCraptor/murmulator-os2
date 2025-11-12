@@ -12,32 +12,32 @@ extern "C" uint8_t get_leds_stat() {
     return led_status;
 }
 
-extern "C" void __in_hfa() init_pico_usb_drive() {
+extern "C" void __in_lfa() init_pico_usb_drive() {
     gouta("[init_pico_usb_drive] unsupported in HID build\n");
 }
 
-extern "C" void __in_hfa() usb_driver(bool on) {
+extern "C" void __in_lfa() usb_driver(bool on) {
     gouta("[usb_driver] unsupported in HID build\n");
 }
 
-extern "C" bool __in_hfa() tud_msc_ejected() {
+extern "C" bool __in_lfa() tud_msc_ejected() {
 //    gouta("[tud_msc_ejected] unsupported in HID build\n");
     return true;
 }
 
-extern "C" void __in_hfa() set_tud_msc_ejected(bool v) {
+extern "C" void __in_lfa() set_tud_msc_ejected(bool v) {
 //    gouta("[set_tud_msc_ejected] unsupported in HID build\n");
 }
 
-extern "C" bool __in_hfa() set_usb_detached_handler(void* h) {
+extern "C" bool __in_lfa() set_usb_detached_handler(void* h) {
     return true;
 }
 
-extern "C" void  __in_hfa()pico_usb_drive_heartbeat() {
+extern "C" void  __in_lfa()pico_usb_drive_heartbeat() {
     //
 }
 
-extern "C" int16_t __in_hfa() keyboard_send(uint8_t data) {
+extern "C" int16_t __in_lfa() keyboard_send(uint8_t data) {
 //
     return 0;
 }
@@ -230,7 +230,7 @@ static const uint16_t hid2scancode[256] = {
 
 typedef struct mod2key_s {
     hid_keyboard_modifier_bm_t mod;
-    uint16_t scancode;
+    uint32_t scancode;
 } mod2key_t;
 
 static const mod2key_t mod2key[] = {
@@ -251,11 +251,12 @@ extern "C" void __not_in_flash_func(process_kbd_report)(
     uint8_t new_modifiers = report->modifier & ~(prev_report->modifier);
     uint8_t old_modifiers = prev_report->modifier & ~(report->modifier);
     for (int i = 0; i < sizeof(mod2key) / sizeof(mod2key[0]); ++i) {
-        if (old_modifiers & mod2key[i].mod) {
-            handleScancode(mod2key[i].scancode | 0x0080);
+        const mod2key_t& m = mod2key[i];
+        if (old_modifiers & m.mod) {
+            handleScancode(m.scancode | 0x80);
         }
-        if (new_modifiers & mod2key[i].mod) {
-            handleScancode(mod2key[i].scancode);
+        if (new_modifiers & m.mod) {
+            handleScancode(m.scancode);
         }
     }
     uint32_t retval = 0;
@@ -298,14 +299,22 @@ Ps2Kbd_Mrmltr ps2kbd(
     process_kbd_report
 );
 
-extern "C" void __in_hfa() keyboard_init(void) {
+extern "C" void __in_lfa() keyboard_init(void) {
     ps2kbd.init_gpio();
 }
 
-extern "C" void __in_hfa() vHID(void *pv) {
+#define frame_tick (16666)
+
+extern "C" void __in_lfa() vHID(void *pv) {
+    uint64_t tick;
+    static uint64_t last_input_tick = tick;
     while(1) {
-        tuh_task();
-        ps2kbd.tick();
+        tuh_task(); // each millisecond
+        tick = time_us_64();
+        if (tick >= last_input_tick + frame_tick) {
+            last_input_tick = tick;
+            ps2kbd.tick(); // 60 times per second
+        }
         vTaskDelay(1);
     }
 }

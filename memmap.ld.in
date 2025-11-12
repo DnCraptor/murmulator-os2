@@ -80,7 +80,7 @@ SECTIONS
         __psram_area__ = .;
         KEEP (*(.psram))
         __psram_area__ = .;
-    } > LCA
+    } > PSRAM
 
     .text : {
         __logical_binary_start = .;
@@ -90,13 +90,14 @@ SECTIONS
         KEEP (*(.embedded_block))
         __embedded_block_end = .;
         KEEP (*(.reset))
+
         /* TODO revisit this now memset/memcpy/float in ROM */
         /* bit of a hack right now to exclude all floating point and time critical (e.g. memset, memcpy) code from
          * FLASH ... we will include any thing excluded here in .data below by default */
         *(.init)
         *libgcc.a:cmse_nonsecure_call.o
-        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)
         *(.fini)
+
         /* Pull all c'tors into .text */
         *crtbegin.o(.ctors)
         *crtbegin?.o(.ctors)
@@ -134,6 +135,11 @@ SECTIONS
         *(.eh_frame*)
         . = ALIGN(4);
     } > LFA
+    
+    /* TODO: analize what may be moved higher */
+    .lca : {
+        *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)
+    } > LCA
 
     /* Note the boot2 section is optional, and should be discarded if there is
        no reference to it *inside* the binary, as it is not called by the

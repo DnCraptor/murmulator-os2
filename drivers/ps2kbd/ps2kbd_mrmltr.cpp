@@ -162,7 +162,7 @@ static uint8_t ps2kbd_page_0[] {
 };
 
 
-__in_hfa() Ps2Kbd_Mrmltr::Ps2Kbd_Mrmltr(
+__in_lfa() Ps2Kbd_Mrmltr::Ps2Kbd_Mrmltr(
     PIO pio,
     uint base_gpio,
     void (*keyHandler)(hid_keyboard_report_t*, hid_keyboard_report_t*)
@@ -177,7 +177,7 @@ __in_hfa() Ps2Kbd_Mrmltr::Ps2Kbd_Mrmltr(
   clearActions();
 }
 
-void __in_hfa() Ps2Kbd_Mrmltr::clearHidKeys() {
+void __in_lfa() Ps2Kbd_Mrmltr::clearHidKeys() {
   _report.modifier = 0;
   for (int i = 0; i < HID_KEYBOARD_REPORT_MAX_KEYS; ++i) _report.keycode[i] = HID_KEY_NONE;
 }
@@ -198,7 +198,7 @@ inline static uint8_t hidKeyToMod(uint8_t hidKeyCode) {
   return m;
 }
 
-void __in_hfa() Ps2Kbd_Mrmltr::handleHidKeyPress(uint8_t hidKeyCode) {
+void __in_lfa() Ps2Kbd_Mrmltr::handleHidKeyPress(uint8_t hidKeyCode) {
   hid_keyboard_report_t prev = _report;
   
   // Check the key is not alreay pressed
@@ -222,7 +222,7 @@ void __in_hfa() Ps2Kbd_Mrmltr::handleHidKeyPress(uint8_t hidKeyCode) {
   DBG_PRINTF("PS/2 keyboard HID overflow\n");
 }
 
-void __in_hfa() Ps2Kbd_Mrmltr::handleHidKeyRelease(uint8_t hidKeyCode) {
+void __in_lfa() Ps2Kbd_Mrmltr::handleHidKeyRelease(uint8_t hidKeyCode) {
   hid_keyboard_report_t prev = _report;
   
   _report.modifier &= ~hidKeyToMod(hidKeyCode);
@@ -236,12 +236,12 @@ void __in_hfa() Ps2Kbd_Mrmltr::handleHidKeyRelease(uint8_t hidKeyCode) {
   }
 }
 
-uint8_t __in_hfa() Ps2Kbd_Mrmltr::hidCodePage0(uint8_t ps2code) {
+uint8_t __in_lfa() Ps2Kbd_Mrmltr::hidCodePage0(uint8_t ps2code) {
   return ps2code < sizeof(ps2kbd_page_0) ? ps2kbd_page_0[ps2code] : HID_KEY_NONE;
 }
 
 // PS/2 set 2 after 0xe0 to HID key conversion
-uint8_t __in_hfa() Ps2Kbd_Mrmltr::hidCodePage1(uint8_t ps2code) {
+uint8_t __in_lfa() Ps2Kbd_Mrmltr::hidCodePage1(uint8_t ps2code) {
   switch(ps2code) {
 // TODO these belong to a different HID usage page
 //  case 0x37: return HID_KEY_POWER;
@@ -272,7 +272,7 @@ uint8_t __in_hfa() Ps2Kbd_Mrmltr::hidCodePage1(uint8_t ps2code) {
 
 #include "ff.h"
 
-void __in_hfa() Ps2Kbd_Mrmltr::handleActions() {
+void __in_lfa() Ps2Kbd_Mrmltr::handleActions() {
   /*
   FIL f;
   f_open(&f, "1.log", FA_OPEN_APPEND | FA_WRITE);
@@ -337,7 +337,7 @@ void __in_hfa() Ps2Kbd_Mrmltr::handleActions() {
   #endif
 }
 
-void __in_hfa() Ps2Kbd_Mrmltr::tick() {
+void __in_lfa() Ps2Kbd_Mrmltr::tick() {
   if (pio_sm_is_rx_fifo_full(_pio, _sm)) {
     DBG_PRINTF("PS/2 keyboard PIO overflow\n");
     _overflow = true;
@@ -393,7 +393,7 @@ void __in_hfa() Ps2Kbd_Mrmltr::tick() {
 }
 
 // TODO Error checking and reporting
-void __in_hfa() Ps2Kbd_Mrmltr::init_gpio() {
+void __in_lfa() Ps2Kbd_Mrmltr::init_gpio() {
     // init KBD pins to input
     gpio_init(_base_gpio);     // Data
     gpio_init(_base_gpio + 1); // Clock

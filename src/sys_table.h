@@ -8,9 +8,11 @@ extern "C" {
 #endif
 
 #define __in_systable(group) __attribute__((section(".sys_table" group)))
+#define __in_lfa(group) __attribute__((section(".low_flash" group)))
 #define __in_hfa(group) __attribute__((section(".high_flash" group)))
-// TODO: if not enough HFA #define __libc(group) __attribute__((section(".libc_flash" group)))
-#define __libc(group) __attribute__((section(".high_flash" group)))
+// TODO: if not enough HFA
+#define __libc(group) __attribute__((section(".libc_flash" group)))
+//#define __libc(group) __attribute__((section(".high_flash" group)))
 
 extern unsigned long __in_systable() __aligned(4096) sys_table_ptrs[];
 
