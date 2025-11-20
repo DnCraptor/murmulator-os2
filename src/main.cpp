@@ -776,9 +776,9 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
     if (magicUnlink) {
         *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
     }
-    vTaskDelay(50);
+    vTaskDelay(100);
     kbd_state_t* ks = get_kbd_state();
-    for (int a = 0; a < 20; ++a) {
+    for (int a = 0; a < 200; ++a) {
         uint8_t sc = ks->input & 0xFF;
         if ( sc == 1 /* Esc */) {
             break;
@@ -815,7 +815,7 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
             selectDRV2();
             break;
         }
-        vTaskDelay(30);
+        vTaskDelay(3);
         nespad_read();
     }
     return ks;

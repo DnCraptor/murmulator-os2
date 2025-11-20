@@ -1,5 +1,5 @@
 # murmulator-os
-Murmulator OS v.2.1.4<br/>
+Murmulator OS v.2.2.0<br/>
 
 # Hardware needed
 Raspberry Pi Pico 2 (RP2350)<br/>

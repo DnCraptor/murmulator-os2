@@ -278,6 +278,7 @@ if (MURM20)
         RESERVED_RAM=512
         OVERCLOCKING=${CPU_MHZ}
         #DEBUG_APP_LOAD=1
+        PICO_DEFAULT_LED_PIN=25
     )
 elseif (ZERO2)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
