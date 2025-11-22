@@ -349,6 +349,12 @@ static void load_config_sys() {
                 graphics_set_mode(mode);
             } else if (strcmp(t, "DRIVER") == 0) {
                 t = next_token(t);
+                if(strcmp(t, "HDMI") == 0) {
+                    override_drv = HDMI_DRV;
+                }
+                else if(strcmp(t, "VGA") == 0) {
+                    override_drv = VGA_DRV;
+                }
                 // TODO:
             } else if (strcmp(t, "CPU") == 0) {
                 t = next_token(t);
