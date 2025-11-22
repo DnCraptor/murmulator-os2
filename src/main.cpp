@@ -784,7 +784,7 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
     for(int i = 0; i < 1000; ++i) {
         uint8_t sc = ks->input & 0xFF;
         if ( sc == 1 /* Esc */) {
-            if (ks->bAltPressed) skip_firmware = true;
+            skip_firmware = true;
             break;
         }
         if ( (nespad_state & DPAD_START) && (nespad_state & DPAD_SELECT) ||
@@ -817,6 +817,9 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
         // DPAD B start with VGA, if default is TV
         if ((nespad_state & DPAD_B) || gamepad1_bits.b) {
             selectDRV2();
+            break;
+        }
+        if (sc != 0) {
             break;
         }
         vTaskDelay(2);
