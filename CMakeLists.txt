@@ -61,7 +61,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.2.0")
+set(MOS_VERSION "2.2.1")
 endif ()
 
 include(pico_sdk_import.cmake)

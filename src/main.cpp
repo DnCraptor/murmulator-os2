@@ -256,7 +256,10 @@ static const char COMSPEC[] = "COMSPEC";
 static const char ctmp[] = "/tmp"; 
 static const char ccmd[] = "/mos2/cmd";
 
+static bool skip_firmware = false;
+
 static void __always_inline check_firmware() {
+    if (skip_firmware) return;
     FIL f;
     if(f_open(&f, FIRMWARE_MARKER_FN, FA_READ) == FR_OK) {
         f_close(&f);
@@ -776,11 +779,12 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
     if (magicUnlink) {
         *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
     }
-    vTaskDelay(100);
+    vTaskDelay(20);
     kbd_state_t* ks = get_kbd_state();
-    for (int a = 0; a < 200; ++a) {
+    for(int i = 0; i < 1000; ++i) {
         uint8_t sc = ks->input & 0xFF;
         if ( sc == 1 /* Esc */) {
+            if (ks->bAltPressed) skip_firmware = true;
             break;
         }
         if ( (nespad_state & DPAD_START) && (nespad_state & DPAD_SELECT) ||
@@ -815,7 +819,7 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
             selectDRV2();
             break;
         }
-        vTaskDelay(3);
+        vTaskDelay(2);
         nespad_read();
     }
     return ks;

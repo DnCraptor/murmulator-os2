@@ -130,6 +130,9 @@ void __in_hfa() nespad_read()
 //----------------------------------------------------------
   nespad_state  = temp16;               // 00000000.87654321 Joy1
   nespad_state2 = temp16 >> 8;          // 00000000.87654321 Joy2
+  // W/A for case all DATA pin is stucked in some state
+  if (nespad_state == 0xFF) nespad_state = 0;
+  if (nespad_state2 == 0xFF) nespad_state2 = 0;
 }
 
 extern "C" void __in_hfa() nespad_stat(uint8_t* pad1, uint8_t* pad2) {
