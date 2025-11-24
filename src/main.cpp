@@ -729,8 +729,7 @@ void __in_hfa() info(bool with_sd) {
     goutf("SWAP %d MB; RAM: %d KB; pages index: %d x %d KB\n",
           swap_size() >> 20, swap_base_size() >> 10, swap_pages(), swap_page_size() >> 10
     );
-    goutf("VRAM %d KB; video mode: %d x %d x %d bit\n"
-          "\n",
+    goutf("VRAM %d KB; video mode: %d x %d x %d bit\n",
           get_buffer_size() >> 10, get_screen_width(), get_screen_height(), get_console_bitness()
     );
 #ifdef HDMI
@@ -743,6 +742,7 @@ void __in_hfa() info(bool with_sd) {
     f_write(&f, buf, strlen(buf), &bw);
     f_close(&f);
 #endif
+    gouta("\n");
 }
 
 void usb_on_boot() {
