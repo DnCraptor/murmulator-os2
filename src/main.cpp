@@ -213,6 +213,7 @@ extern "C" FATFS* get_mount_fs() { // only one FS is supported for now
     return &fs;
 }
 semaphore vga_start_semaphore;
+static uint8_t link6 = 0xFF;
 static int override_drv = -1;
 static int drv = DEFAULT_VIDEO_DRIVER;
 extern "C" volatile bool reboot_is_requested;
@@ -643,11 +644,11 @@ static void tft_refresh(void* pv) {
 #endif
 
 static void __in_hfa() startup_vga(void) {
+    link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
     if (override_drv >= 0) {
         drv = override_drv;
     } else {
         #ifdef HDMI_DRV
-        uint8_t link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
         if (link6 == 0 || link6 == 0x1F) {
             drv = VGA_DRV;
         }
@@ -732,6 +733,16 @@ void __in_hfa() info(bool with_sd) {
           "\n",
           get_buffer_size() >> 10, get_screen_width(), get_screen_height(), get_console_bitness()
     );
+#ifdef HDMI
+    FIL f;
+    f_open(&f, "/mos2/vga_hdmi_detect.code", FA_WRITE | FA_CREATE_ALWAYS);
+    UINT bw;
+    char buf[32];
+    snprintf(buf, 32, "VGA/HDMI detect code: %02Xh\n", link6);
+    gouta(buf);
+    f_write(&f, buf, strlen(buf), &bw);
+    f_close(&f);
+#endif
 }
 
 void usb_on_boot() {
