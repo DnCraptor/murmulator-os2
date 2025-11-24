@@ -9,7 +9,7 @@
 // https://wiki.osdev.org/PS/2_Keyboard
 //
 #include "ps2kbd_mrmltr.h"
-#if PS2KBD_GPIO_FIRST == 2
+#if KBD_CLOCK_PIN == 2
 #include "ps2kbd_mrmltr2.pio.h"
 #else
 #include "ps2kbd_mrmltr.pio.h"
@@ -403,7 +403,7 @@ void __in_lfa() Ps2Kbd_Mrmltr::init_gpio() {
     // get a state machine
     _sm = pio_claim_unused_sm(_pio, true);
     // reserve program space in SM memory
-#if PS2KBD_GPIO_FIRST == 2
+#if KBD_CLOCK_PIN == 2
     uint offset = pio_add_program(_pio, &m2ps2kbd_program);
 #else
     uint offset = pio_add_program(_pio, &ps2kbd_program);
@@ -411,7 +411,7 @@ void __in_lfa() Ps2Kbd_Mrmltr::init_gpio() {
     // Set pin directions base
     pio_sm_set_consecutive_pindirs(_pio, _sm, _base_gpio, 2, false);
     // program the start and wrap SM registers
-#if PS2KBD_GPIO_FIRST == 2
+#if KBD_CLOCK_PIN == 2
     pio_sm_config c = m2ps2kbd_program_get_default_config(offset);
 #else
     pio_sm_config c = ps2kbd_program_get_default_config(offset);
