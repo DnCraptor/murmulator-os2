@@ -8,9 +8,9 @@ extern "C" {
 typedef char TCHAR;
 typedef unsigned int	UINT;	/* int must be 16-bit or 32-bit */
 typedef unsigned char	BYTE;	/* char must be 8-bit */
-typedef uint16_t		WORD;	/* 16-bit unsigned integer */
-typedef uint32_t		DWORD;	/* 32-bit unsigned integer */
-typedef uint64_t		QWORD;	/* 64-bit unsigned integer */
+typedef unsigned short	WORD;	/* 16-bit unsigned integer */
+typedef unsigned int	DWORD;	/* 32-bit unsigned integer */
+typedef unsigned long long QWORD;	/* 64-bit unsigned integer */
 typedef WORD			WCHAR;	/* UTF-16 character type */
 
 /* File information structure (FILINFO) */
@@ -99,6 +99,11 @@ struct dirent {
 inline static struct dirent* readdir(DIR* d) {
     typedef struct dirent* (*fn_ptr_t)(DIR*);
     return ((fn_ptr_t)_sys_table_ptrs[364])(d);
+}
+
+inline static void rewinddir(DIR *d) {
+    typedef void (*fn_ptr_t)(DIR*);
+    return ((fn_ptr_t)_sys_table_ptrs[365])(d);
 }
 
 #ifdef __cplusplus

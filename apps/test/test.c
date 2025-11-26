@@ -3,6 +3,7 @@
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <dirent.h>
 /// libc
 #include <stdio.h>
 #include <string.h>
@@ -321,7 +322,82 @@ m1:
     printf("scanf: PASSED\n");
 
     perror("perror");
-    #endif
+
+    // ===== DIRECTORY TEST =====
+    log_write("Starting directory tests\n");
+    {
+        if (mkdir("/test", 0777) < 0) {
+            log_write("mkdir /test failed\n");
+            goto fail;
+        }
+        // Create a subdirectory
+        if (mkdir("/test/dir1", 0777) < 0) {
+            log_write("mkdir /test/dir1 failed\n");
+            goto fail;
+        }
+        log_write("mkdir /test/dir1 succeeded\n");
+
+        // Create a file inside dir1
+        int fd_dir = open("/test/dir1/file_in_dir.txt", O_CREAT | O_RDWR | O_TRUNC, 0666);
+        if (fd_dir < 0) { log_write("open file_in_dir failed\n"); goto fail; }
+        write(fd_dir, "DIR", 3);
+        close(fd_dir);
+        log_write("file_in_dir created\n");
+
+
+        // Open directory
+        DIR *d = opendir("/test/dir1");
+        if (!d) { log_write("opendir failed\n"); goto fail; }
+        log_write("opendir succeeded\n");
+
+        // Read entries
+        struct dirent *de;
+        int found_dot = 0, found_dotdot = 0, found_file = 0;
+
+        while ((de = readdir(d))) {
+            if (strcmp(de->d_name, ".") == 0) found_dot = 1;
+            else if (strcmp(de->d_name, "..") == 0) found_dotdot = 1;
+            else if (strcmp(de->d_name, "file_in_dir.txt") == 0) found_file = 1;
+            log_write(de->d_name);
+            log_write("\n");
+        }
+        log_write("readdir completed\n");
+
+        if (!found_dot || !found_dotdot || !found_file) {
+            log_write("readdir missing entries\n");
+            goto fail;
+        }
+        log_write("readdir entries OK\n");
+
+        // rewinddir test
+        rewinddir(d);
+        log_write("rewinddir OK\n");
+
+        // Close directory
+        if (closedir(d) < 0) {
+            log_write("closedir failed\n");
+            goto fail;
+        }
+        log_write("closedir succeeded\n");
+
+        // Cleanup
+        if (unlink("/test/dir1/file_in_dir.txt") < 0) {
+            log_write("unlink file_in_dir failed\n");
+            goto fail;
+        }
+        if (rmdir("/test/dir1") < 0) {
+            log_write("rmdir dir1 failed\n");
+            goto fail;
+        }
+        if (rmdir("/test") < 0) {
+            log_write("rmdir /test failed\n");
+            goto fail;
+        }
+        log_write("Directory test cleanup OK\n");
+
+        log_write("Directory tests completed successfully\n");
+    }
+#endif
 fail:
     log_write("errno: ");
     buf[1] = 0;

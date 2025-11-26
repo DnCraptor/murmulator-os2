@@ -187,6 +187,13 @@ inline static int unlinkat(int dirfd, const char *pathname, int flags) {
 inline static int unlink(const char *existing) {
     return unlinkat(AT_FDCWD, existing, AT_SYMLINK_NOFOLLOW);
 }
+inline static int rmdir(const char* pathname) {
+    return unlinkat(AT_FDCWD, pathname, AT_REMOVEDIR);
+}
+inline static int rmdirat(int dirfd, const char* pathname) {
+    return unlinkat(dirfd, pathname, AT_REMOVEDIR);
+}
+
 
 inline static int symlinkat(const char *existing, int fd, const char *new) {
     typedef int (*fn_ptr_t)(const char *, int, const char *);

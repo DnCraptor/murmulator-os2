@@ -1515,7 +1515,18 @@ struct dirent* __in_hfa() __readdir(DIR* d) {
         }
     }
     struct dirent* de = (struct dirent*)d->dirent;
+    if (de->pos == 0) {
+        de->d_name = ".";
+        de->pos++;
+        return de;
+    }
+    if (de->pos == 1) {
+        de->d_name = "..";
+        de->pos++;
+        return de;
+    }
     FRESULT fr = f_readdir(d, &de->ff_info);
+    de->pos++;
     if (fr != FR_OK) {
         errno = map_ff_fresult_to_errno(fr);
         return 0;
@@ -1525,4 +1536,20 @@ struct dirent* __in_hfa() __readdir(DIR* d) {
     }
     de->d_name = de->ff_info.fname;
     return de;
+}
+
+void __in_hfa() __rewinddir(DIR *d) {
+    if (!d) {
+        errno = EINVAL;
+        return;
+    }
+    FRESULT fr = f_rewinddir(d);
+    if (fr != FR_OK) {
+        errno = map_ff_fresult_to_errno(fr);
+        return;
+    }
+    if (d->dirent) {
+        memset(d->dirent, 0, sizeof(struct dirent));
+    }
+    errno = 0;
 }
