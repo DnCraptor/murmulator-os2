@@ -130,7 +130,7 @@ void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offse
 }
 
 void __in_hfa() link_firmware(FIL* pf, const char* pathname) {
-    f_open(pf, FIRMWARE_MARKER_FN, FA_CREATE_ALWAYS | FA_CREATE_NEW | FA_WRITE);
+    f_open(pf, FIRMWARE_MARKER_FN, FA_CREATE_ALWAYS | FA_WRITE);
     fgoutf(pf, "%s\n", pathname);
     f_close(pf);
 }
