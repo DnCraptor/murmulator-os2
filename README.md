@@ -5,12 +5,11 @@ Murmulator OS v.2.2.1<br/>
 Raspberry Pi Pico 2 (RP2350)<br/>
 Sources are "in-progress" state and testing now only on Murmulator devboard with VGA/HDMI output.<br/>
 Simplest Murmulator schema is availabele there: https://github.com/AlexEkb4ever/MURMULATOR_classical_scheme<br/>
-![Murmulator Schematics]([https://github.com/javavi/pico-infonesPlus/blob/main/assets/Murmulator-1_BSchem.JPG](https://github.com/AlexEkb4ever/MURMULATOR_classical_scheme/blob/main/img/scheme.png))
 
 # Useful links
-https://t.me/ZX_MURMULATOR_DATA
-https://t.me/murmulator_news
-https://t.me/ZX_MURMULATOR
+https://t.me/ZX_MURMULATOR_DATA<br/>
+https://t.me/murmulator_news<br/>
+https://t.me/ZX_MURMULATOR<br/>
 
 ---
 Murmulator 2.0 pinout:
