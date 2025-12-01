@@ -18,6 +18,10 @@ Waveshare RP2350-PiZero pinout (all devices are optional, i2s DAC or PWM - only 
 or
 ![z0p2-pinout2](./assets/z0p2-pinout2.jpg)
 
+---
+Exteranl i2s PCM510x DAC tuneup example:
+![i2s-dac](./assets/i2s-dac.jpg)
+
 # This Archive
 Extract MOS2 folder to your SD-Card to /MOS2 folder.
 
