@@ -10,6 +10,7 @@ Simplest Murmulator schema is availabele there: https://github.com/AlexEkb4ever/
 https://t.me/ZX_MURMULATOR_DATA<br/>
 https://t.me/murmulator_news<br/>
 https://t.me/ZX_MURMULATOR<br/>
+https://habr.com/ru/search/?target_type=posts&order=relevance&q=[%D0%BC%D1%83%D1%80%D0%BC%D1%83%D0%BB%D1%8F%D1%82%D0%BE%D1%80]<br/>
 
 ---
 Murmulator 2.0 pinout:
