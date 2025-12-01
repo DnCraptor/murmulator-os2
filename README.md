@@ -8,6 +8,8 @@ Simplest Murmulator schema is availabele there: https://github.com/AlexEkb4ever/
 ![Murmulator Schematics](https://github.com/javavi/pico-infonesPlus/blob/main/assets/Murmulator-1_BSchem.JPG)
 ![VGA OR hdmi](./assets/vga_hdmi.jpg)
 
+![z0p2-pinout](./assets/z0p2-pinout.jpg)
+
 # This Archive
 Extract MOS2 folder to your SD-Card to /MOS2 folder.
 
