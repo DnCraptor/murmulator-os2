@@ -28,9 +28,9 @@ option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
 #set(HID ON)
 
-set(MURM1x ON)
+#set(MURM1x ON)
 #set(MURM20 ON)
-#set(ZERO2 ON)
+set(ZERO2 ON)
 #set(PICO_PC ON)
 #set(PICO_DV ON)
 
@@ -61,7 +61,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.2.1")
+set(MOS_VERSION "2.2.2")
 endif ()
 
 include(pico_sdk_import.cmake)
@@ -75,13 +75,13 @@ if(MURM20)
     SET(BUILD_NAME "m2p2-${PROJECT_NAME}")
 elseif(PICO_PC)
     SET(BUILD_NAME "PCp2-${PROJECT_NAME}")
-    set(HID ON)
+#    set(HID ON)
 elseif(PICO_DV)
     SET(BUILD_NAME "DVp2-${PROJECT_NAME}")
-    set(HID ON)
+#    set(HID ON)
 elseif(ZERO2)
     SET(BUILD_NAME "z0p2-${PROJECT_NAME}")
-    set(HID ON)
+#    set(HID ON)
 else()
     SET(BUILD_NAME "m1p2-${PROJECT_NAME}")
 endif()
@@ -314,9 +314,9 @@ elseif (ZERO2)
 
         # NES Gamepad
         USE_NESPAD
-        NES_GPIO_CLK=20
-        NES_GPIO_LAT=21
-        NES_GPIO_DATA=26
+        NES_GPIO_CLK=4
+        NES_GPIO_LAT=5
+        NES_GPIO_DATA=7
 
         # PSRAM
         # PSRAM_MUTEX=1
