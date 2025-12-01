@@ -6,7 +6,6 @@ Raspberry Pi Pico 2 (RP2350)<br/>
 Sources are "in-progress" state and testing now only on Murmulator devboard with VGA/HDMI output.<br/>
 Simplest Murmulator schema is availabele there: https://github.com/AlexEkb4ever/MURMULATOR_classical_scheme<br/>
 ![Murmulator Schematics](https://github.com/javavi/pico-infonesPlus/blob/main/assets/Murmulator-1_BSchem.JPG)
-![VGA OR hdmi](./assets/vga_hdmi.jpg)
 
 ---
 Murmulator 2.0 pinout:
@@ -23,6 +22,10 @@ or
 ---
 Exteranl i2s PCM510x DAC tuneup example:
 ![i2s-dac](./assets/i2s-dac.jpg)
+
+---
+Option to connect VGA to HDMI:
+![VGA OR hdmi](./assets/hdmi-vga.jpg)
 
 # This Archive
 Extract MOS2 folder to your SD-Card to /MOS2 folder.
