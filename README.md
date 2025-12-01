@@ -11,6 +11,8 @@ Simplest Murmulator schema is availabele there: https://github.com/AlexEkb4ever/
 ---
 Murmulator 2.0 pinout:
 ![m2p2-pinout](./assets/m2p2-pinout.jpg)
+or
+![m2p2-pinout2](./assets/m2p2-pinout2.jpg)
 
 ---
 Waveshare RP2350-PiZero pinout (all devices are optional, i2s DAC or PWM - only one may be selected at the same time):
