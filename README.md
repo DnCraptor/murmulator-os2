@@ -10,6 +10,8 @@ Simplest Murmulator schema is availabele there: https://github.com/AlexEkb4ever/
 
 Waveshare RP2350-PiZero pinout (all devices are optional, i2s DAC or PWM - only one may be selected at the same time):
 ![z0p2-pinout](./assets/z0p2-pinout.jpg)
+or
+![z0p2-pinout2](./assets/z0p2-pinout2.jpg)
 
 # This Archive
 Extract MOS2 folder to your SD-Card to /MOS2 folder.
