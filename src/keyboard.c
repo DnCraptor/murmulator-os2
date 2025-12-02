@@ -223,11 +223,11 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
     }
     if (ks.bTabPressed && ks.bCtrlPressed) {
         if (ks.bPlusPressed) {
-            set_overclocking(get_overclocking_khz() + 1000);
+            set_overclocking(get_overclocking_khz() + 4000);
             overclocking();
         }
         if (ks.bMinusPressed) {
-            set_overclocking(get_overclocking_khz() - 1000);
+            set_overclocking(get_overclocking_khz() - 4000);
             overclocking();
         }
     }

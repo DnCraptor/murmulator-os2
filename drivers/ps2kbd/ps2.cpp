@@ -254,19 +254,30 @@ void handleDown(uint32_t sc) {
         last_pressed_code = sc;
         last_pressed_time_us = time_us_32();
         autorepet_started = false;
+        switch (sc) {
+            case 0x45:
+                keyboard_toggle_led(PS2_LED_NUM_LOCK);
+                break;
+            case 0x46:
+                keyboard_toggle_led(PS2_LED_SCROLL_LOCK);
+                break;
+            case 0x3A:
+                keyboard_toggle_led(PS2_LED_CAPS_LOCK);
+                break;
+        }
         handleScancode(sc);
         return;
     }
     if (!last_pressed_code) return;
     uint32_t t = time_us_32();
     if (autorepet_started) {
-        if (t - last_pressed_time_us >= 50000) { // 50 ms
+        if (t - last_pressed_time_us >= 100000) { // 100 ms
             last_pressed_time_us = t;
             handleScancode(last_pressed_code);
         }
         return;
     }
-    if (t - last_pressed_time_us >= 200000) { // 200 + 50 = 250 ms
+    if (t - last_pressed_time_us >= 300000) { // 300 + 100 = 400 ms
         last_pressed_time_us = t;
         autorepet_started = true;
     }
@@ -293,7 +304,6 @@ extern "C" void __not_in_flash_func(process_kbd_report)(
             handleDown(m.scancode);
         }
     }
-    uint32_t retval = 0;
     for (uint8_t pkc: prev_report->keycode) {
         if (!pkc) continue;
         bool key_still_pressed = false;
@@ -304,26 +314,12 @@ extern "C" void __not_in_flash_func(process_kbd_report)(
             }
         }
         if (!key_still_pressed) {
-            retval = hid2scancode[pkc];
-            handleUp(retval);
+            handleUp(hid2scancode[pkc]);
         }
     }
     for (uint8_t kc: report->keycode) {
         if (!kc) continue;
-        retval = hid2scancode[kc];
-        handleDown(retval);
-    }
-
-    switch (retval) {
-        case 0x45:
-            keyboard_toggle_led(PS2_LED_NUM_LOCK);
-            break;
-        case 0x46:
-            keyboard_toggle_led(PS2_LED_SCROLL_LOCK);
-            break;
-        case 0x3A:
-            keyboard_toggle_led(PS2_LED_CAPS_LOCK);
-            break;
+        handleDown(hid2scancode[kc]);
     }
 }
 
