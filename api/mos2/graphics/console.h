@@ -33,4 +33,9 @@ inline static uint32_t get_screen_height() {
     return ((fn_ptr_t)_sys_table_ptrs[159])();
 }
 
+inline static void set_cursor_color(uint8_t c) {
+    typedef void (*fn_ptr_t)(uint8_t);
+    ((fn_ptr_t)_sys_table_ptrs[186])(c);
+}
+
 #endif // __graphics_console_h__
