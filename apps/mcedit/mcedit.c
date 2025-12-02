@@ -1,5 +1,6 @@
 #include <stdint.h>
 // posix
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -734,14 +735,12 @@ inline static void start_editor(cmd_ctx_t* ctx) {
     lst = new_list_v((alloc_fn_ptr_t)new_string_v, (dealloc_fn_ptr_t)delete_string, (size_fn_ptr_t)string_size_bytes);
     f_sz = 0;
     {
-        FILINFO* fno = malloc(sizeof(FILINFO));
-        if (FR_OK != f_stat(ctx->argv[1], fno) || (fno->fattrib & AM_DIR)) {
-            free(fno);
+        struct stat st;
+        if (stat(ctx->argv[1], &st) != 0 || S_ISDIR(st.st_mode)) {
             list_push_back(lst, new_string_v());
-            goto nw; // assumed new file creation
+            goto nw;   // assumed new file creation
         }
-        f_sz = fno->fsize;
-        free(fno);
+        f_sz = st.st_size;
     }
     size_t free_sz = xPortGetFreeHeapSize();
     if (f_sz * 2 > free_sz) { // TODO: virtual RAM

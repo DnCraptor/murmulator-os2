@@ -26,11 +26,11 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
-#set(HID ON)
+set(HID ON)
 
-#set(MURM1x ON)
+set(MURM1x ON)
 #set(MURM20 ON)
-set(ZERO2 ON)
+#set(ZERO2 ON)
 #set(PICO_PC ON)
 #set(PICO_DV ON)
 
@@ -61,7 +61,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.2.2")
+set(MOS_VERSION "2.2.3")
 endif ()
 
 include(pico_sdk_import.cmake)
