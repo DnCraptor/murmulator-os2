@@ -337,14 +337,17 @@ void __in_lfa() Ps2Kbd_Mrmltr::handleActions() {
   #endif
 }
 
+void handleDown(uint32_t sc);
+
 void __in_lfa() Ps2Kbd_Mrmltr::tick() {
+  handleDown(0); // handle autorepeat
   if (pio_sm_is_rx_fifo_full(_pio, _sm)) {
     DBG_PRINTF("PS/2 keyboard PIO overflow\n");
     _overflow = true;
     while (!pio_sm_is_rx_fifo_empty(_pio, _sm)) {
       // pull a scan code from the PIO SM fifo
       uint32_t rc = _pio->rxf[_sm];    
-      printf("PS/2 drain rc %4.4lX (%ld)\n", rc, rc);
+      // printf("PS/2 drain rc %4.4lX (%ld)\n", rc, rc);
     }
     clearHidKeys();
     clearActions();

@@ -245,19 +245,52 @@ static const mod2key_t mod2key[] = {
     { KEYBOARD_MODIFIER_LEFTGUI,    0xE05B }
 };
 
+static uint32_t last_pressed_code = 0;
+static uint32_t last_pressed_time_us = 0;
+static bool autorepet_started = false;
+
+void handleDown(uint32_t sc) {
+    if (sc != 0) {
+        last_pressed_code = sc;
+        last_pressed_time_us = time_us_32();
+        autorepet_started = false;
+        handleScancode(sc);
+        return;
+    }
+    if (!last_pressed_code) return;
+    uint32_t t = time_us_32();
+    if (autorepet_started) {
+        if (t - last_pressed_time_us >= 50000) { // 50 ms
+            last_pressed_time_us = t;
+            handleScancode(last_pressed_code);
+        }
+        return;
+    }
+    if (t - last_pressed_time_us >= 200000) { // 200 + 50 = 250 ms
+        last_pressed_time_us = t;
+        autorepet_started = true;
+    }
+}
+
+static void handleUp(uint32_t sc) {
+    last_pressed_code = 0;
+    handleScancode(sc | 0x80);
+}
+
 extern "C" void __not_in_flash_func(process_kbd_report)(
     hid_keyboard_report_t* report,
     hid_keyboard_report_t* prev_report
 ) {
+    handleDown(0);
     uint8_t new_modifiers = report->modifier & ~(prev_report->modifier);
     uint8_t old_modifiers = prev_report->modifier & ~(report->modifier);
     for (int i = 0; i < sizeof(mod2key) / sizeof(mod2key[0]); ++i) {
         const mod2key_t& m = mod2key[i];
         if (old_modifiers & m.mod) {
-            handleScancode(m.scancode | 0x80);
+            handleUp(m.scancode);
         }
         if (new_modifiers & m.mod) {
-            handleScancode(m.scancode);
+            handleDown(m.scancode);
         }
     }
     uint32_t retval = 0;
@@ -272,13 +305,13 @@ extern "C" void __not_in_flash_func(process_kbd_report)(
         }
         if (!key_still_pressed) {
             retval = hid2scancode[pkc];
-            handleScancode(0x80 | retval);
+            handleUp(retval);
         }
     }
     for (uint8_t kc: report->keycode) {
         if (!kc) continue;
         retval = hid2scancode[kc];
-        handleScancode(retval);
+        handleDown(retval);
     }
 
     switch (retval) {

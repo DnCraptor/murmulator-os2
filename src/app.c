@@ -653,54 +653,10 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                     char* rel_str_sym = st_spec_sec(c->psym->st_shndx);
                     if (rel_str_sym != 0) {
                         char* fn_name = c->pstrtab + c->psym->st_name;
-                        #if 0
-                        if (c != libc_pctx) { // load from libc
-                            // goutf("load from libc: %s\n", fn_name);
-                            uint32_t libc_req_idx = 0;
-                            if (!hash_table_get(libc_idx, fn_name, &libc_req_idx)) {
-                                goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s (and not libc fn)\n",
-                                    rel_sym, c->psym->st_shndx, rel_str_sym,
-                                    st_predef(fn_name)
-                                );
-                            } else {
-                                // адрес функции в libc (A + S уже учтены в load_sec2mem_wrapper)
-                                uint32_t libc_target = load_sec2mem_wrapper(libc_pctx, libc_req_idx, try_to_use_flash);
-                                if (!libc_target) {
-                                    goutf("Unable to load link from STRTAB record #%d to section #%d (%s): %s from the libc\n",
-                                        rel_sym, c->psym->st_shndx, rel_str_sym,
-                                        st_predef(fn_name)
-                                    );
-                                } else {
-                                    // указатель в загруженном приложении (где нужно применить релокацию)
-                                    uint32_t* reloc_in_app = (uint32_t*)(real_ram_addr + rel.rel_offset);
-                                    // указатель на эталонную инструкцию/место (используется для PC-relative resolver'ов)
-                                    uint32_t* reloc_ref = (uint32_t*)(prg_addr + rel.rel_offset);
-                                    switch (rel_type) {
-                                        case 2: // R_ARM_ABS32: P <- S + A (+ existing addend)
-                                        {
-                                            uint32_t addend = *reloc_in_app;    // A — addend, уже записанный в месте релокации
-                                            *reloc_in_app = addend + libc_target;
-                                            break;
-                                        }
-                                        case 10: // R_ARM_THM_PC22 (Thumb BL/BLX(1) wide)
-                                            // sym_val должен быть абсолютным адресом цели (A+S). resolve_thm_pc22 выполнит нужное кодирование.
-                                            resolve_thm_pc22((uint16_t*)reloc_in_app, (uint16_t*)reloc_ref, libc_target);
-                                            break;
-                                        default:
-                                            goutf("WARN: Unsupported libc REL type %d -> symbol: %s\n",
-                                                    rel_type, c->pstrtab + c->psym->st_name);
-                                            break;
-                                    }
-                                    continue;
-                                }
-                            }
-                        } else { // it is already libc
-                         #endif
-                            goutf("[libc] Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
-                                    rel_sym, c->psym->st_shndx, rel_str_sym,
-                                    st_predef(fn_name)
-                            );
-                        ///}
+                        goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
+                                rel_sym, c->psym->st_shndx, rel_str_sym,
+                                st_predef(fn_name)
+                        );
                         goto e1;
                     }
                     uint32_t* rel_addr_real = (uint32_t*)(real_ram_addr + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
