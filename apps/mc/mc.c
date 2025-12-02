@@ -83,6 +83,7 @@ typedef enum sort_type {
 
 static volatile bool ctrlPressed = false;
 static volatile bool altPressed = false;
+static volatile bool shiftPressed = false;
 static volatile bool leftPressed = false;
 static volatile bool rightPressed = false;
 static volatile bool upPressed = false;
@@ -201,6 +202,7 @@ int _init(void) {
 
     ctrlPressed = false;
     altPressed = false;
+    shiftPressed = false;
     leftPressed = false;
     rightPressed = false;
     upPressed = false;
@@ -352,7 +354,9 @@ static void m_delete_file(uint8_t cmd) {
             draw_box(pcs, x, 7, width, 10, "Error", &lines);
             sleep_ms(2500);
         } else {
-            psp->indexes[psp->level].selected_file_idx--;
+            int new_idx = psp->indexes[psp->level].selected_file_idx - (mselsz ? mselsz : 1);
+            if (new_idx < FIRST_FILE_LINE_ON_PANEL_Y) new_idx = FIRST_FILE_LINE_ON_PANEL_Y;
+            psp->indexes[psp->level].selected_file_idx = new_idx;
         }
     }
     delete_string(s_path);
@@ -621,57 +625,98 @@ static void m_info(uint8_t cmd) {
     redraw_window();
 }
 
-static void m_mk_dir(uint8_t cmd) {
-    if (hidePannels) return;
-    string_t* s_dir = new_string_v();
-    construct_full_name(s_dir, psp->s_path->p, "");
+static bool edit_name(const char* title, string_t* s_initial, int* out_x, int* out_y) {
     int ox = graphics_con_x();
     int oy = graphics_con_y();
-    int x = 4 + s_dir->size;
+
+    int x = 4 + s_initial->size;
     int y = MAX_HEIGHT / 2 - 1;
     int width = MAX_WIDTH - 8;
+
     graphics_set_con_pos(x, y);
-    draw_panel(pcs, 2, y - 2, width + 4, 5, "DIR NAME", 0);
-    draw_label(pcs, 4, y, width, s_dir->p, true, true);
-    while(1) {
-        char c = getchar();
+    draw_panel(pcs, 2, y - 2, width + 4, 5, title, 0);
+    draw_label(pcs, 4, y, width, s_initial->p, true, true);
+
+    while (1) {
+        char c = getch();
+
         if (c == CHAR_CODE_ESC) {
             scan_code_cleanup();
             redraw_window();
-            return;
+            return false;
         }
+
         if (c == CHAR_CODE_BS) {
             scan_code_cleanup();
-            if (!s_dir->size) {
+            if (!s_initial->size) {
                 blimp(10, 5);
                 continue;
             }
             graphics_set_con_pos(--x, y);
-            string_resize(s_dir, s_dir->size - 1);
-            draw_label(pcs, 4, y, width, s_dir->p, true, true);
+            string_resize(s_initial, s_initial->size - 1);
+            draw_label(pcs, 4, y, width, s_initial->p, true, true);
+            continue;
         }
+
         if (c == CHAR_CODE_ENTER) {
             break;
         }
+
         uint8_t sc = (uint8_t)lastCleanableScanCode;
         scan_code_cleanup();
         if (!sc || sc >= 0x80) continue;
-       // char c = scan_code_2_cp866[sc]; // TODO: shift, caps lock, alt, rus...
+
         if (!c) continue;
-        if (s_dir->size >= width) {
+
+        if (s_initial->size >= width) {
             blimp(10, 5);
             continue;
         }
-        string_push_back_c(s_dir, c);
+
+        string_push_back_c(s_initial, c);
         graphics_set_con_pos(++x, y);
-        draw_label(pcs, 4, y, width, s_dir->p, true, true);
+        draw_label(pcs, 4, y, width, s_initial->p, true, true);
     }
-    if (s_dir->size) {
-        mkdir(s_dir->p, 0777);
-    }
+
+    *out_x = ox;
+    *out_y = oy;
     graphics_set_con_pos(ox, oy);
     scan_code_cleanup();
     redraw_window();
+    return s_initial->size > 0;
+}
+
+static void m_mk_dir(uint8_t cmd) {
+    if (hidePannels) return;
+
+    string_t* s_dir = new_string_v();
+    construct_full_name(s_dir, psp->s_path->p, "");
+
+    int ox, oy;
+    if (edit_name("DIR NAME", s_dir, &ox, &oy)) {
+        mkdir(s_dir->p, 0777);
+        fill_panel(psp);
+    }
+}
+
+static void m_new(uint8_t cmd) {
+    if (hidePannels) return;
+
+    string_t* s_file = new_string_v();
+    file_info_t* fp = selected_file(psp, true);
+    construct_full_name_s(s_file, psp->s_path, fp->s_name);
+
+    int ox, oy;
+    if (!edit_name("FILE NAME", s_file, &ox, &oy)) {
+        return;
+    }
+
+    if (s_file->size) {
+        string_replace_cs(s_cmd, "mcedit \"");
+        string_push_back_cs(s_cmd, s_file);
+        string_push_back_c(s_cmd, '"');
+        mark_to_exit_flag = cmd_enter(get_cmd_ctx());
+    }
 }
 
 static bool m_move_file_impl(file_info_t* fp) {
@@ -822,6 +867,21 @@ static fn_1_12_tbl_t fn_1_12_tbl = {
     '1', '2', "      ", do_nothing
 };
 
+static fn_1_12_tbl_t fn_1_12_tbl_shift = {
+    ' ', '1', " Help ", m_info,
+    ' ', '2', "      ", do_nothing,
+    ' ', '3', " View ", m_view,
+    ' ', '4', " New  ", m_new,
+    ' ', '5', " Copy ", m_copy_file,
+    ' ', '6', " Move ", m_move_file,
+    ' ', '7', " MkDir", m_mk_dir,
+    ' ', '8', " Del  ", m_delete_file,
+    ' ', '9', "      ", do_nothing,
+    '1', '0', " Exit ", mark_to_exit,
+    '1', '1', "      ", do_nothing,
+    '1', '2', "      ", do_nothing
+};
+
 static fn_1_12_tbl_t fn_1_12_tbl_alt = {
     ' ', '1', "      ", do_nothing,
     ' ', '2', "      ", do_nothing,
@@ -869,7 +929,9 @@ static void turn_usb_on(uint8_t nu) {
 
 static inline const fn_1_12_tbl_t* actual_fn_1_12_tbl() {
     const fn_1_12_tbl_t * ptbl = &fn_1_12_tbl;
-    if (altPressed) {
+    if (shiftPressed) {
+        ptbl = &fn_1_12_tbl_shift;
+    } if (altPressed) {
         ptbl = &fn_1_12_tbl_alt;
     } else if (ctrlPressed) {
         ptbl = &fn_1_12_tbl_ctrl;
@@ -1131,21 +1193,14 @@ static void fill_panel(file_panel_desc_t* p) {
     if (hidePannels) return;
     collect_files(p);
     indexes_t* pp = &p->indexes[p->level];
-    /* TODO:
-    if (p->files_number < pp->start_file_offset) {
-        pp->start_file_offset = p->files_number - 1;
-        pp->selected_file_idx = p->files_number;
-    }
-    if (p->files_number < pp->start_file_offset + pp->selected_file_idx) {
-        pp->selected_file_idx = p->files_number - pp->start_file_offset;
-    }*/
     if (pp->selected_file_idx < FIRST_FILE_LINE_ON_PANEL_Y) {
         pp->selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
     }
-    // TODO: selected should not be out of pannel
-//    if (pp->selected_file_idx - pp->start_file_offset > LAST_FILE_LINE_ON_PANEL_Y - FIRST_FILE_LINE_ON_PANEL_Y) {
-//        pp->selected_file_idx = pp->start_file_offset + FIRST_FILE_LINE_ON_PANEL_Y; // TODO: test it
-//    }
+    // Ensure selected_file_idx is within the visible panel range
+    int max_visible_idx = pp->start_file_offset + (LAST_FILE_LINE_ON_PANEL_Y - FIRST_FILE_LINE_ON_PANEL_Y);
+    if (pp->selected_file_idx > max_visible_idx) {
+        pp->selected_file_idx = max_visible_idx;
+    }
     if (pp->start_file_offset < 0) {
         pp->start_file_offset = 0;
     }
@@ -1287,6 +1342,10 @@ static bool scancode_handler_impl(const uint32_t ps2scancode) { // core ?
         rightPressed = true;
     } else if (sc == 0xCD) {
         rightPressed = false;
+    } else if (sc == 0x2A) {
+        shiftPressed = true;
+    } else if (sc == 0xAA) {
+        shiftPressed = false;
     } else if (sc == 0x38) {
         altPressed = true;
     } else if (sc == 0xB8) {
@@ -1349,6 +1408,28 @@ fin:
     redraw_current_panel();
 }
 
+inline static bool needs_quotes(const string_t* s_name) {
+    bool res = false;
+    for (size_t i = 0; i < s_name->size; ++i) {
+        char c = s_name->p[i];
+        if (c == ' ' || c == '\t' || c == '&' || c == '|' || c == '<' || c == '>') {
+            res = true;
+            break;
+        }
+    }
+    return res;
+}
+
+inline static bool is_os_update(const string_t* n)
+{
+    const char prefix[] = "murmulator-os-";
+    if (n->size < 23) return false;
+    if (n->p[4] != '-') return false;
+    if (strncmp(n->p + 5, prefix, 14) != 0) return false;
+    if (strncmp(n->p + n->size - 4, ".uf2", 4) != 0) return false;
+    return true;
+}
+
 static void enter_pressed() {
     if (s_cmd->size && !ctrlPressed) {
         mark_to_exit_flag = cmd_enter(get_cmd_ctx());
@@ -1394,22 +1475,29 @@ static void enter_pressed() {
         return;
     }
     if (ctrlPressed) {
-        if (psp->s_path->size > 1)
-            string_push_back_cs(s_cmd, psp->s_path); // quotas?
+        bool nq = (psp->s_path->size > 1 && needs_quotes(psp->s_path)) || needs_quotes(fp->s_name);
+        if (nq) {
+            string_push_back_c(s_cmd, '"');
+        }
+        if (psp->s_path->size > 1) {
+            string_push_back_cs(s_cmd, psp->s_path);
+        }
         string_push_back_c(s_cmd, '/');
         string_push_back_cs(s_cmd, fp->s_name);
+        if (nq) {
+            string_push_back_c(s_cmd, '"');
+        }
+        string_push_back_c(s_cmd, ' '); // trainling space to avoid manual add it each time
         draw_cmd_line();
         return;
     }
-    construct_full_name_s(s_cmd, psp->s_path, fp->s_name);
-    static const char os_prefix[] = "murmulator-os-";
-    char *p = s_cmd->p + s_cmd->size - 4;
-    if ( 0 == strncmp(fp->s_name->p, os_prefix, 14) && strncmp(".uf2", p, 4) == 0 ) {
+    if (is_os_update(fp->s_name)) {
             string_replace_cs(s_cmd, "os_update \"");
             m_ext_common(fp);
             return;
     }
     if (s_cmd->size >= 4) {
+        char *p = fp->s_name->p + fp->s_name->size - 4;
         if (strncmp(".wav", p, 4) == 0 || strncmp(".WAV", p, 4) == 0) {
             string_replace_cs(s_cmd, "wav \"");
             m_ext_common(fp);
@@ -1420,6 +1508,11 @@ static void enter_pressed() {
             m_ext_common(fp);
             return;
         }
+    }
+    construct_full_name_s(s_cmd, psp->s_path, fp->s_name);
+    if (needs_quotes(s_cmd)) {
+        string_insert_c(s_cmd, '"', 0);
+        string_push_back_c(s_cmd, '"');
     }
     mark_to_exit_flag = cmd_enter(get_cmd_ctx());
 }
@@ -1563,8 +1656,8 @@ inline static void cmd_backspace() {
 }
 
 inline static void type_char(char c) {
-    putchar(c);
     string_push_back_c(s_cmd, c);
+    draw_cmd_line();
 }
 
 inline static void handle_tab_pressed() {
@@ -1731,7 +1824,7 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
                 fn_1_12_btn_pressed(sc - 0xBB);
                 scan_code_processed();
             }
-        } else if (sc == 0x1D || sc == 0x9D || sc == 0x38 || sc == 0xB8) { // Ctrl / Alt
+        } else if (sc == 0x1D || sc == 0x9D || sc == 0x38 || sc == 0xB8 || sc == 0x2A || sc == 0xAA) { // Ctrl / Alt / Shift
             bottom_line();
             scan_code_processed();
         } else if (sc == 0xC9) {

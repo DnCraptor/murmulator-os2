@@ -23,6 +23,11 @@ inline static uint8_t get_leds_stat() {
     return ((fn_ptr_t)_sys_table_ptrs[64])();
 }
 
+inline static char getch(void) {
+    typedef char (*fn_ptr_t)(void);
+    return ((fn_ptr_t)_sys_table_ptrs[122])();
+}
+
 inline static char getch_now(void) {
     typedef char (*fn_ptr_t)(void);
     return ((fn_ptr_t)_sys_table_ptrs[184])();
