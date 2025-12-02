@@ -1197,7 +1197,7 @@ static void fill_panel(file_panel_desc_t* p) {
         pp->selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
     }
     // Ensure selected_file_idx is within the visible panel range
-    int max_visible_idx = pp->start_file_offset + (LAST_FILE_LINE_ON_PANEL_Y - FIRST_FILE_LINE_ON_PANEL_Y);
+    int max_visible_idx = pp->start_file_offset + LAST_FILE_LINE_ON_PANEL_Y;
     if (pp->selected_file_idx > max_visible_idx) {
         pp->selected_file_idx = max_visible_idx;
     }
