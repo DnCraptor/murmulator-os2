@@ -76,6 +76,11 @@ inline static size_t strlen(const char * s) {
     return ((fn_ptr_t)_sys_table_ptrs[62])(s);
 }
 
+inline static size_t strnlen(const char *str, size_t sz) {
+    typedef size_t (*fn_ptr_t)(const char *str, size_t sz);
+    return ((fn_ptr_t)_sys_table_ptrs[170])(str, sz);
+}
+
 inline static char* strncpy(char* t, const char * s, size_t sz) {
     typedef char* (*fn_ptr_t)(char*, const char*, size_t);
     return ((fn_ptr_t)_sys_table_ptrs[63])(t, s, sz);
@@ -94,6 +99,11 @@ inline static int strncmp(const char * s1, const char * s2, size_t sz) {
 inline static char* strerror (int code) {
     typedef char* (*fn_ptr_t)(int);
     return ((fn_ptr_t)_sys_table_ptrs[353])(code);
+}
+// not standard functions
+inline static char* concat(const char* s1, const char* s2) {
+    typedef char* (*fn_ptr_t)(const char*, const char*);
+    return ((fn_ptr_t)_sys_table_ptrs[129])(s1, s2);
 }
 
 #ifdef __cplusplus

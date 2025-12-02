@@ -40,4 +40,16 @@ void draw_window(const char* t, uint32_t x, uint32_t y, uint32_t width, uint32_t
     ((draw_window_ptr_t)_sys_table_ptrs[_draw_window_ptr_idx])(t, x, y, width, height);
 }
 
+inline static 
+void draw_label(color_schema_t* pcs, int left, int top, int width, char* txt, bool selected, bool highlighted) {
+    typedef void (*fn_ptr_t)(color_schema_t* pcs, int left, int top, int width, char* txt, bool selected, bool highlighted);
+    ((fn_ptr_t)_sys_table_ptrs[239])(pcs, left, top, width, txt, selected, highlighted);
+}
+
+inline static
+void show_logo(bool with_top) {
+    typedef void (*fn_ptr_t)(bool);
+    ((fn_ptr_t)_sys_table_ptrs[183])(with_top);
+}
+
 #endif // __graphics_draw_h__

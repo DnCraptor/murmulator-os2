@@ -8,6 +8,14 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 
 #include <stdint.h>
 
+inline static int graphics_con_x(void) { // 195
+    typedef int (*fn_ptr_t)(void);
+    return ((fn_ptr_t)_sys_table_ptrs[195])();
+}
+inline static int graphics_con_y(void) { // 196
+    typedef int (*fn_ptr_t)(void);
+    return ((fn_ptr_t)_sys_table_ptrs[196])();
+}
 inline static void graphics_set_con_pos(int x, int y) {
     typedef void (*graphics_set_con_pos_ptr_t)(int x, int y);
     ((graphics_set_con_pos_ptr_t)_sys_table_ptrs[42])(x, y);

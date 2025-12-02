@@ -48,6 +48,8 @@ typedef enum {
 	FR_TOO_MANY_OPEN_FILES,	/* (18) Number of open files > FF_FS_LOCK */
 	FR_INVALID_PARAMETER	/* (19) Given parameter is invalid */
 } FRESULT;
+
+#ifndef _DIRENT_H_
 typedef char TCHAR;
 typedef unsigned int	UINT;	/* int must be 16-bit or 32-bit */
 typedef unsigned char	BYTE;	/* char must be 8-bit */
@@ -55,7 +57,6 @@ typedef uint16_t		WORD;	/* 16-bit unsigned integer */
 typedef uint32_t		DWORD;	/* 32-bit unsigned integer */
 typedef uint64_t		QWORD;	/* 64-bit unsigned integer */
 typedef WORD			WCHAR;	/* UTF-16 character type */
-
 
 /* File information structure (FILINFO) */
 typedef QWORD FSIZE_t;
@@ -114,8 +115,9 @@ typedef struct {
 	DWORD	c_size;			/* b31-b8:Size of containing directory, b7-b0: Chain status (valid when c_scl != 0) */
 	DWORD	c_ofs;			/* Offset in the containing directory (valid when file object and sclust != 0) */
 } FFOBJID;
+#endif
 
-/* Directory object structure (DIR) */
+/* Directory object structure (FFDIR) */
 
 typedef struct {
 	FFOBJID	obj;			/* Object identifier */
@@ -125,7 +127,7 @@ typedef struct {
 	BYTE*	dir;			/* Pointer to the directory item in the win[] */
 	BYTE	fn[12];			/* SFN (in/out) {body[8],ext[3],status[1]} */
 	DWORD	blk_ofs;		/* Offset of current entry block being processed (0xFFFFFFFF:Invalid) */
-} DIR;
+} FFDIR;
 
 /* File access mode and open method flags (3rd argument of f_open) */
 #define	FA_READ				0x01
@@ -210,25 +212,25 @@ inline static FRESULT f_sync (
 }
 
 inline static FRESULT f_opendir (
-	DIR* dp,			/* Pointer to directory object to create */
+	FFDIR* dp,			/* Pointer to directory object to create */
 	const TCHAR* path	/* Pointer to the directory path */
 ) {
-    typedef FRESULT (*FRpDcpC_ptr_t)(DIR*, const TCHAR*);
+    typedef FRESULT (*FRpDcpC_ptr_t)(FFDIR*, const TCHAR*);
     return ((FRpDcpC_ptr_t)_sys_table_ptrs[54])(dp, path);
 }
 
-typedef FRESULT (*FRpD_ptr_t)(DIR*);
+typedef FRESULT (*FRpD_ptr_t)(FFDIR*);
 inline static FRESULT f_closedir (
-	DIR *dp		/* Pointer to the directory object to be closed */
+	FFDIR *dp		/* Pointer to the directory object to be closed */
 ) {
     return ((FRpD_ptr_t)_sys_table_ptrs[55])(dp);
 }
 
 inline static FRESULT f_readdir (
-	DIR* dp,			/* Pointer to the open directory object */
+	FFDIR* dp,			/* Pointer to the open directory object */
 	FILINFO* fno		/* Pointer to file information to return */
 ) {
-    typedef FRESULT (*FRpDpFI_ptr_t)(DIR*, FILINFO*);
+    typedef FRESULT (*FRpDpFI_ptr_t)(FFDIR*, FILINFO*);
     return ((FRpDpFI_ptr_t)_sys_table_ptrs[56])(dp, fno);
 }
 

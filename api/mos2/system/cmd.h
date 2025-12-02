@@ -10,6 +10,7 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 #include <stdbool.h>
 #include <system/ff.h>
 #include <system/rtos.h>
+#include <data/c-string.h>
 
 typedef struct {
     char* del_addr;
@@ -80,6 +81,29 @@ inline static cmd_ctx_t* get_cmd_ctx() {
 inline static void cleanup_ctx(cmd_ctx_t* src) {
     typedef void (*fn_ptr_t)(cmd_ctx_t*);
     ((fn_ptr_t)_sys_table_ptrs[139])(src);
+}
+inline static char* get_ctx_var(cmd_ctx_t* src, const char* k) {
+    typedef char* (*fn_ptr_t)(cmd_ctx_t*, const char*);
+    return ((fn_ptr_t)_sys_table_ptrs[140])(src, k);
+}
+inline static cmd_ctx_t* set_ctx_var(cmd_ctx_t* src, const char* k, char* v) {
+    typedef void (*fn_ptr_t)(cmd_ctx_t*, const char*, char*);
+    ((fn_ptr_t)_sys_table_ptrs[141])(src, k, v);
+}
+
+inline static void cmd_tab(cmd_ctx_t* ctx, string_t* s_cmd) {
+    typedef void (*fn_ptr_t)(cmd_ctx_t* ctx, string_t* s_cmd);
+    ((fn_ptr_t)_sys_table_ptrs[233])(ctx, s_cmd);
+}
+
+inline static int history_steps(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cmd) {
+    typedef int (*fn_ptr_t)(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cmd);
+    return ((fn_ptr_t)_sys_table_ptrs[234])(ctx, cmd_history_idx, s_cmd);
+}
+
+inline static bool cmd_enter_helper(cmd_ctx_t* ctx, string_t* s_cmd) {
+    typedef bool (*fn_ptr_t)(cmd_ctx_t* ctx, string_t* s_cmd);
+    return ((fn_ptr_t)_sys_table_ptrs[235])(ctx, s_cmd);
 }
 
 #endif // __system_cmd_h__

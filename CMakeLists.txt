@@ -215,14 +215,20 @@ endif ()
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     FLASH_FREQ_MHZ=${FLASH_FREQ_MHZ}
     PSRAM_FREQ_MHZ=${PSRAM_FREQ_MHZ}
-)
+    OVERCLOCKING=${CPU_MHZ}
 
+    MOS_VERSION_STR="${MOS_VERSION}"
+    M_API_VERSION=26
+    MIN_API_VERSION=14
+
+    # do not touch last 512 bytes in RAM on launch app, say, no more RAM
+    RESERVED_RAM=512
+    PSRAM_NO_FUGE=1
+)
 
 if (MURM20)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PSRAM_NO_FUGE=1
         MURM2=1
-        MOS_VERSION_STR="${MOS_VERSION}"
 
         # VGA 8 pins starts from pin:
         VGA_BASE_PIN=12
@@ -271,21 +277,12 @@ if (MURM20)
         PWM_PIN1=11
         BEEPER_PIN=9
 
-        M_API_VERSION=26
-        MIN_API_VERSION=14
-
-        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
-        RESERVED_RAM=512
-        OVERCLOCKING=${CPU_MHZ}
         #DEBUG_APP_LOAD=1
         PICO_DEFAULT_LED_PIN=25
     )
 elseif (ZERO2)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PSRAM_NO_FUGE=1
         ZERO2=1
-        PICO_FLASH_SIZE_BYTES=16777216
-        MOS_VERSION_STR="${MOS_VERSION}"
 
         # VGA 8 pins starts from pin:
         VGA_BASE_PIN=32
@@ -334,22 +331,11 @@ elseif (ZERO2)
         PWM_PIN1=11
         BEEPER_PIN=12
 
-        M_API_VERSION=26
-        MIN_API_VERSION=14
-
-        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
-        RESERVED_RAM=512
-        OVERCLOCKING=${CPU_MHZ}
-        #DEBUG_APP_LOAD=1
-
         PICO_DEFAULT_LED_PIN=25
     )
 elseif (PICO_PC)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PSRAM_NO_FUGE=1
         PICO_PC=1
-        PICO_FLASH_SIZE_BYTES=16777216
-        MOS_VERSION_STR="${MOS_VERSION}"
 
         # VGA 8 pins starts from pin:
         VGA_BASE_PIN=12
@@ -398,21 +384,11 @@ elseif (PICO_PC)
         PWM_PIN1=28
         BEEPER_PIN=26
 
-        M_API_VERSION=26
-        MIN_API_VERSION=14
-
-        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
-        RESERVED_RAM=512
-        OVERCLOCKING=${CPU_MHZ}
-        #DEBUG_APP_LOAD=1
         PICO_DEFAULT_LED_PIN=25
     )
 elseif (PICO_DV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PSRAM_NO_FUGE=1
         PICO_DV=1
-        PICO_FLASH_SIZE_BYTES=16777216
-        MOS_VERSION_STR="${MOS_VERSION}"
 
         # VGA 8 pins starts from pin:
         VGA_BASE_PIN=6
@@ -464,19 +440,10 @@ elseif (PICO_DV)
         PWM_PIN1=27
         BEEPER_PIN=28
 
-        M_API_VERSION=26
-        MIN_API_VERSION=14
-
-        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
-        RESERVED_RAM=512
-        OVERCLOCKING=${CPU_MHZ}
-        #DEBUG_APP_LOAD=1
         PICO_DEFAULT_LED_PIN=25
     )
 else ()
     target_compile_definitions(${PROJECT_NAME} PRIVATE
-        MOS_VERSION_STR="${MOS_VERSION}"
-
         # VGA 8 pins starts from pin:
         VGA_BASE_PIN=6
 
@@ -522,13 +489,6 @@ else ()
         PWM_PIN1=27
         BEEPER_PIN=28
 
-        M_API_VERSION=26
-        MIN_API_VERSION=14
-
-        # do not touch last 512 bytes in RAM on launch app, say, no more RAM
-        RESERVED_RAM=512
-        OVERCLOCKING=${CPU_MHZ}
-        #DEBUG_APP_LOAD=1
         PICO_DEFAULT_LED_PIN=25
     )
 endif()
@@ -596,8 +556,5 @@ set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 pico_enable_stdio_usb(${PROJECT_NAME} 0)
-
-#pico_set_binary_type(${PROJECT_NAME} no_flash)
-#pico_set_binary_type(${PROJECT_NAME} copy_to_ram)
 
 pico_add_extra_outputs(${PROJECT_NAME})
