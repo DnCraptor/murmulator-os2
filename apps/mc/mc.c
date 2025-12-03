@@ -42,6 +42,7 @@ static void no_selected_file();
 static bool cmd_enter(cmd_ctx_t* ctx);
 static void enter_pressed();
 static void handle_down_pressed();
+static bool edit_name(const char* title, string_t* s_initial);
 
 static bool marked_to_exit = false;
 
@@ -102,6 +103,20 @@ static string_t* s_cmd;
 
 inline static void nespad_read() {
     nespad_stat(&nespad_state, &nespad_state2);
+}
+
+static void blink_cursor() {
+    static uint32_t t1 = 0;
+    static bool hide_cursor = false;
+    uint32_t t2 = time_us_32();
+    if (t2 - t1 > 500000) {
+        hide_cursor = !hide_cursor;
+        t1 = t2;
+    }
+    if (hide_cursor)
+        set_cursor_color(15);
+    else
+        set_cursor_color(0);
 }
 
 inline static void scan_code_processed() {
@@ -519,16 +534,81 @@ static void no_selected_file() {
     redraw_window();
 }
 
-static bool m_copy_file_impl(file_info_t* fp) {
-    file_panel_desc_t* dsp = psp == left_panel ? right_panel : left_panel;
+static bool m_copy_file_to_file(file_info_t* fp, string_t* s_dest) {
     string_t* s_path = new_string_v();
-    string_t* s_dest = new_string_v();
     construct_full_name_s(s_path, psp->s_path, fp->s_name);
-    construct_full_name_s(s_dest, dsp->s_path, fp->s_name);
     bool result = fp->fattr & AM_DIR ? m_copy_recursive(s_path->p, s_dest->p) : m_copy(s_path->p, s_dest->p);
-    delete_string(s_dest);
     delete_string(s_path);
     return result;
+}
+
+static bool m_copy_file_to_dir(file_info_t* fp, string_t* s_dest_dir) {
+    string_t* s_dest = new_string_v();
+    construct_full_name_s(s_dest, s_dest_dir, fp->s_name);
+    bool result = m_copy_file_to_file(fp, s_dest);
+    delete_string(s_dest);
+    return result;
+}
+
+static void m_copy_tail(string_t* s_path, size_t mselsz, file_info_t* fp) {
+    bool result = true;
+    if (mselsz) {
+        list_t* lst = psp->selected_files_lst;
+        node_t* i = lst->last;
+        while(i) {
+            node_t* prev = i->prev;
+            if ( i->data ) {
+                result = m_copy_file_to_dir(i->data, s_path);
+                printf(".");
+                if (!result) break;
+                list_erase_node(lst, i);
+            }
+            i = prev;
+        }
+    } else {
+        char trailing_char = s_path->size ? s_path->p[s_path->size - 1] : 0;
+        if (trailing_char == 0 || trailing_char == '/' || trailing_char == '\\') {
+            result = m_copy_file_to_dir(fp, s_path);
+        } else {
+            result = m_copy_file_to_file(fp, s_path);
+        }
+    }
+    if (!result) {
+        size_t width = MAX_WIDTH > 60 ? 60 : 40;
+        size_t x = (MAX_WIDTH - width) >> 1;
+        snprintf(line, width - 2, "RESULT: %d", errno);
+        const line_t lns[3] = {
+            { -1, "Unable to copy selected item(s)!" },
+            { -1, s_path->p },
+            { -1, line }
+        };
+        const lines_t lines = { sizeof(lns) / sizeof(lns[0]), 2, lns };
+        draw_box(pcs, x, 7, width, 10, "Error", &lines);
+        sleep_ms(2500);
+    }
+}
+
+static void m_copy_ex(uint8_t cmd) {
+    if (hidePannels) return;
+    size_t mselsz = psp->selected_files_lst->size;
+    file_info_t* fp = !mselsz ? selected_file(psp, true) : 0;
+    if (!mselsz && !fp) {
+       no_selected_file();
+       return;
+    }
+    file_panel_desc_t* dsp = psp == left_panel ? right_panel : left_panel;
+    string_t* s_path = new_string_cc("");
+    if (mselsz) {
+        string_replace_ss(s_path, dsp->s_path);
+    } else {
+        construct_full_name_s(s_path, dsp->s_path, fp->s_name);
+    }
+
+    if (edit_name("Copy to ...", s_path)) {
+        m_copy_tail(s_path, mselsz, fp);
+    }
+    delete_string(s_path);
+    redraw_window();
 }
 
 static void m_copy_file(uint8_t cmd) {
@@ -547,43 +627,16 @@ static void m_copy_file(uint8_t cmd) {
         string_push_back_cc(s_path, mselsz_s);
         string_push_back_cc(s_path, " files to '");
     } else {
-        string_push_back_c(s_path, '\'');
+        string_push_back_c(s_path, '/');
         string_push_back_cs(s_path, fp->s_name);
         string_push_back_cc(s_path, fp->fattr & AM_DIR ? "' folder to '" : "' file to '");
     }
     string_push_back_cs(s_path, dsp->s_path);
     string_push_back_cc(s_path, "'?");
-    if (m_prompt(s_path->p)) { // TODO: ask name?
-        bool result;
-        if (mselsz) {
-            list_t* lst = psp->selected_files_lst;
-            node_t* i = lst->last;
-            while(i) {
-                node_t* prev = i->prev;
-                if ( i->data ) {
-                    result = m_copy_file_impl(i->data);
-                    printf(".");
-                    if (!result) break;
-                    list_erase_node(lst, i);
-                }
-                i = prev;
-            }
-        } else {
-            result = m_copy_file_impl(fp);
-        }
-        if (!result) {
-            size_t width = MAX_WIDTH > 60 ? 60 : 40;
-            size_t x = (MAX_WIDTH - width) >> 1;
-            snprintf(line, width - 2, "RESULT: %d", errno);
-            const line_t lns[3] = {
-                { -1, "Unable to copy selected item(s)!" },
-                { -1, s_path->p },
-                { -1, line }
-            };
-            const lines_t lines = { sizeof(lns) / sizeof(lns[0]), 2, lns };
-            draw_box(pcs, x, 7, width, 10, "Error", &lines);
-            sleep_ms(2500);
-        }
+    if (m_prompt(s_path->p)) {
+        string_replace_ss(s_path, dsp->s_path);
+        string_push_back_c(s_path, '/');
+        m_copy_tail(s_path, mselsz, fp);
     }
     delete_string(s_path);
     redraw_window();
@@ -625,7 +678,7 @@ static void m_info(uint8_t cmd) {
     redraw_window();
 }
 
-static bool edit_name(const char* title, string_t* s_initial, int* out_x, int* out_y) {
+static bool edit_name(const char* title, string_t* s_initial) {
     int ox = graphics_con_x();
     int oy = graphics_con_y();
 
@@ -678,11 +731,8 @@ static bool edit_name(const char* title, string_t* s_initial, int* out_x, int* o
         draw_label(pcs, 4, y, width, s_initial->p, true, true);
     }
 
-    *out_x = ox;
-    *out_y = oy;
     graphics_set_con_pos(ox, oy);
     scan_code_cleanup();
-    redraw_window();
     return s_initial->size > 0;
 }
 
@@ -692,11 +742,11 @@ static void m_mk_dir(uint8_t cmd) {
     string_t* s_dir = new_string_v();
     construct_full_name(s_dir, psp->s_path->p, "");
 
-    int ox, oy;
-    if (edit_name("DIR NAME", s_dir, &ox, &oy)) {
+    if (edit_name("DIR NAME", s_dir)) {
         mkdir(s_dir->p, 0777);
         fill_panel(psp);
     }
+    redraw_window();
 }
 
 static void m_new(uint8_t cmd) {
@@ -706,84 +756,122 @@ static void m_new(uint8_t cmd) {
     file_info_t* fp = selected_file(psp, true);
     construct_full_name_s(s_file, psp->s_path, fp->s_name);
 
-    int ox, oy;
-    if (!edit_name("FILE NAME", s_file, &ox, &oy)) {
-        return;
-    }
-
-    if (s_file->size) {
+    if (edit_name("FILE NAME", s_file) && s_file->size) {
         string_replace_cs(s_cmd, "mcedit \"");
         string_push_back_cs(s_cmd, s_file);
         string_push_back_c(s_cmd, '"');
         mark_to_exit_flag = cmd_enter(get_cmd_ctx());
     }
+    redraw_window();
 }
 
-static bool m_move_file_impl(file_info_t* fp) {
-    file_panel_desc_t* dsp = psp == left_panel ? right_panel : left_panel;
+static bool m_move_file_to_file(file_info_t* fp, string_t* s_dest)
+{
     string_t* s_path = new_string_v();
-    string_t* s_dest = new_string_v();
     construct_full_name_s(s_path, psp->s_path, fp->s_name);
-    construct_full_name_s(s_dest, dsp->s_path, fp->s_name);
     bool ok = (rename(s_path->p, s_dest->p) == 0);
-    delete_string(s_dest);
     delete_string(s_path);
     return ok;
 }
 
-static void m_move_file(uint8_t cmd) {
+static bool m_move_file_to_dir(file_info_t* fp, string_t* s_dest_dir)
+{
+    string_t* s_dest = new_string_v();
+    construct_full_name_s(s_dest, s_dest_dir, fp->s_name);
+    bool ok = m_move_file_to_file(fp, s_dest);
+    delete_string(s_dest);
+    return ok;
+}
+
+static void m_move_tail(string_t* s_path, size_t mselsz, file_info_t* fp)
+{
+    bool result = true;
+    if (mselsz) {
+        list_t* lst = psp->selected_files_lst;
+        node_t* i = lst->last;
+        while (i) {
+            node_t* prev = i->prev;
+            if (i->data) {
+                result = m_move_file_to_dir(i->data, s_path);
+                printf(".");
+                if (!result) break;
+                list_erase_node(lst, i);
+            }
+            i = prev;
+        }
+    }
+    else {
+        char trailing_char = (s_path->size ? s_path->p[s_path->size - 1] : 0);
+        if (trailing_char == 0 || trailing_char == '/' || trailing_char == '\\')
+            result = m_move_file_to_dir(fp, s_path);
+        else
+            result = m_move_file_to_file(fp, s_path);
+    }
+    if (!result) {
+        size_t width = MAX_WIDTH > 60 ? 60 : 40;
+        size_t x = (MAX_WIDTH - width) >> 1;
+        snprintf(line, width - 2, "RESULT: %d", errno);
+        const line_t lns[3] = {
+            { -1, "Unable to move selected item(s)!" },
+            { -1, s_path->p },
+            { -1, line }
+        };
+        const lines_t lines = { sizeof(lns)/sizeof(lns[0]), 2, lns };
+        draw_box(pcs, x, 7, width, 10, "Error", &lines);
+        sleep_ms(2500);
+    }
+}
+
+static void m_move_ex(uint8_t cmd)
+{
     if (hidePannels) return;
     size_t mselsz = psp->selected_files_lst->size;
-    file_info_t* fp = !mselsz ? selected_file(psp, true) : 0;
+    file_info_t* fp = (!mselsz ? selected_file(psp, true) : 0);
     if (!mselsz && !fp) {
-       no_selected_file();
-       return;
+        no_selected_file();
+        return;
     }
-    file_panel_desc_t* dsp = psp == left_panel ? right_panel : left_panel;
+    file_panel_desc_t* dsp = (psp == left_panel ? right_panel : left_panel);
+    string_t* s_path = new_string_cc("");
+    if (mselsz)
+        string_replace_ss(s_path, dsp->s_path);
+    else
+        construct_full_name_s(s_path, dsp->s_path, fp->s_name);
+    if (edit_name("Move to ...", s_path)) {
+        m_move_tail(s_path, mselsz, fp);
+    }
+    delete_string(s_path);
+    redraw_window();
+}
+
+static void m_move_file(uint8_t cmd)
+{
+    if (hidePannels) return;
+    size_t mselsz = psp->selected_files_lst->size;
+    file_info_t* fp = (!mselsz ? selected_file(psp, true) : 0);
+    if (!mselsz && !fp) {
+        no_selected_file();
+        return;
+    }
+    file_panel_desc_t* dsp = (psp == left_panel ? right_panel : left_panel);
     string_t* s_path = new_string_cc("Move ");
     if (mselsz) {
         char mselsz_s[16];
         snprintf(mselsz_s, 16, "%d", mselsz);
         string_push_back_cc(s_path, mselsz_s);
         string_push_back_cc(s_path, " files to '");
-    } else {
+    }
+    else {
         string_push_back_c(s_path, '\'');
         string_push_back_cs(s_path, fp->s_name);
         string_push_back_cc(s_path, fp->fattr & AM_DIR ? "' folder to '" : "' file to '");
     }
     string_push_back_cs(s_path, dsp->s_path);
     string_push_back_cc(s_path, "'?");
-    if (m_prompt(s_path->p)) { // TODO: ask name
-        bool result;
-        if (mselsz) {
-            list_t* lst = psp->selected_files_lst;
-            node_t* i = lst->last;
-            while(i) {
-                node_t* prev = i->prev;
-                if ( i->data ) {
-                    result = m_move_file_impl(i->data);
-                    printf(".");
-                    if (!result) break;
-                    list_erase_node(lst, i);
-                }
-                i = prev;
-            }
-        } else {
-            result = m_move_file_impl(fp);
-        }
-        if (!result) {
-            size_t width = MAX_WIDTH > 60 ? 60 : 40;
-            size_t x = (MAX_WIDTH - width) >> 1;
-            snprintf(line, width - 2, "RESULT: %d", errno);
-            const line_t lns[3] = {
-                { -1, "Unable to move selected item!" },
-                { -1, s_path->p },
-                { -1, line }
-            };
-            const lines_t lines = { sizeof(lns) / sizeof(lns[0]), 2, lns };
-            draw_box(pcs, x, 7, width, 10, "Error", &lines);
-            sleep_ms(2500);
-        }
+    if (m_prompt(s_path->p)) {
+        string_replace_ss(s_path, dsp->s_path);
+        string_push_back_c(s_path, '/');
+        m_move_tail(s_path, mselsz, fp);
     }
     delete_string(s_path);
     redraw_window();
@@ -871,9 +959,9 @@ static fn_1_12_tbl_t fn_1_12_tbl_shift = {
     ' ', '1', " Help ", m_info,
     ' ', '2', "      ", do_nothing,
     ' ', '3', " View ", m_view,
-    ' ', '4', " New  ", m_new,
-    ' ', '5', " Copy ", m_copy_file,
-    ' ', '6', " Move ", m_move_file,
+    ' ', '4', " Edit.", m_new,
+    ' ', '5', " Copy.", m_copy_ex,
+    ' ', '6', " Move.", m_move_ex,
     ' ', '7', " MkDir", m_mk_dir,
     ' ', '8', " Del  ", m_delete_file,
     ' ', '9', "      ", do_nothing,
@@ -1162,7 +1250,9 @@ static void construct_full_name_s(string_t* dst, const string_t* folder, const s
     } else {
         string_resize(dst, 0);
     }
-    string_push_back_c(dst, '/');
+    char trailing_char = dst->size ? dst->p[dst->size - 1] : 0;
+    if (trailing_char != '/' && trailing_char != '\\')
+        string_push_back_c(dst, '/');
     string_push_back_cs(dst, file);
 }
 
@@ -1172,7 +1262,9 @@ static void construct_full_name(string_t* dst, const char* folder, const char* f
     } else {
         string_resize(dst, 0);
     }
-    string_push_back_c(dst, '/');
+    char trailing_char = dst->size ? dst->p[dst->size - 1] : 0;
+    if (trailing_char != '/' && trailing_char != '\\')
+        string_push_back_c(dst, '/');
     string_push_back_cc(dst, file);
 }
 
@@ -1766,6 +1858,7 @@ inline static void esc_pressed(void) {
 static inline void work_cycle(cmd_ctx_t* ctx) {
     uint8_t repeat_cnt = 0;
     for(;;) {
+        blink_cursor();
         char c = getch_now();
         nespad_stat(&nespad_state, &nespad_state2);
         if (c) {

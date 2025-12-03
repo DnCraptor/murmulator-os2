@@ -319,7 +319,16 @@ extern "C" void __not_in_flash_func(process_kbd_report)(
     }
     for (uint8_t kc: report->keycode) {
         if (!kc) continue;
-        handleDown(hid2scancode[kc]);
+        bool key_already_sent = false;
+        for (uint8_t pkc: prev_report->keycode) {
+            if (kc == pkc) {
+                key_already_sent = true;
+                break;
+            }
+        }
+        if (!key_already_sent) {
+            handleDown(hid2scancode[kc]);
+        }
     }
 }
 
