@@ -588,7 +588,7 @@ static void m_copy_tail(string_t* s_path, size_t mselsz, file_info_t* fp) {
     }
 }
 
-static void m_copy_ex(uint8_t cmd) {
+static void m_copy_ex_common(file_panel_desc_t* dsp) {
     if (hidePannels) return;
     size_t mselsz = psp->selected_files_lst->size;
     file_info_t* fp = !mselsz ? selected_file(psp, true) : 0;
@@ -596,21 +596,30 @@ static void m_copy_ex(uint8_t cmd) {
        no_selected_file();
        return;
     }
-    file_panel_desc_t* dsp = psp == left_panel ? right_panel : left_panel;
     string_t* s_path = new_string_cc("");
     if (mselsz) {
         string_replace_ss(s_path, dsp->s_path);
     } else {
         construct_full_name_s(s_path, dsp->s_path, fp->s_name);
     }
-
-    if (edit_name("Copy to ...", s_path)) {
+    char mselsz_s[32];
+    snprintf(mselsz_s, 32, "Copy %d files to ...", mselsz ? mselsz : 1);
+    if (edit_name(mselsz_s, s_path)) {
         m_copy_tail(s_path, mselsz, fp);
     }
     delete_string(s_path);
     redraw_window();
 }
 
+static void m_copy_ex(uint8_t cmd) {
+    m_copy_ex_common(psp == left_panel ? right_panel : left_panel);
+}
+
+static void m_copy_ex2(uint8_t cmd) {
+    m_copy_ex_common(psp);
+}
+
+/*
 static void m_copy_file(uint8_t cmd) {
     if (hidePannels) return;
     size_t mselsz = psp->selected_files_lst->size;
@@ -641,7 +650,7 @@ static void m_copy_file(uint8_t cmd) {
     delete_string(s_path);
     redraw_window();
 }
-
+*/
 static void turn_usb_off(uint8_t cmd);
 static void turn_usb_on(uint8_t cmd);
 
@@ -822,7 +831,7 @@ static void m_move_tail(string_t* s_path, size_t mselsz, file_info_t* fp)
     }
 }
 
-static void m_move_ex(uint8_t cmd)
+static void m_move_ex_common(file_panel_desc_t* dsp)
 {
     if (hidePannels) return;
     size_t mselsz = psp->selected_files_lst->size;
@@ -831,19 +840,30 @@ static void m_move_ex(uint8_t cmd)
         no_selected_file();
         return;
     }
-    file_panel_desc_t* dsp = (psp == left_panel ? right_panel : left_panel);
     string_t* s_path = new_string_cc("");
     if (mselsz)
         string_replace_ss(s_path, dsp->s_path);
     else
         construct_full_name_s(s_path, dsp->s_path, fp->s_name);
-    if (edit_name("Move to ...", s_path)) {
+    char mselsz_s[32];
+    snprintf(mselsz_s, 32, "Move %d files to ...", mselsz ? mselsz : 1);
+    if (edit_name(mselsz_s, s_path)) {
         m_move_tail(s_path, mselsz, fp);
     }
     delete_string(s_path);
     redraw_window();
 }
 
+
+static void m_move_ex(uint8_t cmd) {
+    m_move_ex_common(psp == left_panel ? right_panel : left_panel);
+}
+
+static void m_move_ex2(uint8_t cmd) {
+    m_move_ex_common(psp);
+}
+
+/*
 static void m_move_file(uint8_t cmd)
 {
     if (hidePannels) return;
@@ -876,7 +896,7 @@ static void m_move_file(uint8_t cmd)
     delete_string(s_path);
     redraw_window();
 }
-
+*/
 static void m_ext_common(file_info_t* fp) {
     if (psp->s_path->size > 1)
         string_push_back_cs(s_cmd, psp->s_path);
@@ -945,8 +965,8 @@ static fn_1_12_tbl_t fn_1_12_tbl = {
     ' ', '2', "      ", do_nothing,
     ' ', '3', " View ", m_view,
     ' ', '4', " Edit ", m_edit,
-    ' ', '5', " Copy ", m_copy_file,
-    ' ', '6', " Move ", m_move_file,
+    ' ', '5', " Copy ", m_copy_ex,
+    ' ', '6', " Move ", m_move_ex,
     ' ', '7', " MkDir", m_mk_dir,
     ' ', '8', " Del  ", m_delete_file,
     ' ', '9', "      ", do_nothing,
@@ -960,8 +980,8 @@ static fn_1_12_tbl_t fn_1_12_tbl_shift = {
     ' ', '2', "      ", do_nothing,
     ' ', '3', " View ", m_view,
     ' ', '4', " Edit.", m_new,
-    ' ', '5', " Copy.", m_copy_ex,
-    ' ', '6', " Move.", m_move_ex,
+    ' ', '5', " Copy.", m_copy_ex2,
+    ' ', '6', " Move.", m_move_ex2,
     ' ', '7', " MkDir", m_mk_dir,
     ' ', '8', " Del  ", m_delete_file,
     ' ', '9', "      ", do_nothing,
@@ -975,8 +995,8 @@ static fn_1_12_tbl_t fn_1_12_tbl_alt = {
     ' ', '2', "      ", do_nothing,
     ' ', '3', " View ", m_view,
     ' ', '4', " Edit ", m_edit,
-    ' ', '5', " Copy ", m_copy_file,
-    ' ', '6', " Move ", m_move_file,
+    ' ', '5', " Copy ", m_copy_ex,
+    ' ', '6', " Move ", m_move_ex,
     ' ', '7', "      ", do_nothing,
     ' ', '8', " Del  ", m_delete_file,
     ' ', '9', "      ", do_nothing,
