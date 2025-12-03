@@ -255,9 +255,10 @@ void __in_hfa() resolve_thm_pc22(uint16_t* addr, uint16_t* addr_ref, uint32_t sy
 }
 
 // Разрешение ссылки типа R_ARM_THM_JUMP24 (B.W в Thumb-2)
-void __in_hfa() resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
-    uint16_t instr0 = *addr;
-    uint16_t instr1 = *(addr + 1);
+static void __in_hfa() resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t sym_val) {
+    // Считываем два halfword'а инструкции B.W
+    uint16_t instr0 = addr[0];
+    uint16_t instr1 = addr[1];
 
     // Декодирование текущего смещения
     uint32_t S     = (instr0 >> 10) & 1;
@@ -269,116 +270,116 @@ void __in_hfa() resolve_thm_jump24(uint16_t* addr, uint16_t* addr_ref, uint32_t 
     uint32_t I1 = (~(J1 ^ S)) & 1;
     uint32_t I2 = (~(J2 ^ S)) & 1;
 
-    uint32_t offset = (S << 24) | (I1 << 23) | (I2 << 22) |
-                      (imm10 << 12) | (imm11 << 1);
-    // Знаковое расширение
+    int32_t offset = (int32_t)((S  << 24) |
+                               (I1 << 23) |
+                               (I2 << 22) |
+                               (imm10 << 12) |
+                               (imm11 << 1));
+    // знаковое расширение 25-битного значения
     if (S) {
         offset |= 0xFF000000;
     }
 
-    // Вычисление нового смещения
-    int32_t rel = (int32_t)offset + (int32_t)sym_val - (int32_t)addr_ref;
+    // P — адрес инструкции в момент исполнения: addr_ref + 4 (Thumb)
+    uint32_t P       = (uint32_t)addr_ref + 4;
 
-    S     = (rel >> 24) & 1;
-    I1    = (rel >> 23) & 1;
-    I2    = (rel >> 22) & 1;
-    imm10 = (rel >> 12) & 0x03FF;
-    imm11 = (rel >> 1) & 0x07FF;
+    // Целевой адрес: sym_val (база секции + st_value), выравниваем по 2 байта
+    uint32_t target  = sym_val & ~1u;
+
+    // Новый относительный оффсет: A(old) + (target - P)
+    int32_t rel = offset + (int32_t)target - (int32_t)P;
+
+    // Диапазон B.W: ±16 МБ, шаг 2 байта
+    if (rel < -(1 << 24) || rel > ((1 << 24) - 2)) {
+        goutf("R_ARM_THM_JUMP24: target out of range, rel = %d\n", rel);
+        return; // не трогаем инструкцию, чтобы не писать мусор
+    }
+
+    uint32_t urel = (uint32_t)rel;
+
+    // Обратно кодируем rel в S, I1, I2, imm10, imm11
+    S     = (urel >> 24) & 1;
+    I1    = (urel >> 23) & 1;
+    I2    = (urel >> 22) & 1;
+    imm10 = (urel >> 12) & 0x03FF;
+    imm11 = (urel >> 1)  & 0x07FF;
 
     J1 = (~(I1 ^ S)) & 1;
     J2 = (~(I2 ^ S)) & 1;
 
-    // Обновление инструкции B.W
-    *addr++ = 0xF000 | (S << 10) | imm10;
-    *addr   = (0b11100 << 11) | (J1 << 13) | (J2 << 11) | imm11;
+    // Формируем обратно пару halfword'ов B.W:
+    // верхний:  11110 S imm10
+    // нижний:   11100 J1 0 J2 imm11
+    addr[0] = (uint16_t)(0xF000 | (S << 10) | imm10);
+    addr[1] = (uint16_t)((0b11100 << 11) | (J1 << 13) | (J2 << 11) | imm11);
 }
 
 // вставить где-то рядом с resolve_thm_pc22/resolve_thm_jump24
 // value -- (A + S) — итоговое 32-битное значение, которое нужно вставить (MOVW/MOVT берут 16 бит)
-void __in_hfa() resolve_thm_alu_abs_g0_nc(uint16_t* addr, uint32_t value) {
-    // addr указывает на первые два halfword'а 32-bit thumb инструкции (little-endian)
+static void __in_hfa() resolve_thm_alu_abs_g0_nc(uint16_t* addr, uint32_t base_value)
+{
+    // addr указывает на пару halfword'ов MOVW (32-bit Thumb)
     uint16_t instr0 = addr[0];
     uint16_t instr1 = addr[1];
 
-    // Выделяем imm части по формату imm4:i:imm3:imm8 -> K = imm4<<12 | i<<11 | imm3<<8 | imm8
-    // извлечь существующий imm (addend A в инструкции)
-    uint32_t imm4 = instr0 & 0x000F;             // bits [3:0] of first halfword
-    uint32_t i_bit = (instr0 >> 10) & 0x1;       // 'i' bit commonly at bit10 of instr0
-    uint32_t imm3 = (instr1 >> 12) & 0x7;        // bits [14:12] of second halfword
-    uint32_t imm8 = instr1 & 0x00FF;             // bits [7:0] of second halfword
+    // -------------------------------
+    // 1. ДЕКОДИРУЕМ addend (imm16)
+    // -------------------------------
+    uint32_t imm4  = instr0 & 0x000F;
+    uint32_t i_bit = (instr0 >> 10) & 0x1;
+    uint32_t imm3  = (instr1 >> 12) & 0x7;
+    uint32_t imm8  = instr1 & 0x00FF;
 
     uint32_t addend = (imm4 << 12) | (i_bit << 11) | (imm3 << 8) | imm8;
-    // В спецификации для MOVW/MOVT addend интерпретируется как 16-bit signed в ряде случаев;
-    // но для ABS (MOVW/MOVT) обычно рассматриваем как 16-bit unsigned/appropriate.
-    // Мы формируем новое imm16 из (value & 0xFFFF).
-    uint32_t new_imm16 = value & 0xFFFF;
 
-    // Разложить new_imm16 обратно в поля
-    uint32_t new_imm4 = (new_imm16 >> 12) & 0xF;
-    uint32_t new_i   = (new_imm16 >> 11) & 0x1;
-    uint32_t new_imm3= (new_imm16 >> 8) & 0x7;
-    uint32_t new_imm8= new_imm16 & 0xFF;
+    // -------------------------------
+    // 2. full = (адрес символа) + addend
+    // base_value = sec_addr_ref + st_value
+    // -------------------------------
+    uint32_t full = base_value + addend;
 
-    // Теперь нужно быть уверенным, что инcтрукция действительно MOVW/MOVT (T3)
-    // Проверяем шаблон первых битов (32-bit Thumb инструкции имеют первые полусловa с 11110/11111)
-    // и базовую опкодовую маску для MOVW/MOVT (приближённая проверка):
-    //
-    // MOVW T3 has top halfword bits: 11110 0 10 0 ... (примерно 0xF2? / 0xF240)
-    // MOVT T3 has top halfword bits: 11110 0 10 1 ... (примерно 0xF2C0)
-    //
-    // Мы делаем негрубую проверку маской; если не совпадает — логируем и вернёмся.
-    uint16_t hi5 = instr0 >> 11; // top 5 bits
-    if (!(hi5 == 0x1F || hi5 == 0x1E)) {
-        // не похоже на 32-bit thumb первую половину; это неожиданный случай
-        goutf("WARN: resolve_thm_alu_abs_g0_nc: unexpected thumb first halfword: %04X %04X\n", instr0, instr1);
-        return;
-    }
+    uint32_t new_imm16 = full & 0xFFFF;  // G0_NC – lower 16 bits
 
-    // Более точное различение MOVW/MOVT: смотреть биты опкода в instr0/instr1.
-    // Упрощённая маска: проверим, что instr0 имеет формат 11110x10xx...... (типично для MOVW/MOVT)
-    if (((instr0 & 0xF800) != 0xF200) && ((instr0 & 0xF800) != 0xF000) && ((instr0 & 0xF800) != 0xF000)) {
-        // не уверены, что это MOVW/MOVT — но пытаемся anyway (логи).
-        // это лишь предупреждение — реальные проверки можно расширить по нужде.
-        // goutf("NOTE: resolve_thm_alu_abs_g0_nc: operand doesn't match MOVW/MOVT mask: %04X\n", instr0);
-    }
+    // -------------------------------
+    // 3. Разбираем new_imm16 обратно по полям
+    // -------------------------------
+    uint32_t new_imm4  = (new_imm16 >> 12) & 0xF;
+    uint32_t new_i     = (new_imm16 >> 11) & 1;
+    uint32_t new_imm3  = (new_imm16 >> 8)  & 0x7;
+    uint32_t new_imm8  =  new_imm16        & 0xFF;
 
-    // Перезаписать поля imm
-    // Удаляем старые поля и вставляем новые — аккуратно с остальными битами в полусловах.
-    // instr0: сохраняем все биты кроме imm4 (bits [3:0]) и i (bit10)
+    // -------------------------------
+    // 4. Собираем новый MOVW
+    // -------------------------------
     uint16_t new_instr0 = instr0;
-    new_instr0 &= ~(0x000F);                // clear imm4 (bits 3:0)
-    new_instr0 |= (uint16_t)(new_imm4 & 0xF);
-    new_instr0 &= ~(1u << 10);              // clear i bit
-    new_instr0 |= (uint16_t)((new_i & 0x1) << 10);
-
-    // instr1: clear imm3 (bits [14:12]) and imm8 (bits [7:0])
     uint16_t new_instr1 = instr1;
-    new_instr1 &= ~(0x7000);                // clear imm3 (bits 14..12)
-    new_instr1 |= (uint16_t)((new_imm3 & 0x7) << 12);
-    new_instr1 &= ~(0x00FF);                // clear imm8
-    new_instr1 |= (uint16_t)(new_imm8 & 0xFF);
 
-    // Записать обратно
+    // imm4 (bits 3..0)
+    new_instr0 &= ~0x000F;
+    new_instr0 |= new_imm4;
+
+    // i bit (bit 10)
+    new_instr0 &= ~(1u << 10);
+    new_instr0 |= (new_i << 10);
+
+    // imm3 (bits 14..12)
+    new_instr1 &= ~0x7000;
+    new_instr1 |= (new_imm3 << 12);
+
+    // imm8 (bits 7..0)
+    new_instr1 &= ~0x00FF;
+    new_instr1 |= new_imm8;
+
+    // -------------------------------
+    // 5. Записываем обратно
+    // -------------------------------
     addr[0] = new_instr0;
     addr[1] = new_instr1;
 
-    //Dbg:
-    #if DEBUG_APP_LOAD
-    goutf("Resolved MOVW/MOVT: old_addend=%04X new_imm16=%04X -> %04X %04X\n",
-          addend & 0xFFFF, new_imm16, addr[0], addr[1]);
-    #endif
-}
-
-static const char* __in_hfa() st_predef(const char* v) {
-    if(strlen(v) == 2) {
-        if (v[0] == '$' && v[1] == 't') {
-            return "$t (Thumb)";
-        }
-        if (strcmp(v, "$d") == 0) {
-            return "$d (data)";
-        }
-    }
-    return v;
+#if DEBUG_APP_LOAD
+    goutf("REL G0_NC: addend=%04X base=%08X -> imm16=%04X (%04X %04X)\n",
+          addend, base_value, new_imm16, addr[0], addr[1]);
+#endif
 }
 
 typedef struct {
@@ -390,13 +391,7 @@ typedef struct {
     list_t* /*sect_entry_t*/ sections_lst;
 } load_sec_ctx;
 
-static load_sec_ctx* libc_pctx = 0;
-static hash_table_t* libc_idx = 0;
-
 static char* __in_hfa() sec_prg_addr(const load_sec_ctx* ctx, int sec_num) {
-    if (ctx == libc_pctx) {
-        sec_num = -1-sec_num; // use nagative numbers for libc (to do not intersect)
-    }
     node_t* n = ctx->sections_lst->first;
     while (n) {
         sect_entry_t* se = (sect_entry_t*)n->data;
@@ -414,7 +409,7 @@ static void __in_hfa() add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr
     // goutf("sec: [%p]\n", se);
     se->del_addr = del_addr;
     se->prg_addr = prg_addr;
-    se->sec_num = ctx == libc_pctx ? -1-num : num; // use nagative numbers for libc (to do not intersect)
+    se->sec_num = num;
     list_push_back(ctx->sections_lst, se);
 }
 
@@ -655,9 +650,7 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                     if (rel_str_sym != 0) {
                         char* fn_name = c->pstrtab + c->psym->st_name;
                         goutf("Unsupported link from STRTAB record #%d to section #%d (%s): %s\n",
-                                rel_sym, c->psym->st_shndx, rel_str_sym,
-                                st_predef(fn_name)
-                        );
+                                rel_sym, c->psym->st_shndx, rel_str_sym, fn_name);
                         goto e1;
                     }
                     uint32_t* rel_addr_real = (uint32_t*)(real_ram_addr + rel.rel_offset /*10*/); /*f7ff fffe 	bl	0*/
@@ -676,17 +669,22 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                     uint32_t A = sec_addr_ref;
                     // Разрешение ссылки
                     switch (rel_type) {
-                        case 2: //R_ARM_ABS32:
+                        case 2: // R_ARM_ABS32:
                             // goutf("rel_type: %d; *rel_addr += A: %ph + S: %ph\n", rel_type, A, S);
                             *rel_addr_real += S + A;
                             break;
-                        //case 3: //R_ARM_REL32:
-                            //*rel_addr_real = S - P + A; // todo: signed?
-                            // break;
+                        case 3: {// R_ARM_REL32:
+                            gouta("WARN: Untested REL type: R_ARM_REL32\n");
+                            uint32_t S_addr = A + S;
+                            int32_t addend = (int32_t)(*rel_addr_real);
+                            uint32_t P_addr = (uint32_t)rel_addr_ref;
+                            int32_t new_val = (int32_t)S_addr + addend - (int32_t)P_addr;
+                            *rel_addr_real  = (uint32_t)new_val;
+                            break;
+                        }
                         case 10: //R_ARM_THM_PC22:
                             resolve_thm_pc22(rel_addr_real, rel_addr_ref, A + S);
                             break;
-                            /*
                         case 30: // R_ARM_THM_JUMP24
                             gouta("WARN: Untested REL type: R_ARM_THM_JUMP24\n");
                             resolve_thm_jump24(rel_addr_real, rel_addr_ref, A + S);
@@ -699,7 +697,7 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
                                 break;
                             }
                             resolve_thm_alu_abs_g0_nc((uint16_t*)rel_addr_real, S + A);
-                            break;*/
+                            break;
                         default:
                             goutf("WARN: Unsupported REL type %d -> symbol: %s\n", rel_type, c->pstrtab + c->psym->st_name);
                             goto e1;
@@ -796,134 +794,6 @@ static uint32_t __in_hfa() load_sec2mem_wrapper(load_sec_ctx* pctx, uint32_t req
     }
 e3:
     return 0;
-}
-
-static bool __in_hfa() pre_load_libc(cmd_ctx_t* ctx) {
-    if (libc_idx == 0) {
-        FIL* f = (FIL*)pvPortMalloc(sizeof(FIL));
-        if (!f) {
-    a:
-            gouta("[libc] Not enough RAM\n");
-            ctx->ret_code = -1;
-            return false;
-        }
-        const char* fn = "/mos2/libc"; // TODO: var
-        if (f_open(f, fn, FA_READ) != FR_OK) {
-            vPortFree(f);
-            goutf("[libc] Unable to open file: '%s'\n", fn);
-            ctx->ret_code = -1;
-            return false;
-        }
-        bool try_to_use_flash = ctx->forse_flash;
-        elf32_header* pehdr = (elf32_header*)pvPortMalloc(sizeof(elf32_header));
-        if (!pehdr) {
-    a1:
-            f_close(f);
-            vPortFree(f);
-            goto a;
-        }
-        UINT rb;
-        if (f_read(f, pehdr, sizeof(elf32_header), &rb) != FR_OK) {
-            goutf("[libc] Unable to read an ELF file header: '%s'\n", fn);
-            goto e1;
-        }
-        elf32_shdr* psh = (elf32_shdr*)pvPortMalloc(sizeof(elf32_shdr));
-        if (!psh) {
-    a2:
-            vPortFree(pehdr);
-            goto a1;
-        }
-        bool ok = f_lseek(f, pehdr->sh_offset + sizeof(elf32_shdr) * pehdr->sh_str_index) == FR_OK;
-        if (!ok || f_read(f, psh, sizeof(elf32_shdr), &rb) != FR_OK || rb != sizeof(elf32_shdr)) {
-            goutf("[libc] Unable to read .shstrtab section header @ %d+%d (read: %d)\n", f_tell(f), sizeof(elf32_shdr), rb);
-            goto e11;
-        }
-        char* symtab = (char*)pvPortMalloc(psh->sh_size);
-        if (!symtab) {
-    a3:
-            vPortFree(psh);
-            goto a2;
-        }
-        ok = f_lseek(f, psh->sh_offset) == FR_OK;
-        if (!ok || f_read(f, symtab, psh->sh_size, &rb) != FR_OK || rb != psh->sh_size) {
-            goutf("[libc] Unable to read .shstrtab section @ %d+%d (read: %d)\n", f_tell(f), psh->sh_size, rb);
-            goto e2;
-        }
-        f_lseek(f, pehdr->sh_offset);
-        int symtab_off = -1;
-        int strtab_off = -1;
-        UINT symtab_len, strtab_len = 0;
-        while ((symtab_off < 0 || strtab_off < 0) && f_read(f, psh, sizeof(elf32_shdr), &rb) == FR_OK && rb == sizeof(elf32_shdr)) { 
-            if(psh->sh_type == 2 && 0 == strcmp(symtab + psh->sh_name, ".symtab")) {
-                symtab_off = psh->sh_offset;
-                symtab_len = psh->sh_size;
-            }
-            if(psh->sh_type == 3 && 0 == strcmp(symtab + psh->sh_name, ".strtab")) {
-                strtab_off = psh->sh_offset;
-                strtab_len = psh->sh_size;
-            }
-        }
-        if (symtab_off < 0 || strtab_off < 0) {
-            goutf("[libc] Unable to find .strtab/.symtab sections\n");
-            goto e2;
-        }
-        f_lseek(f, strtab_off);
-        char* strtab = (char*)pvPortMalloc(strtab_len);
-        if (!strtab) {
-    a4:
-            vPortFree(symtab);
-            goto a3;
-        }
-        if (f_read(f, strtab, strtab_len, &rb) != FR_OK || rb != strtab_len) {
-            goutf("[libc] Unable to read .strtab section\n");
-            goto e3;
-        }
-        f_lseek(f, symtab_off);
-        elf32_sym* psym = pvPortMalloc(sizeof(elf32_sym));;
-        if (!psym) {
-    a5:
-            vPortFree(strtab);
-            goto a4;
-        }
-        libc_idx = hash_table_create(64);
-        for (uint32_t i = 0; i < symtab_len / sizeof(elf32_sym); ++i) {
-            if (f_read(f, psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)) {
-                goutf("Unable to read .symtab section #%d\n", i);
-                break;
-            }
-            char* gfn = strtab + psym->st_name;
-            hash_table_put(libc_idx, gfn, i);
-        }
-        libc_pctx = (load_sec_ctx*)pvPortMalloc(sizeof(load_sec_ctx));
-        if (!libc_pctx) {
-    a6:
-            vPortFree(psym);
-            goto a5;
-        }
-        libc_pctx->f2 = f;
-        libc_pctx->pehdr = pehdr;
-        libc_pctx->symtab_off = symtab_off;
-        libc_pctx->psym = psym;
-        libc_pctx->pstrtab = strtab;
-        libc_pctx->sections_lst = 0;
-        vPortFree(symtab);
-        vPortFree(psh);
-        return true;
-    e8:
-        vPortFree(psym);
-    e3:
-        vPortFree(strtab);
-    e2:
-        vPortFree(symtab);
-    e11:
-        vPortFree(psh);
-    e1:
-        vPortFree(pehdr);
-        f_close(f);
-        vPortFree(f);
-        return false;
-    }
-    return true;
 }
 
 bool __in_hfa() load_app(cmd_ctx_t* ctx) {
@@ -1054,8 +924,6 @@ a6:
     pctx->psym = psym;
     pctx->pstrtab = strtab;
     pctx->sections_lst = new_list_v(0, sect_entry_deallocator, 0);
-///    pre_load_libc(ctx);
-///    libc_pctx->sections_lst = pctx->sections_lst; // one list to load app and libc functions
     for (uint32_t i = 0; i < symtab_len / sizeof(elf32_sym); ++i) {
         if (f_read(f, psym, sizeof(elf32_sym), &rb) != FR_OK || rb != sizeof(elf32_sym)) {
             goutf("Unable to read .symtab section #%d\n", i);
