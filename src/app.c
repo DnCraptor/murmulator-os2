@@ -17,9 +17,9 @@ extern const char TEMP[];
 const char _flash_me[] = ".flash_me";
 extern uint32_t butter_psram_size;
 
-#define M_OS_APP_TABLE_BASE ((size_t*)0x10000000ul)
+#define M_OS_APP_TABLE_BASE ((size_t)(XIP_BASE + (FIRMWARE_OFFSET << 10)))
 typedef int (*boota_ptr_t)( void *argv );
-#define OS_FLASH_SIZE (132 << 10) // 4k sys table + 64k LFA + 64k HFA
+#define OS_FLASH_SIZE (256 << 10) // 4k sys table + 64k LFA + 252k HFA
 
 volatile bool reboot_is_requested = false;
 
@@ -75,7 +75,6 @@ inline static uint32_t __in_hfa() read_flash_block(FIL * f, uint8_t * buffer, ui
     return expected_flash_target_offset;
 }
 
-// TODO: remove on exit from app (ctx_cleanup?)
 static size_t flash_addr = M_OS_APP_TABLE_BASE;
 static list_t* flash_list = NULL;
 static list_t* lst = NULL;
@@ -207,7 +206,7 @@ bool __in_hfa() load_firmware(char* pathname) {
 }
 
 void __in_hfa() vAppTask(void *pv) {
-    int res = ((boota_ptr_t)M_OS_APP_TABLE_BASE[0])(pv); // TODO: 0 - 2nd page, what exactly page used by app?
+    int res = ((boota_ptr_t)M_OS_APP_TABLE_BASE)(pv); // TODO: 0 - 2nd page, what exactly page used by app?
     // goutf("RET_CODE: %d\n", res);
     vTaskDelete( NULL );
     // TODO: ?? return res;
@@ -389,6 +388,9 @@ typedef struct {
     elf32_sym* psym;
     char* pstrtab;
     list_t* /*sect_entry_t*/ sections_lst;
+//    uint32_t total_sections_read;
+//    uint32_t total_sections_loaded;
+//    uint32_t total_memory_allocated;
 } load_sec_ctx;
 
 static char* __in_hfa() sec_prg_addr(const load_sec_ctx* ctx, int sec_num) {
@@ -414,13 +416,13 @@ static void __in_hfa() add_sec(load_sec_ctx* ctx, char* del_addr, char* prg_addr
 }
 
 inline static uint8_t* __in_hfa() sec_align(uint32_t sz, uint8_t* *pdel_addr, uint8_t* *real_addr, uint32_t a, bool write_access) {
-    uint8_t* res = (uint8_t*)pvPortMalloc(sz);
+    uint8_t* res = (uint8_t*)pvPortCalloc(1, sz);
     if (a == 0 || a == 1) {
         *pdel_addr = res;
     }
     else if ((uint32_t)res & (a - 1)) {
         vPortFree(res);
-        res = (uint8_t*)pvPortMalloc(sz + (a - 1));
+        res = (uint8_t*)pvPortCalloc(1, sz + (a - 1));
         *pdel_addr = res;
         if ((uint32_t)res & (a - 1)) {
             res = (uint8_t*)(((uint32_t)res & (0xFFFFFFFF ^ (a - 1))) + a);
@@ -533,6 +535,7 @@ void __in_hfa() cleanup_bootb_ctx(cmd_ctx_t* ctx) {
                 }
                 n = n->next;
             }
+            // TODO: FLASH-manager
             flash_addr = M_OS_APP_TABLE_BASE;
             // goutf("flash_addr [%p]\n", flash_addr);
             node_t* fn = flash_list->first;
@@ -576,6 +579,8 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
         // goutf("Section #%d already in mem @ %p\n", sec_num, prg_addr);
         return prg_addr;
     }
+    // goutf("Section #%d : loading into mem\n", sec_num);
+    // c->total_sections_read++;
     size_t prev_flash_addr = flash_addr;
     size_t new_flash_addr = flash_addr;
     UINT rb;
@@ -620,6 +625,8 @@ static uint8_t* __in_hfa() load_sec2mem(load_sec_ctx * c, uint16_t sec_num, bool
         goutf("Program section #%d (%d bytes) allocated into %ph\n", sec_num, psh->sh_size, prg_addr);
         #endif
         add_sec(c, del_addr, prg_addr, sec_num);
+        // c->total_sections_loaded++;
+        // c->total_memory_allocated += psh->sh_size;
         // links and relocations
         if (f_lseek(c->f2, c->pehdr->sh_offset) != FR_OK) {
             goutf("Unable to locate sections @ %ph\n", c->pehdr->sh_offset);
@@ -724,20 +731,19 @@ e2:
     size_t sz = new_flash_addr - prev_flash_addr;
     if (prg_addr && sz) {
         to_flash_rec_t* o = (to_flash_rec_t*)pvPortMalloc(sizeof(to_flash_rec_t));
-        o->offset = prg_addr - XIP_BASE; // TODO: out of empty flash?
+        o->offset = prg_addr - M_OS_APP_TABLE_BASE; // TODO: out of empty flash?
         o->size = sz;
         char* tmp = get_ctx_var(get_cmd_startup_ctx(), TEMP);
         if(!tmp) tmp = "";
         size_t cdl = strlen(tmp);
         char * flash_me_file = concat(tmp, _flash_me);
         FIL* f = (FIL*)pvPortMalloc(sizeof(FIL));
-        if ( FR_OK != f_open(f, flash_me_file, FA_WRITE | FA_CREATE_ALWAYS) ) {
+        if ( FR_OK != f_open(f, flash_me_file, FA_WRITE | FA_OPEN_ALWAYS) ) {
             goutf("Unable to open file '%s'\n", flash_me_file);
             goto e5;
         }
-        size_t target_offset = prg_addr - (size_t)M_OS_APP_TABLE_BASE;
-        if ( FR_OK != f_lseek(f, target_offset) ) {
-            goutf("Unable to seek file '%s' to %d\n", flash_me_file, target_offset);
+        if ( FR_OK != f_lseek(f, o->offset) ) {
+            goutf("Unable to seek file '%s' to %d\n", flash_me_file, o->offset);
             goto e4;
         }
         UINT bw;
@@ -912,7 +918,7 @@ a5:
     uint32_t w_init_idx = 0xFFFFFFFF;
     uint32_t w_fini_idx = 0xFFFFFFFF;
 
-    load_sec_ctx* pctx = (load_sec_ctx*)pvPortMalloc(sizeof(load_sec_ctx));
+    load_sec_ctx* pctx = (load_sec_ctx*)pvPortCalloc(1, sizeof(load_sec_ctx));
     if (!pctx) {
 a6:
         vPortFree(psym);
@@ -968,8 +974,8 @@ a6:
         uint32_t max_addr = 0;
         while(n) {
             to_flash_rec_t* tf = (to_flash_rec_t*)n->data;
-            if ( min_addr > tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10) ) min_addr = tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10);
-            if ( max_addr < tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10) + tf->size ) max_addr = tf->offset + XIP_BASE + (FIRMWARE_OFFSET << 10) + tf->size;
+            if ( min_addr > tf->offset + M_OS_APP_TABLE_BASE ) min_addr = tf->offset + M_OS_APP_TABLE_BASE;
+            if ( max_addr < tf->offset + M_OS_APP_TABLE_BASE + tf->size ) max_addr = tf->offset + M_OS_APP_TABLE_BASE + tf->size;
             n = n->next;
         }
         delete_list(lst);
@@ -1006,7 +1012,7 @@ a6:
             goto e5;
         }
         for (uint32_t addr = min_addr; addr < max_addr; addr += FLASH_SECTOR_SIZE) {
-            size_t target_offset = addr - (size_t)M_OS_APP_TABLE_BASE;
+            size_t target_offset = addr - M_OS_APP_TABLE_BASE;
             // goutf("seek file '%s' to %d\n", flash_me_file, target_offset);
             if ( FR_OK != f_lseek(f, target_offset) ) {
                 goutf("Unable to seek file '%s' to %d\n", flash_me_file, target_offset);
@@ -1014,6 +1020,7 @@ a6:
             }
             UINT br;
             // goutf("read %d bytes from file '%s'\n", FLASH_SECTOR_SIZE, flash_me_file);
+            memset(buffer, 0, FLASH_SECTOR_SIZE);
             if ( FR_OK != f_read(f, buffer, FLASH_SECTOR_SIZE, &br) || !br ) {
                 goutf("Unable to read %d bytes from file '%s'\n", FLASH_SECTOR_SIZE, flash_me_file);
                 goto e4;
@@ -1042,6 +1049,11 @@ e1:
     f_close(f);
     vPortFree(f);
     bootb_ctx->sections = pctx->sections_lst;
+/*
+    goutf("Sections read:     %u\n", pctx->total_sections_read);
+    goutf("Sections loaded:   %u\n", pctx->total_sections_loaded);
+    goutf("Memory allocated:  %u bytes (%u KB)\n", pctx->total_memory_allocated, pctx->total_memory_allocated >> 10);
+*/
     vPortFree(pctx);
     #if DEBUG_APP_LOAD
 ///    debug_sections(bootb_ctx->sect_entries);
@@ -1308,7 +1320,7 @@ void __in_hfa() vCmdTask(void *pv) {
                     ctx->stage = LOAD;
                     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
                     //run_app(ctx->orig_cmd);
-                    int res = ((boota_ptr_t)M_OS_APP_TABLE_BASE[0])(ctx->orig_cmd); // TODO: 0 - 2nd page, what exactly page used by app?
+                    int res = ((boota_ptr_t)M_OS_APP_TABLE_BASE)(ctx->orig_cmd); // TODO: 0 - 2nd page, what exactly page used by app?
                     // goutf("RET_CODE: %d\n", res);
                     ctx->stage = EXECUTED;
                     cleanup_ctx(ctx);
