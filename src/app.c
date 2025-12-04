@@ -1397,3 +1397,54 @@ int __in_hfa() kill(uint32_t task_number) {
 void __not_in_flash_func(reboot_me)(void) {
     reboot_is_requested = true;
 }
+
+// initial state of resources already used by OS
+static hardware_request_t zero_request = { 
+    .watchdog = 1
+     // TODO: fullfill other fields
+};
+
+bool register_driver(driver_api_t* da, hardware_request_t* hr) {
+    if (hr->adcs & zero_request.adcs) return false;
+    if (hr->alarms & zero_request.alarms) return false;
+    if (hr->crypto && zero_request.crypto) return false;
+    if (hr->dmas & zero_request.dmas) return false;
+    if (hr->i2cs & zero_request.i2cs) return false;
+    if (hr->irqs & zero_request.irqs) return false;
+    if (hr->pios & zero_request.pios) return false;
+    if (hr->pwms & zero_request.pwms) return false;
+    if (hr->rng && zero_request.rng) return false;
+    if (hr->rtc && zero_request.rtc) return false;
+    if (hr->sms & zero_request.sms) return false;
+    if (hr->spis & zero_request.spis) return false;
+    if (hr->uarts & zero_request.uarts) return false;
+    if (hr->usb && zero_request.usb) return false;
+    if (hr->watchdog && zero_request.watchdog) return false;
+
+    zero_request.adcs |= hr->adcs;
+    zero_request.alarms |= hr->alarms;
+    zero_request.crypto |= hr->crypto;
+    zero_request.dmas |= hr->dmas;
+    zero_request.i2cs |= hr->i2cs;
+    zero_request.irqs |= hr->irqs;
+    zero_request.pios |= hr->pios;
+    zero_request.pwms |= hr->pwms;
+    zero_request.rng |= hr->rng;
+    zero_request.rtc |= hr->rtc;
+    zero_request.sms |= hr->sms;
+    zero_request.spis |= hr->spis;
+    zero_request.uarts |= hr->uarts;
+    zero_request.usb |= hr->usb;
+    zero_request.watchdog |= hr->watchdog;
+
+    if (hr->relative_pios) {
+        // TODO: remap pins
+    }
+
+    // TODO:
+    return true;
+}
+
+const hardware_request_t* drivers_info(void) {
+    return &zero_request;
+}
