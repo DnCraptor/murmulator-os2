@@ -9,6 +9,7 @@ extern "C" {
 
 // The type DIR represents a directory stream. The structure of the type DIR is unspecified.
 DIR* __opendir(const char*);
+DIR* __opendirat(int bfd, const char* _path);
 int __closedir(DIR *);
 void __rewinddir(DIR *);
 

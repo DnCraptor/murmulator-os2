@@ -171,6 +171,8 @@ typedef struct {
 uint32_t get_hash(const char* path);
 
 posix_link_t* lookup_exact(uint32_t hash, const char* path);
+// internal
+char* get_dir(int dfd, char* buf, size_t size);
 
 #ifdef __cplusplus
 }

@@ -587,7 +587,15 @@ inline static uint32_t __in_hfa() fatfs_mode_to_posix(BYTE fattrib) {
  *   On success: a new file descriptor (non-negative)
  *   On error:  -1 and errno is set appropriately
  */
-int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) { // TODO: O_DIRECTORY
+int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
+    if (flags & O_DIRECTORY) {
+        DIR* pd = __opendirat(dfd, _path);
+        if (!pd) {
+            // errno already poipulated in __opendirat
+            return -1;
+        }
+        return (int)(intptr_t)pd;  // dirfd
+    }
     if (!_path) {
         errno = ENOTDIR;
         return -1;
@@ -1449,14 +1457,14 @@ int __in_hfa() __mkdirat(int dirfd, const char *pathname, mode_t mode) {
     return 0;
 }
 
-DIR* __in_hfa() __opendir(const char* _path) {
+DIR* __in_hfa() __opendirat(int bfd, const char* _path) {
     if (!_path) {
         errno = EINVAL;
         return 0;
     }
     cmd_ctx_t* ctx = get_cmd_ctx();
     init_pfiles(ctx);
-	char* path = __realpathat(AT_FDCWD, _path, 0, AT_SYMLINK_FOLLOW);
+	char* path = __realpathat(bfd, _path, 0, AT_SYMLINK_FOLLOW);
     if (!path) {
         return 0;
     }
@@ -1484,6 +1492,10 @@ ex:
     pd->dirname = path;
     errno = 0;
     return pd;
+}
+
+DIR* __in_hfa() __opendir(const char* _path) {
+    return __opendirat(AT_FDCWD, _path);
 }
 
 int __in_hfa() __closedir(DIR* d) {
@@ -1589,10 +1601,6 @@ char* get_dir(int dfd, char* buf, size_t size) {
     if (!dfd || !ctx || !ctx->pdirs) {
         errno = EINVAL;
         return 0;
-    }
-    if (dfd == AT_FDCWD) {
-        errno = 0;
-        return getcwd(buf, size);
     }
     for (size_t i = 0; i < ctx->pdirs->size; ++i) {
         if (ctx->pdirs->p[i] == (DIR*)dfd) {

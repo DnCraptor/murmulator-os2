@@ -473,7 +473,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     fts_read, // 360
     fts_set, // 361
     // posix
-    __opendir, // 362
+    __opendir, // 362 TODO: replace usage by __opendirat 373
     __closedir, // 363
     __readdir, // 364
     __rewinddir, // 365
@@ -485,6 +485,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __fchdir, // 370
     __dirfd, // 371
     __chdir, // 372
+    __opendirat, // 373
     // TODO:
     0
 };
