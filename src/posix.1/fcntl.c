@@ -357,9 +357,11 @@ static void* __in_hfa() alloc_dir(void) {
 
 static void __in_hfa() dealloc_dir(void* p) {
     if (!p) return;
-    f_closedir(p);
     if (((DIR*)p)->dirent) {
         vPortFree(((DIR*)p)->dirent);
+    }
+    if (((DIR*)p)->dirname) {
+        vPortFree(((DIR*)p)->dirname);
     }
     vPortFree(p);
 }
@@ -1479,7 +1481,7 @@ DIR* __in_hfa() __opendir(const char* _path) {
     }
     array_push_back(ctx->pdirs, pd);
 ex:
-    vPortFree(path);
+    pd->dirname = path;
     errno = 0;
     return pd;
 }
@@ -1487,7 +1489,7 @@ ex:
 int __in_hfa() __closedir(DIR* d) {
     if (!d) {
         errno = EINVAL;
-        return 0;
+        return -1;
     }
     cmd_ctx_t* ctx = get_cmd_ctx();
     init_pfiles(ctx);
@@ -1563,11 +1565,50 @@ void __in_hfa() __rewinddir(DIR *d) {
     errno = 0;
 }
 
-int __fchdir(int newfd) {
-    // TODO:
+int __fchdir(int d) {
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    if (!d || !ctx || !ctx->pdirs) {
+        errno = EINVAL;
+        return -1;
+    }
+    for (size_t i = 0; i < ctx->pdirs->size; ++i) {
+        if (ctx->pdirs->p[i] == (DIR*)d) {
+            return __chdir(((DIR*)d)->dirname);
+        }
+    }
+    errno = EBADF;
     return -1;
 }
 
 int __dirfd(DIR* pd) {
-    return (intptr_t)pd; // W/A
+    return (intptr_t)pd;
+}
+
+char* get_dir(int dfd, char* buf, size_t size) {
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    if (!dfd || !ctx || !ctx->pdirs) {
+        errno = EINVAL;
+        return 0;
+    }
+    if (dfd == AT_FDCWD) {
+        errno = 0;
+        return getcwd(buf, size);
+    }
+    for (size_t i = 0; i < ctx->pdirs->size; ++i) {
+        if (ctx->pdirs->p[i] == (DIR*)dfd) {
+            size_t len = strlen(((DIR*)dfd)->dirname) + 1;
+            if (!buf) {
+                buf = (char*)pvPortMalloc(len);
+                if (!buf) { errno = ENOMEM; return 0; }
+            } else if (len > size) {
+                errno = ERANGE;
+                return 0;
+            }
+            memcpy(buf, ((DIR*)dfd)->dirname, len);
+            errno = 0;
+            return buf;
+        }
+    }
+    errno = EBADF;
+    return 0;
 }

@@ -240,6 +240,7 @@ typedef struct {
 	const TCHAR* pat;		/* Pointer to the name matching pattern */
 #endif
     void*   dirent;
+	char*   dirname;
 } DIR;
 
 

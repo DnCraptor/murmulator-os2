@@ -72,6 +72,9 @@ typedef struct cmd_ctx {
     void* user_data;
     bool forse_flash;
     TaskHandle_t parent_task;
+    array_t /*of FDESC*/ *pfiles; // open files per process
+    array_t /*of DIR*/ *pdirs; // open directories per process
+    int proc_errno;
 } cmd_ctx_t;
 
 inline static cmd_ctx_t* get_cmd_ctx() {

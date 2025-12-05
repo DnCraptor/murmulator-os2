@@ -37,21 +37,23 @@ char* __libc() getcwd(char *buf, size_t size) {
     return buf;
 }
 
-/// TODO:
-/// linux: snprintf(path, sizeof(path), "/proc/self/fd/%d", dirfd); readlink(path, path, sizeof(path)-1);
-/// bsd/macos: fcntl(fd, F_GETPATH, buf)
-char* __libc() get_dir(int dfd, char* buf, size_t size) {
-	if (!size) {
-		errno = EINVAL;
-		return 0;
-	}
-	if (!buf) {
-		buf = (char*)pvPortMalloc(2); /// TODO: <<
-	}
-	buf[0] = '/';
-	buf[1] = 0;
-	errno = 0;
-	return buf;
+int __chdir(const char* name)
+{
+    if (!name) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    char* norm = __realpathat(AT_FDCWD, name, 0, AT_SYMLINK_FOLLOW);
+    if (!norm) {
+        // errno in realpathat
+        return -1;
+    }
+
+    set_ctx_var(get_cmd_ctx(), CD, norm);
+    vPortFree(norm);
+    errno = 0;
+    return 0;
 }
 
 static size_t __libc() slash_len(const char *s)

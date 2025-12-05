@@ -207,7 +207,7 @@ int execve(const char *pathname, char *const argv[], char *const envp[]);
 */
 
 int	 __fchdir(int);
-
+int __chdir(const char* name);
 
 #ifdef __cplusplus
 }
