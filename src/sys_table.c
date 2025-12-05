@@ -480,6 +480,10 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     // driver
     register_driver, // 367
     drivers_info, // 368
+    // posix
+    __umask, // 369
+    __fchdir, // 370
+    __dirfd, // 371
     // TODO:
     0
 };

@@ -32,6 +32,13 @@ typedef unsigned int mode_t;
 #define O_SYNC      0x1000  /* write according to synchronized I/O file integrity completion */
 #define O_NOFOLLOW  0x2000  /* do not follow symbolic links */
 
+/* defined by POSIX Issue 7 */
+#define	O_CLOEXEC	0x10000		/* atomically set FD_CLOEXEC */
+#define	O_DIRECTORY	0x20000		/* fail if not a directory */
+
+/* defined by POSIX Issue 8 */
+#define	O_CLOFORK	0x40000		/* atomically set FD_CLOFORK */
+
 #ifndef AT_FDCWD
 #define AT_FDCWD (-100)
 #endif

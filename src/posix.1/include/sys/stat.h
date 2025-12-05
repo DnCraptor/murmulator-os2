@@ -175,6 +175,7 @@ int __lstat(const char *path, struct stat *buf); // for symbolic links
 int __fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
 int __mkdirat(int dirfd, const char *pathname, mode_t mode);
 int __rmdirat(int dirfd, const char* pathname);
+mode_t __umask(mode_t mask);
 
 #ifdef __cplusplus
 }

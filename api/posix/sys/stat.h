@@ -248,6 +248,11 @@ inline static int mkdir(const char *pathname, mode_t mode) {
     return mkdirat(AT_FDCWD, pathname, mode);
 }
 
+inline static mode_t umask(mode_t mask) {
+    typedef mode_t (*fn_ptr_t)(mode_t);
+    return ((fn_ptr_t)_sys_table_ptrs[369])(mask);
+}
+
 #ifdef __cplusplus
 }
 #endif

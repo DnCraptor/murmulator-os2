@@ -94,6 +94,8 @@ inline static int closedir(DIR* d) {
 struct dirent {
     char* d_name;
     FILINFO ff_info;
+    int pos;
+    size_t d_namlen;
 };
 
 inline static struct dirent* readdir(DIR* d) {
@@ -104,6 +106,11 @@ inline static struct dirent* readdir(DIR* d) {
 inline static void rewinddir(DIR *d) {
     typedef void (*fn_ptr_t)(DIR*);
     return ((fn_ptr_t)_sys_table_ptrs[365])(d);
+}
+
+inline static int dirfd(DIR* pd) {
+    typedef int (*fn_ptr_t)(DIR*);
+    return ((fn_ptr_t)_sys_table_ptrs[371])(pd);
 }
 
 #ifdef __cplusplus

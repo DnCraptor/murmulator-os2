@@ -17,9 +17,12 @@
 #include "cmd.h" // cmd_ctx_t* get_cmd_ctx(); char* copy_str(const char* s); // cmd.h
 
 /// TODO: by process ctx
-void __in_hfa() __getcwd(char *buff, UINT len) {
-    buff[0] = '/';
-    buff[1] = 0;
+static mode_t local_mask = 022;
+
+mode_t __umask(mode_t mask) {
+    mode_t prev = local_mask;
+    local_mask = mask & 0777;
+    return prev;
 }
 
 // from libc (may be required to have own one?)
@@ -587,10 +590,11 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) { //
         errno = ENOTDIR;
         return -1;
     }
-    // TODO: /dev/... , /proc/..., symlink
+    // TODO: /dev/... , /proc/...
     cmd_ctx_t* ctx = get_cmd_ctx();
     init_pfiles(ctx);
-    char* path = __realpathat(dfd, _path, 0, AT_SYMLINK_FOLLOW);
+    int realpath_flags = (flags & O_NOFOLLOW) ? AT_SYMLINK_NOFOLLOW : AT_SYMLINK_FOLLOW;
+    char* path = __realpathat(dfd, _path, 0, realpath_flags);
     // goutf("[__openat] %d, %s, %d, %o\n", dfd, path ? path : "null", flags, mode);
     if (!path) return -1; // errno from __realpathat
     size_t n;
@@ -608,6 +612,7 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) { //
         }
     }
     pf->pending_descriptors = 0;
+    if (flags & O_CREAT) mode &= ~local_mask;
     BYTE ff_mode = map_flags_to_ff_mode(flags);
     FRESULT fr = f_open(pf, path, ff_mode);
     if (fr != FR_OK) {
@@ -1429,6 +1434,7 @@ int __in_hfa() __mkdirat(int dirfd, const char *pathname, mode_t mode) {
     }
     uint32_t hash = get_hash(path);
     vTaskSuspendAll();
+    mode &= ~local_mask;
     posix_link_t* lnk = posix_add_link(hash, path, 'O', (mode | S_IFDIR), 0, true);
     if (!lnk) {
         xTaskResumeAll();
@@ -1517,11 +1523,13 @@ struct dirent* __in_hfa() __readdir(DIR* d) {
     struct dirent* de = (struct dirent*)d->dirent;
     if (de->pos == 0) {
         de->d_name = ".";
+        de->d_namlen = 1;
         de->pos++;
         return de;
     }
     if (de->pos == 1) {
         de->d_name = "..";
+        de->d_namlen = 2;
         de->pos++;
         return de;
     }
@@ -1535,6 +1543,7 @@ struct dirent* __in_hfa() __readdir(DIR* d) {
         return 0;
     }
     de->d_name = de->ff_info.fname;
+    de->d_namlen = strlen(de->ff_info.fname);
     return de;
 }
 
@@ -1552,4 +1561,13 @@ void __in_hfa() __rewinddir(DIR *d) {
         memset(d->dirent, 0, sizeof(struct dirent));
     }
     errno = 0;
+}
+
+int __fchdir(int newfd) {
+    // TODO:
+    return -1;
+}
+
+int __dirfd(DIR* pd) {
+    return (intptr_t)pd; // W/A
 }

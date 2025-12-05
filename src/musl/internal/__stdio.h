@@ -69,9 +69,17 @@ TYPEDEF struct _IO_FILE FILE;
 #define O_DSYNC      010000
 #define O_SYNC     04010000
 #define O_RSYNC    04010000
-#define O_DIRECTORY  040000
 #define O_NOFOLLOW  0100000
-#define O_CLOEXEC  02000000
+
+///#define O_DIRECTORY  040000
+///#define O_CLOEXEC  02000000
+
+/* defined by POSIX Issue 7 */
+#define	O_CLOEXEC	0x10000		/* atomically set FD_CLOEXEC */
+#define	O_DIRECTORY	0x20000		/* fail if not a directory */
+
+/* defined by POSIX Issue 8 */
+#define	O_CLOFORK	0x40000		/* atomically set FD_CLOFORK */
 
 #define O_ASYNC      020000
 #define O_DIRECT    0200000

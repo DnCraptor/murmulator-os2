@@ -206,6 +206,9 @@ pid_t fork(void);
 int execve(const char *pathname, char *const argv[], char *const envp[]);
 */
 
+int	 __fchdir(int);
+
+
 #ifdef __cplusplus
 }
 #endif

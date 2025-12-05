@@ -27,6 +27,13 @@ typedef unsigned int mode_t;
 #define O_SYNC      0x1000  /* write according to synchronized I/O file integrity completion */
 #define O_NOFOLLOW  0x2000  /* do not follow symbolic links */
 
+/* defined by POSIX Issue 7 */
+#define	O_CLOEXEC	0x10000		/* atomically set FD_CLOEXEC */
+#define	O_DIRECTORY	0x20000		/* fail if not a directory */
+
+/* defined by POSIX Issue 8 */
+#define	O_CLOFORK	0x40000		/* atomically set FD_CLOFORK */
+
 /* Commands for fcntl() */
 #define F_DUPFD         0   /* Duplicate file descriptor (>= arg) */
 #define F_DUPFD_CLOEXEC 1030 /* Duplicate FD with FD_CLOEXEC */
@@ -131,6 +138,13 @@ int __openat(int dfd, const char *path, int flags, mode_t mode);
 /* Directory file descriptor special value */
 #ifndef AT_FDCWD
 #define AT_FDCWD        (-100)    /* Use current working directory */
+#endif
+#ifndef AT_SYMLINK_NOFOLLOW
+#define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_REMOVEDIR 0x200
+#define AT_REMOVEANY 0x2000
+#define AT_SYMLINK_FOLLOW 0x400
+#define AT_EACCESS 0x200
 #endif
 
 long __readlinkat(int fd, const char *restrict path, char *restrict buf, size_t bufsize);

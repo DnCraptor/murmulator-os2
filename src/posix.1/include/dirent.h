@@ -16,9 +16,12 @@ struct dirent {
     char* d_name;
     FILINFO ff_info;
     int pos;
+    size_t d_namlen;
 };
 
 struct dirent* __readdir(DIR *);
+
+int __dirfd(DIR *);
 
 #ifdef __cplusplus
 }

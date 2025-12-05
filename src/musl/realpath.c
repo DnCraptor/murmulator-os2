@@ -7,26 +7,34 @@
 #include "ff.h"
 #include <string.h>
 #include <limits.h>
+#include "cmd.h"
 #define SYMLOOP_MAX 10
 
 #undef PATH_MAX
 #define PATH_MAX FF_MAX_LFN
 
-char* copy_str(const char* s); // cmd
+static const char CD[] = "CD";
 
-/// TODO: by process ctx
+static const char* ctx_cwd(cmd_ctx_t* ctx) {
+    char* cd = get_ctx_var(ctx, CD);
+    return (cd && cd[0]) ? cd : "/";
+}
+
 char* __libc() getcwd(char *buf, size_t size) {
-	if (!size) {
-		errno = EINVAL;
-		return 0;
-	}
-	if (!buf) {
-		buf = (char*)pvPortMalloc(2); /// TODO: <<
-	}
-	buf[0] = '/';
-	buf[1] = 0;
-	errno = 0;
-	return buf;
+    if (!size) { errno = EINVAL; return 0; }
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    const char* cwd = ctx_cwd(ctx);
+    size_t len = strlen(cwd) + 1;
+    if (!buf) {
+        buf = (char*)pvPortMalloc(len);
+        if (!buf) { errno = ENOMEM; return 0; }
+    } else if (len > size) {
+        errno = ERANGE;
+        return 0;
+    }
+    memcpy(buf, cwd, len);
+    errno = 0;
+    return buf;
 }
 
 /// TODO:

@@ -203,6 +203,11 @@ inline static int symlink(const char *existing, const char *new) {
     return symlinkat(existing, AT_FDCWD, new);
 }
 
+inline static int fchdir(int newfd) {
+    typedef int (*fn_ptr_t)(int);
+    return ((fn_ptr_t)_sys_table_ptrs[370])(newfd);
+}
+
 inline static long readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     typedef long (*fn_ptr_t)(int, const char*, char*, size_t);
     return ((fn_ptr_t)_sys_table_ptrs[302])(dirfd, pathname, buf, bufsiz);
@@ -211,6 +216,11 @@ inline static long readlinkat(int dirfd, const char *pathname, char *buf, size_t
 inline static long readlink(const char *restrict path, char *restrict buf, size_t bufsize) {
     return readlinkat(AT_FDCWD, path, buf, bufsize);
 }
+
+inline static uid_t getuid(void) {
+    return 0;
+}
+
 /* TODO:
 pid_t fork(void);
 int execve(const char *pathname, char *const argv[], char *const envp[]);
