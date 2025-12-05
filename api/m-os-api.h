@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #if !M_API_VERSION
-#define M_API_VERSION 26
+#define M_API_VERSION 27
 #endif
 
 #ifndef M_OS_API_SYS_TABLE_BASE

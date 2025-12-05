@@ -218,7 +218,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     OVERCLOCKING=${CPU_MHZ}
 
     MOS_VERSION_STR="${MOS_VERSION}"
-    M_API_VERSION=26
+    M_API_VERSION=27
     MIN_API_VERSION=14
 
     # do not touch last 512 bytes in RAM on launch app, say, no more RAM
