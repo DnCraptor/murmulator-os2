@@ -6,6 +6,7 @@
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
 #endif
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 

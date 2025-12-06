@@ -329,18 +329,17 @@ ex:
 typedef struct FDESC_s {
     FIL* fp;
     unsigned int flags;
+    char* path;
 } FDESC;
 
 static void* __in_hfa() alloc_file(void) {
-    FDESC* d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    FDESC* d = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     if (!d) return NULL;
     d->fp = (FIL*)pvPortCalloc(1, sizeof(FIL));
     if (!d->fp) {
         vPortFree(d);
         return NULL;
     }
-    memset(d->fp, 0, sizeof(FIL));
-    d->flags = 0;
     return d;
 }
 
@@ -348,6 +347,7 @@ static void __in_hfa() dealloc_file(void* p) {
     if (!p) return;
     FDESC* d = (FDESC*)p;
     if ((intptr_t)d->fp > STDERR_FILENO) vPortFree(d->fp);
+    if (d->path) vPortFree(d->path);
     vPortFree(p);
 }
 
@@ -417,17 +417,14 @@ static void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
 
     // W/A for predefined file descriptors:
     FDESC* d;
-    d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    d = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     d->fp = (void*)STDIN_FILENO;
-    d->flags = 0;
     array_push_back(ctx->pfiles, d); // 0 - stdin
-    d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    d = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     d->fp = (void*)STDOUT_FILENO;
-    d->flags = 0;
     array_push_back(ctx->pfiles, d); // 1 - stdout
-    d = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    d = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     d->fp = (void*)STDERR_FILENO;
-    d->flags = 0;
     array_push_back(ctx->pfiles, d); // 2 - stderr
 ex:
 	xTaskResumeAll();
@@ -516,18 +513,18 @@ inline static bool __in_hfa() is_closed_desc(const FDESC* fd) {
     return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }
 
-static FIL* __in_hfa() array_lookup_first_closed(array_t* arr, size_t* pn) {
+static FDESC* __in_hfa() array_lookup_first_closed(array_t* arr, size_t* pn) {
     for (size_t i = 3; i < arr->size; ++i) {
         FDESC* fd = (FDESC*)array_get_at(arr, i);
         if (!fd) continue; // placeholder, just skip it
         if (!fd->fp) {
-            fd->fp = (FIL*)pvPortMalloc(sizeof(FIL));
+            fd->fp = (FIL*)pvPortCalloc(1, sizeof(FIL));
             *pn = i;
-            return fd->fp;
+            return fd;
         }
         if (is_closed_desc(fd)) {
             *pn = i;
-            return fd->fp;
+            return fd;
         }
     }
     return NULL;
@@ -608,11 +605,10 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
     // goutf("[__openat] %d, %s, %d, %o\n", dfd, path ? path : "null", flags, mode);
     if (!path) return -1; // errno from __realpathat
     size_t n;
-    FIL* pf = array_lookup_first_closed(ctx->pfiles, &n);
-    if (!pf) {
-        FDESC* fd = (FDESC*)alloc_file();
+    FDESC* fd = array_lookup_first_closed(ctx->pfiles, &n);
+    if (!fd) {
+        fd = (FDESC*)alloc_file();
         if (!fd) { vPortFree(path); errno = ENOMEM; return -1; }
-        pf = fd->fp;
         n = array_push_back(ctx->pfiles, fd);
         if (n == 0) {
             dealloc_file(fd);
@@ -621,6 +617,7 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
             return -1;
         }
     }
+    FIL*  pf = fd->fp;
     pf->pending_descriptors = 0;
     if (flags & O_CREAT) mode &= ~local_mask;
     BYTE ff_mode = map_flags_to_ff_mode(flags);
@@ -631,6 +628,7 @@ err:
         errno = map_ff_fresult_to_errno(fr);
         return -1;
     }
+    fd->path = path;
     FILINFO fno;
     fr = f_stat(path, &fno);
     if (fr != FR_OK) goto err;
@@ -640,17 +638,14 @@ err:
     pf->mode = lnk && lnk->type != 'H' ? lnk->desc.mode : (flags & O_CREAT ? (mode | S_IFREG) : fatfs_mode_to_posix(fno.fattrib));
     if (!lnk) {
         vTaskSuspendAll();
-        lnk = posix_add_link(hash, path, 'O', pf->mode, 0, true);
+        lnk = posix_add_link(hash, path, 'O', pf->mode, 0, false);
         if (!lnk) {
-            vPortFree(path);
             xTaskResumeAll();
             errno = ENOMEM;
             return -1;
         }
         FRESULT fr = append_to_extfs(lnk); // TODO:
         xTaskResumeAll();
-    } else {
-        vPortFree(path);
     }
     errno = 0;
     return (int)n;
@@ -671,6 +666,8 @@ int __in_hfa() __close(int fildes) {
     if (fp->pending_descriptors) {
         --fp->pending_descriptors;
         fd->fp = 0; // it was a pointer to other FIL in other descriptor, so cleanup it, to do not use by FDESC in 2 places
+        fd->flags = 0;
+        fd->path = 0;
         errno = 0;
         return 0;
     }
@@ -971,10 +968,11 @@ int __in_hfa() __dup(int oldfd) {
         goto e;
     }
     FIL* fp = fd->fp;
-    fd = (FDESC*)pvPortMalloc(sizeof(FDESC));
+    fd = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     if (!fd) { errno = ENOMEM; return -1; }
     fd->fp = fp;
     fd->flags = 0;
+    fd->path = fd->path;
     int res = array_push_back(ctx->pfiles, fd);
     if (!res) {
         vPortFree(fd);
@@ -1020,6 +1018,7 @@ int __in_hfa() __dup3(int oldfd, int newfd, int flags) {
     }
     fd1->fp = fp0;
     fd1->flags = 0;
+    fd1->path = fd0->path;
     ctx->pfiles->p[newfd] = fd1;
     fp0->pending_descriptors++;
     errno = 0;
@@ -1618,5 +1617,96 @@ char* get_dir(int dfd, char* buf, size_t size) {
         }
     }
     errno = EBADF;
+    return 0;
+}
+
+int __fchmodat(int fd, const char* n, mode_t m, int fl)
+{
+    if (!n) {
+        errno = EINVAL;
+        return -1;
+    }
+    int realpath_flags = (fl & AT_SYMLINK_NOFOLLOW)
+                         ? AT_SYMLINK_NOFOLLOW
+                         : AT_SYMLINK_FOLLOW;
+    char* path = __realpathat(fd, n, 0, realpath_flags);
+    if (!path) {
+        return -1; // errno already set
+    }
+    uint32_t h = get_hash(path);
+    posix_link_t* lnk = lookup_exact(h, path);
+    if (lnk) {
+        lnk->desc.mode = m;
+        FRESULT fr = extfs_flush();
+        vPortFree(path);
+        if (fr != FR_OK) {
+            errno = EIO;
+            return -1;
+        }
+        errno = 0;
+        return 0;
+    }
+    vTaskSuspendAll();
+    lnk = posix_add_link(h, path, 'O', m, 0, true);
+    if (!lnk) {
+        xTaskResumeAll();
+        vPortFree(path);
+        errno = ENOMEM;
+        return -1;
+    }
+    FRESULT fr = append_to_extfs(lnk);
+    xTaskResumeAll();
+    if (fr != FR_OK) {
+        errno = EIO;
+        return -1;
+    }
+    errno = 0;
+    return 0;
+}
+
+int __fchmod(int d, mode_t m)
+{
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    if (!ctx || !ctx->pfiles) {
+        errno = EINVAL;
+        return -1;
+    }
+    // validate fd
+    if (d < 0 || (size_t)d >= ctx->pfiles->size) {
+        errno = EBADF;
+        return -1;
+    }
+    FDESC* fd = ctx->pfiles->p[d];
+    if (!fd || !fd->path) {
+        errno = EBADF;
+        return -1;
+    }
+    const char* path = fd->path;
+    uint32_t h = get_hash(path);
+    posix_link_t* lnk = lookup_exact(h, path);
+    if (lnk) {
+        lnk->desc.mode = m;
+        FRESULT fr = extfs_flush();
+        if (fr != FR_OK) {
+            errno = EIO;
+            return -1;
+        }
+        errno = 0;
+        return 0;
+    }
+    vTaskSuspendAll();
+    lnk = posix_add_link(h, path, 'O', m, 0, false);
+    if (!lnk) {
+        xTaskResumeAll();
+        errno = ENOMEM;
+        return -1;
+    }
+    FRESULT fr = append_to_extfs(lnk);
+    xTaskResumeAll();
+    if (fr != FR_OK) {
+        errno = EIO;
+        return -1;
+    }
+    errno = 0;
     return 0;
 }

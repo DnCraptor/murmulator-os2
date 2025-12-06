@@ -176,6 +176,8 @@ int __fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
 int __mkdirat(int dirfd, const char *pathname, mode_t mode);
 int __rmdirat(int dirfd, const char* pathname);
 mode_t __umask(mode_t mask);
+int __fchmodat(int fd, const char* n, mode_t m, int fl);
+int __fchmod(int d, mode_t m);
 
 #ifdef __cplusplus
 }

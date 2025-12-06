@@ -486,6 +486,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __dirfd, // 371
     __chdir, // 372
     __opendirat, // 373
+    __fchmodat, // 374
+    __fchmod, // 375
     // TODO:
     0
 };

@@ -65,6 +65,24 @@
 #include <unistd.h>
 #include <getopt.h>
 
+// TODO: bsd/string.h
+inline static size_t strlcpy(char *dst, const char *src, size_t dstsize)
+{
+    const char *s = src;
+    size_t n = dstsize;
+    if (n != 0) {
+        while (--n != 0) {
+            if ((*dst++ = *s++) == '\0') {
+                return (s - src - 1);
+            }
+        }
+        *dst = '\0';
+    }
+    while (*s++) ;
+    return (s - src - 1);
+}
+
+
 #include "extern.h"
 
 #define	fts_dne(_x)	(_x->fts_pointer != NULL)
@@ -378,8 +396,7 @@ copy(char *argv[], enum op type, int fts_options)
 				if (pflag && setfile(curr->fts_statp, -1))
 					rval = 1;
 				else if (fts_dne(curr))
-					(void)chmod(to.p_path,
-					    curr->fts_statp->st_mode);
+					(void)chmod(to.p_path, curr->fts_statp->st_mode);
 				continue;
 			}
 			if (to_stat.st_dev == curr->fts_statp->st_dev &&
@@ -393,7 +410,7 @@ copy(char *argv[], enum op type, int fts_options)
 			}
 			if (!S_ISDIR(curr->fts_statp->st_mode) &&
 			    S_ISDIR(to_stat.st_mode)) {
-		warnx("cannot overwrite directory %s with non-directory %s",
+					warnx("cannot overwrite directory %s with non-directory %s",
 				    to.p_path, curr->fts_path);
 				rval = 1;
 				continue;

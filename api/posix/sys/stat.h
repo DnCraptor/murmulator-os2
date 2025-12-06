@@ -85,16 +85,19 @@ typedef long time_t;
 #define S_IFSOCK 0140000  /* socket */
 
 /* File permission bits: owner */
+#define	S_IRWXU	0000700			/* RWX mask for owner */
 #define S_IRUSR  0400  /* read permission, owner */
 #define S_IWUSR  0200  /* write permission, owner */
 #define S_IXUSR  0100  /* execute/search permission, owner */
 
 /* File permission bits: group */
+#define	S_IRWXG	0000070			/* RWX mask for group */
 #define S_IRGRP  0040  /* read permission, group */
 #define S_IWGRP  0020  /* write permission, group */
 #define S_IXGRP  0010  /* execute/search permission, group */
 
 /* File permission bits: others */
+#define	S_IRWXO	0000007			/* RWX mask for other */
 #define S_IROTH  0004  /* read permission, others */
 #define S_IWOTH  0002  /* write permission, others */
 #define S_IXOTH  0001  /* execute/search permission, others */
@@ -251,6 +254,23 @@ inline static int mkdir(const char *pathname, mode_t mode) {
 inline static mode_t umask(mode_t mask) {
     typedef mode_t (*fn_ptr_t)(mode_t);
     return ((fn_ptr_t)_sys_table_ptrs[369])(mask);
+}
+
+inline static 
+int fchmodat(int fd, const char* n, mode_t m, int fl) {
+    typedef int (*fn_ptr_t)(int, const char*, mode_t, int);
+    return ((fn_ptr_t)_sys_table_ptrs[374])(fd, n, m, fl);
+}
+
+inline static 
+int fchmod(int d, mode_t m) {
+    typedef int (*fn_ptr_t)(int, mode_t);
+    return ((fn_ptr_t)_sys_table_ptrs[375])(d, m);
+}
+
+inline static 
+int chmod(const char *n, mode_t m) {
+  return fchmodat(AT_FDCWD, n, m, AT_SYMLINK_FOLLOW);
 }
 
 #ifdef __cplusplus

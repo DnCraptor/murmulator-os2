@@ -32,13 +32,10 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 int memcmp (const void *, const void *, size_t);
 void *memchr (const void *, int, size_t);
 
-char *strncat (char *__restrict, const char *__restrict, size_t);
-
 int strcoll (const char *, const char *);
 size_t strxfrm (char *__restrict, const char *__restrict, size_t);
 
 char *strchr (const char *, int);
-char *strrchr (const char *, int);
 
 size_t strcspn (const char *, const char *);
 size_t strspn (const char *, const char *);
@@ -46,6 +43,35 @@ char *strpbrk (const char *, const char *);
 char *strstr (const char *, const char *);
 char *strtok (char *__restrict, const char *__restrict);
 */
+
+inline static
+char* strncat(char* restrict dst, const char* restrict src, size_t n)
+{
+    char* d = dst;
+    while (*d) d++;
+    while (n-- && *src) {
+        *d++ = *src++;
+    }
+    *d = '\0';
+    return dst;
+}
+
+inline static
+char* strrchr(const char* s, int c)
+{
+    const char* last = NULL;
+    unsigned char ch = (unsigned char)c;
+    for (; *s; s++) {
+        if ((unsigned char)*s == ch) {
+            last = s;
+        }
+    }
+    if (ch == '\0') {
+        return (char*)s;
+    }
+    return (char*)last;
+}
+
 void* memset(void* p, int v, size_t sz) {
     typedef void* (*fn)(void *, int, size_t);
     return ((fn)_sys_table_ptrs[142])(p, v, sz);
