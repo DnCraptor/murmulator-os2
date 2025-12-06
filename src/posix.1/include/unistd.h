@@ -181,6 +181,21 @@ int __dup3(int oldfd, int newfd, int flags);
  */
 long __lseek_p(int fd, long offset, int whence);
 
+/* Type for file offsets */
+#ifndef _OFF_T_DECLARED
+typedef long long off_t;
+typedef long long _off_t;
+#define __machine_off_t_defined
+#define	_OFF_T_DECLARED
+#endif
+
+#ifndef _PID_T_DECLARED
+typedef long pid_t;
+typedef long _pid_t;
+#define __machine_off_t_defined
+#define	_PID_T_DECLARED
+#endif
+
 int __llseek(unsigned int fd,
              unsigned long offset_high,
              unsigned long offset_low,
@@ -201,13 +216,14 @@ int __unlinkat(int dirfd, const char *pathname, int flags);
 
 int __linkat(int, const char *, int, const char *, int);
 int __symlinkat(const char *, int, const char *);
-/* TODO:
-pid_t fork(void);
-int execve(const char *pathname, char *const argv[], char *const envp[]);
-*/
+
+pid_t __fork(void);
+int __execve(const char *pathname, char *const argv[], char *const envp[]);
 
 int __fchdir(int);
 int __chdir(const char* name);
+
+pid_t __getpid(void);
 
 #ifdef __cplusplus
 }

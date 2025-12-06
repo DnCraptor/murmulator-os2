@@ -86,6 +86,11 @@ inline static DIR* opendir(const char* path) {
     return ((fn_ptr_t)_sys_table_ptrs[362])(path);
 }
 
+inline static DIR* opendirat(int bfd, const char* path) {
+    typedef DIR* (*fn_ptr_t)(int, const char*);
+    return ((fn_ptr_t)_sys_table_ptrs[373])(bfd, path);
+}
+
 inline static int closedir(DIR* d) {
     typedef int (*fn_ptr_t)(DIR*);
     return ((fn_ptr_t)_sys_table_ptrs[363])(d);

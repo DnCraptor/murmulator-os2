@@ -223,21 +223,39 @@ inline static uid_t getuid(void) {
 
 inline static
 int chdir(const char* name) {
-    typedef int (*fn_ptr_t)(const char* );
+    typedef int (*fn_ptr_t)(const char*);
     return ((fn_ptr_t)_sys_table_ptrs[372])(name);
 }
 
+#ifndef _PID_T_DECLARED
+typedef long pid_t;
+typedef long _pid_t;
+#define __machine_off_t_defined
+#define	_PID_T_DECLARED
+#endif
 
-/* TODO:
+inline static
+pid_t fork(void) {
+    typedef pid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[376])();
+}
 
-    dirfd, // 371
-    opendirat, // 373
-    fchmodat, // 374
-    fchmod, // 375
+inline static
+int execve(const char* pathname, char* const argv[], char* const envp[]) {
+    typedef int (*fn_ptr_t)(const char*, char* const[], char* const[]);
+    return ((fn_ptr_t)_sys_table_ptrs[377])(pathname, argv, envp);
+}
 
-pid_t fork(void);
-int execve(const char *pathname, char *const argv[], char *const envp[]);
-*/
+inline static
+pid_t getpid(void) {
+    typedef pid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[379])();
+}
+// TODO:
+// #include <signal.h>
+// int kill(pid_t pid, int sig);
+// #include <sys/wait.h>
+// pid_t waitpid(pid_t pid, int *status, int options);
 
 #ifdef __cplusplus
 }

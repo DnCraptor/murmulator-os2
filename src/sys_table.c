@@ -39,6 +39,7 @@
 #include "__stdio.h"
 #include "__getopt.h"
 #include "__libgen.h"
+#include "spawn.h"
 
 #include "fts.h"
 
@@ -488,6 +489,10 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __opendirat, // 373
     __fchmodat, // 374
     __fchmod, // 375
+    __fork, // 376
+    __execve, // 377
+    __posix_spawn, // 378
+    __getpid, // 379
     // TODO:
     0
 };

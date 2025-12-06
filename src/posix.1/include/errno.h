@@ -27,7 +27,9 @@ extern "C" {
 #define ESPIPE    29  /* Illegal seek */
 #define ERANGE    34
 #define ENAMETOOLONG    36
+#define ENOSYS          38
 #define ELOOP     40
+
 #define EOVERFLOW 75  /* Value too large for defined data type */
 
 /* You can define other standard POSIX errors here as needed */
