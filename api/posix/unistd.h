@@ -221,7 +221,20 @@ inline static uid_t getuid(void) {
     return 0;
 }
 
+inline static
+int chdir(const char* name) {
+    typedef int (*fn_ptr_t)(const char* );
+    return ((fn_ptr_t)_sys_table_ptrs[372])(name);
+}
+
+
 /* TODO:
+
+    dirfd, // 371
+    opendirat, // 373
+    fchmodat, // 374
+    fchmod, // 375
+
 pid_t fork(void);
 int execve(const char *pathname, char *const argv[], char *const envp[]);
 */

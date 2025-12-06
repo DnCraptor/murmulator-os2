@@ -20,6 +20,11 @@ int main() {
     char buf[256];
     int ret;
 
+    if (chdir("/") < 0) {
+        log_write("chdir / failed\n");
+        goto fail;
+    }
+
     if (mkdir("/test", 0777) < 0) { log_write("mkdir failed\n"); goto fail; }
     log_write("mkdir succeeded\n");
 

@@ -1667,46 +1667,34 @@ int __fchmodat(int fd, const char* n, mode_t m, int fl)
 int __fchmod(int d, mode_t m)
 {
     cmd_ctx_t* ctx = get_cmd_ctx();
-    if (!ctx || !ctx->pfiles) {
+    if (!ctx || !ctx->pfiles || !ctx->pdirs) {
         errno = EINVAL;
         return -1;
     }
-    // validate fd
-    if (d < 0 || (size_t)d >= ctx->pfiles->size) {
-        errno = EBADF;
-        return -1;
-    }
-    FDESC* fd = ctx->pfiles->p[d];
-    if (!fd || !fd->path) {
-        errno = EBADF;
-        return -1;
-    }
-    const char* path = fd->path;
-    uint32_t h = get_hash(path);
-    posix_link_t* lnk = lookup_exact(h, path);
-    if (lnk) {
-        lnk->desc.mode = m;
-        FRESULT fr = extfs_flush();
-        if (fr != FR_OK) {
-            errno = EIO;
-            return -1;
+    if ((size_t)d < ctx->pfiles->size) {
+        FDESC* f = ctx->pfiles->p[d];
+        if (f) {
+            // stdin/stdout/stderr have path == NULL
+            if (!f->path) {
+                errno = EBADF;
+                return -1;
+            }
+            return __fchmodat(AT_FDCWD, f->path, m, 0);
         }
-        errno = 0;
-        return 0;
     }
-    vTaskSuspendAll();
-    lnk = posix_add_link(h, path, 'O', m, 0, false);
-    if (!lnk) {
-        xTaskResumeAll();
-        errno = ENOMEM;
-        return -1;
+    for (size_t i = 0; i < ctx->pdirs->size; ++i) {
+        DIR* pd = ctx->pdirs->p[i];
+        if (!pd)
+            continue;
+        // dirfd = (int)(intptr_t)DIR*
+        if ((int)(intptr_t)pd == d) {
+            if (!pd->dirname) {
+                errno = EBADF;
+                return -1;
+            }
+            return __fchmodat(AT_FDCWD, pd->dirname, m, 0);
+        }
     }
-    FRESULT fr = append_to_extfs(lnk);
-    xTaskResumeAll();
-    if (fr != FR_OK) {
-        errno = EIO;
-        return -1;
-    }
-    errno = 0;
-    return 0;
+    errno = EBADF;
+    return -1;
 }
