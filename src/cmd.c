@@ -18,8 +18,7 @@ char* __in_hfa() copy_str(const char* s) {
     return res;
 }
 cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
-    cmd_ctx_t* res = (cmd_ctx_t*)pvPortMalloc(sizeof(cmd_ctx_t));
-    memcpy(res, src, sizeof(cmd_ctx_t));
+    cmd_ctx_t* res = (cmd_ctx_t*)pvPortCalloc(1, sizeof(cmd_ctx_t));
     if (src->argc && src->argv) {
         res->argc = src->argc;
         res->argv = (char**)pvPortCalloc(res->argc + 1, sizeof(char*));

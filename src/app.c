@@ -1076,7 +1076,7 @@ volatile bootb_sig_ptr_t bootb_sync_signal = NULL;
 void vShowAlloc( void );
 #endif
 
-static void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
+void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
     #if DEBUG_APP_LOAD
          goutf("orig_cmd: [%p] %s, pipe: [%p] ", ctx, ctx->orig_cmd, ctx->next);
          if (ctx->argc) {
