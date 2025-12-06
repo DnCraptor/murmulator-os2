@@ -37,6 +37,7 @@
 #include "poll.h"
 
 #include "__stdio.h"
+#include "__stdlib.h"
 #include "__getopt.h"
 #include "__libgen.h"
 #include "spawn.h"
@@ -89,8 +90,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     draw_text, // 30 
     draw_window, // 31
     // 
-    pvPortMalloc, // 32
-    vPortFree, // 33
+    __malloc, // 32
+    __free, // 33
     //
     graphics_set_mode, // 34
     graphics_lock_buffer, // was graphics_set_buffer 35
@@ -252,7 +253,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     graphics_is_mode_text, // 163
     set_vga_dma_handler_impl, // 164 (TODO: organize)
     set_vga_clkdiv, // 165
-    pvPortCalloc, // 166
+    __calloc, // 166
     memcpy, // 167
     vga_dma_channel_set_read_addr, // 168
     //
@@ -408,7 +409,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __ioctl, // 300
     __writev, // 301
     __readlinkat, // 302
-    pvPortRealloc, // 303
+    __realloc, // 303
     __readv, // 304
     __llseek, // 305
     __unlinkat, // 306

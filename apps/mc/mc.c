@@ -1486,6 +1486,10 @@ static inline void redraw_current_panel() {
 
 static bool cmd_enter(cmd_ctx_t* ctx) {
     bool ff = altPressed;
+    if (ff && ctrlPressed) { // W/A
+        execve(s_cmd->p, 0, 0);
+        /// TODO:__unreachable();
+    }
     printf("%s\n", s_cmd->p);
     if ( cmd_enter_helper(ctx, s_cmd) ) {
         ctx->forse_flash = ff; // Alt+Enter was pressed
@@ -1543,10 +1547,12 @@ inline static bool is_os_update(const string_t* n)
 }
 
 static void enter_pressed() {
-    if (s_cmd->size && !ctrlPressed) {
+    if (s_cmd->size) {
+        if(!altPressed && ctrlPressed) goto skip;
         mark_to_exit_flag = cmd_enter(get_cmd_ctx());
         return;
     }
+skip:
     if (hidePannels) {
         return;
     }

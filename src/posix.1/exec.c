@@ -240,7 +240,7 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
 // should not be there, but if
     remove_ctx(ctx);
     #if DEBUG_APP_LOAD
-    goutf("vProcessTask: [%p] <<<\n", ctx);
+    goutf("__execve: [%p] <<<\n", ctx);
     #endif
     vTaskDelete( NULL );
     __unreachable();
