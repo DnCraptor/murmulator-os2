@@ -3,6 +3,8 @@
 #include "spawn.h"
 #include "cmd.h"
 #include "sys_table.h"
+#include "__stdlib.h"
+
 
 pid_t __fork(void) {
     // unsupported, use posix_spawn
@@ -54,7 +56,7 @@ static cmd_ctx_t* prep_ctx(
     char *const argv[],
     char *const envp[]
 ) {
-    cmd_ctx_t* child = pvPortCalloc(1, sizeof(cmd_ctx_t));
+    cmd_ctx_t* child = __new_ctx();
     if (!child) return NULL;
 
     /* --- copy argv --- */

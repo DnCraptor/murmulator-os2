@@ -4,6 +4,18 @@
 #include "task.h"
 #include "cmd.h"
 
+static void* allocator(void) {
+    return pvPortMalloc(sizeof(void*));
+}
+
+void* __new_ctx(void) {
+    cmd_ctx_t* res = (cmd_ctx_t*)pvPortCalloc(1, sizeof(cmd_ctx_t));
+    res->pallocs = new_list_v(allocator, vPortFree, 0);
+    return res;
+}
+
+/// TODO: __delete_ctx
+
 void* __malloc2(void* ctx, size_t sz) {
     if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
         return pvPortMalloc(sz);
@@ -26,6 +38,13 @@ void __free2(void* ctx, void* p) {
     if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
         return vPortFree(p);
     return vPortFree(p);
+}
+
+void __free_ctx(void* ctx) {
+    if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
+        return;
+    delete_list(((cmd_ctx_t*)ctx)->pallocs);
+    ((cmd_ctx_t*)ctx)->pallocs = 0;
 }
 
 void* __malloc(size_t sz) {

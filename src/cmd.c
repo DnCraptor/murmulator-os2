@@ -1,6 +1,7 @@
 #include "cmd.h"
 #include <string.h>
 #include "sys_table.h"
+#include "__stdlib.h"
 
 const char TEMP[] = "TEMP";
 const char _mc_con[] = ".mc.con";
@@ -18,7 +19,7 @@ char* __in_hfa() copy_str(const char* s) {
     return res;
 }
 cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
-    cmd_ctx_t* res = (cmd_ctx_t*)pvPortCalloc(1, sizeof(cmd_ctx_t));
+    cmd_ctx_t* res = __new_ctx();
     if (src->argc && src->argv) {
         res->argc = src->argc;
         res->argv = (char**)pvPortCalloc(res->argc + 1, sizeof(char*));
@@ -105,6 +106,7 @@ void __in_hfa() cleanup_ctx(cmd_ctx_t* src) {
     }
     src->forse_flash = false;
     cleanup_pfiles(src);
+    __free_ctx(src);
     // gouta("cleanup_ctx <<\n");
 }
 void cleanup_bootb_ctx(cmd_ctx_t* ctx); // app
@@ -137,6 +139,7 @@ void __in_hfa() remove_ctx(cmd_ctx_t* src) {
         vPortFree(src->user_data);
     }
     vPortFree(src);
+    __free_ctx(src);
     // gouta("remove_ctx <<\n");
 }
 cmd_ctx_t* __in_hfa() get_cmd_startup_ctx() {
@@ -558,7 +561,7 @@ inline static bool __in_hfa() prepare_ctx(string_t* pcmd, cmd_ctx_t* ctx) {
 }
 
 inline static cmd_ctx_t* __in_hfa() new_ctx(cmd_ctx_t* src) {
-    cmd_ctx_t* res = (cmd_ctx_t*)pvPortCalloc(1, sizeof(cmd_ctx_t));
+    cmd_ctx_t* res = __new_ctx();
     if (src->vars_num && src->vars) {
         res->vars = (vars_t*)pvPortMalloc( sizeof(vars_t) * src->vars_num );
         res->vars_num = src->vars_num;

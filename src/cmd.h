@@ -88,7 +88,7 @@ typedef struct cmd_ctx {
     TaskHandle_t parent_task;
     array_t /*of FDESC*/ *pfiles; // open files per process
     array_t /*of DIR*/ *pdirs; // open directories per process
-    list_t /*of alloc_t*/ *pallocs; // related to the process allocations
+    list_t /*of void*/ *pallocs; // related to the process allocations
     int proc_errno;
 } cmd_ctx_t;
 

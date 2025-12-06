@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+void* __new_ctx(void);
+
 void* __malloc(size_t sz);
 void* __calloc(size_t n, size_t sz);
 void* __realloc(void* p, size_t sz);
