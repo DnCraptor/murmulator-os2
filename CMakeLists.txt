@@ -26,6 +26,8 @@ option(TV "Enable TV composite output" OFF)
 option(SOFTTV "Enable TV soft composite output" OFF)
 option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
+#set(INC_BUILD ON)
+
 #set(HID ON)
 
 set(MURM1x ON)
@@ -546,11 +548,25 @@ ELSE()
     SET(BUILD_NAME "${BUILD_NAME}-VGA-HDMI")
 ENDIF()
 
-if (HID)
-    SET(BUILD_NAME "${BUILD_NAME}-HID-${MOS_VERSION}-${CPU_MHZ}MHz")
-else()
-    SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz")
+# ====== AUTO BUILD NUMBER ======
+set(BUILD_NUMBER_FILE "${CMAKE_SOURCE_DIR}/build_number.txt")
+if(NOT EXISTS "${BUILD_NUMBER_FILE}")
+    file(WRITE "${BUILD_NUMBER_FILE}" "0")
 endif()
+file(READ "${BUILD_NUMBER_FILE}" BUILD_NUMBER_STR)
+string(STRIP "${BUILD_NUMBER_STR}" BUILD_NUMBER_STR)
+string(REGEX MATCH "^[0-9]+" BUILD_NUMBER "${BUILD_NUMBER_STR}")
+if (INC_BUILD)
+    math(EXPR BUILD_NUMBER "${BUILD_NUMBER} + 1")
+    file(WRITE "${BUILD_NUMBER_FILE}" "${BUILD_NUMBER}")
+ENDIF()
+
+if (HID)
+    SET(BUILD_NAME "${BUILD_NAME}-HID-${MOS_VERSION}-${CPU_MHZ}MHz-${BUILD_NUMBER}")
+else()
+    SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz-${BUILD_NUMBER}")
+endif()
+message(STATUS ">Build Name = ${BUILD_NAME}")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 

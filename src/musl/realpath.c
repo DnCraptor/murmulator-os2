@@ -3,6 +3,7 @@
 #include "errno.h"
 #include "unistd.h"
 #include "sys/fcntl.h"
+#include "sys/stat.h"
 #include "sys_table.h"
 #include "ff.h"
 #include <string.h>
@@ -44,14 +45,13 @@ int __chdir(const char* name)
         return -1;
     }
 
-    char* norm = __realpathat(AT_FDCWD, name, 0, AT_SYMLINK_FOLLOW);
-    if (!norm) {
-        // errno in realpathat
-        return -1;
-    }
+	struct stat sbp;
+	if (__stat(name, &sbp) < 0) {
+		// errno installed by __stat
+		return -1;
+	}
 
-    set_ctx_var(get_cmd_ctx(), CD, norm);
-    vPortFree(norm);
+    set_ctx_var(get_cmd_ctx(), CD, name);
     errno = 0;
     return 0;
 }
