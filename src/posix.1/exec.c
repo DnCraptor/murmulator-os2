@@ -230,8 +230,11 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
         ctx->argv = pvPortCalloc(argc + 1, sizeof(char*));
         for (int i = 0; i < argc; ++i)
             ctx->argv[i] = copy_str(argv[i]);
+    } else { // W/A allow to be out of spec 
+        ctx->argc = 1;
+        ctx->argv = pvPortCalloc(2, sizeof(char*));
+        ctx->argv[0] = copy_str(pathname);
     }
-
     /* ----------------- set new orig_cmd ----------------- */
     ctx->orig_cmd = copy_str(pathname);
 

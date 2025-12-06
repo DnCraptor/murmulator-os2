@@ -50,11 +50,11 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        if (obuf) {
-            printf("hash: %p type: %c name: %s -> %s [%p]\n", hash, type, buf, obuf, ohash);
+        if (obuf) { // H
+            printf("%c [%p] **** name: %s -> %s [%p]\n", type, hash, buf, obuf, ohash);
             free(obuf);
         } else {
-            printf("hash: %p type: %c name: %s\n", hash, type, buf);
+            printf("%c [%p] %04o name: %s\n", type, hash, ohash & 07777, buf);
         }
         free(buf);
     }

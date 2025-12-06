@@ -219,7 +219,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     PSRAM_FREQ_MHZ=${PSRAM_FREQ_MHZ}
     OVERCLOCKING=${CPU_MHZ}
 
-    MOS_VERSION_STR="${MOS_VERSION}"
     M_API_VERSION=27
     MIN_API_VERSION=14
 
@@ -567,6 +566,10 @@ else()
     SET(BUILD_NAME "${BUILD_NAME}-${MOS_VERSION}-${CPU_MHZ}MHz-${BUILD_NUMBER}")
 endif()
 message(STATUS ">Build Name = ${BUILD_NAME}")
+set (MOS_VERSION "${MOS_VERSION}-${BUILD_NUMBER}")
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    MOS_VERSION_STR="${MOS_VERSION}"
+)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
