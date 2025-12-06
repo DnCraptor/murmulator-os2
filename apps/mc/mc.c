@@ -1660,7 +1660,12 @@ inline static void cmd_up(cmd_ctx_t* ctx) {
     cmd_history_idx--;
     int idx = history_steps(ctx, cmd_history_idx, s_cmd);
     if (cmd_history_idx < 0) cmd_history_idx = idx;
-    printf("%s", s_cmd->p);
+    if (strlen(s_cmd->p) == 0) { // W/A
+        cmd_history_idx--;
+        int idx = history_steps(ctx, cmd_history_idx, s_cmd);
+        if (cmd_history_idx < 0) cmd_history_idx = idx;
+    }
+    fprintf(stderr, "%s", s_cmd->p);
 }
 
 inline static void cmd_down(cmd_ctx_t* ctx) {
@@ -1668,7 +1673,7 @@ inline static void cmd_down(cmd_ctx_t* ctx) {
     if (cmd_history_idx == -2) cmd_history_idx = -1;
     cmd_history_idx++;
     history_steps(ctx, cmd_history_idx, s_cmd);
-    printf("%s", s_cmd->p);
+    fprintf(stderr, "%s", s_cmd->p);
 }
 
 static void handle_down_pressed() {
