@@ -760,11 +760,11 @@ static void m_mk_dir(uint8_t cmd) {
 
 static void m_new(uint8_t cmd) {
     if (hidePannels) return;
-
     string_t* s_file = new_string_v();
     file_info_t* fp = selected_file(psp, true);
-    construct_full_name_s(s_file, psp->s_path, fp->s_name);
-
+    if(fp) {
+        construct_full_name_s(s_file, psp->s_path, fp->s_name);
+    }
     if (edit_name("FILE NAME", s_file) && s_file->size) {
         string_replace_cs(s_cmd, "mcedit \"");
         string_push_back_cs(s_cmd, s_file);
@@ -909,7 +909,10 @@ static void m_ext_common(file_info_t* fp) {
 static void m_view(uint8_t nu) {
     if (hidePannels) return;
     file_info_t* fp = selected_file(psp, true);
-    if (!fp) return; // warn?
+    if (!fp) {
+        no_selected_file();
+        return;
+    }
     if (fp->fattr & AM_DIR) {
         enter_pressed();
         return;
@@ -921,7 +924,10 @@ static void m_view(uint8_t nu) {
 static void m_edit(uint8_t nu) {
     if (hidePannels) return;
     file_info_t* fp = selected_file(psp, true);
-    if (!fp) return; // warn?
+    if (!fp) {
+        no_selected_file();
+        return;
+    }
     if (fp->fattr & AM_DIR) {
         enter_pressed();
         return;

@@ -143,15 +143,8 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
     goutf("__execve: [%p] %s\n", ctx, pathname);
     /* ----------------- cleanup old environment (if overwritten) ----------------- */
     if (envp) {
-        if (ctx->vars) {
-            for (size_t i = 0; i < ctx->vars_num; ++i) {
-                if (ctx->vars[i].key)
-                    vPortFree(ctx->vars[i].key);
-                if (ctx->vars[i].value)
-                    vPortFree(ctx->vars[i].value);
-            }
-            vPortFree(ctx->vars);
-        }
+        vars_t* ovars = ctx->vars;
+        size_t ovars_num = ctx->vars_num;
         ctx->vars = NULL;
         ctx->vars_num = 0;
         for (int i = 0; envp[i]; ++i) {
@@ -164,6 +157,15 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
             key[klen] = '\0';
             set_ctx_var(ctx, key, eq + 1);
             vPortFree(key);
+        }
+        if (ovars) {
+            for (size_t i = 0; i < ovars_num; ++i) {
+                if (ovars[i].key)
+                    vPortFree(ovars[i].key);
+                if (ovars[i].value)
+                    vPortFree(ovars[i].value);
+            }
+            vPortFree(ovars);
         }
     }
 

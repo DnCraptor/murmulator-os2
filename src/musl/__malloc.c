@@ -62,10 +62,21 @@ void __free2(void* ctx, void* p) {
 }
 
 void __free_ctx(void* ctx) {
-    if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
+    if (!ctx)
         return;
-    delete_list(((cmd_ctx_t*)ctx)->pallocs);
-    ((cmd_ctx_t*)ctx)->pallocs = 0;
+    cmd_ctx_t* c = (cmd_ctx_t*)ctx;
+    if (c->pallocs) {
+        delete_list(c->pallocs);
+        c->pallocs = 0;
+    }
+    if (c->pdirs) {
+        delete_array(c->pdirs);
+        c->pdirs = 0;
+    }
+    if (c->pfiles) {
+        delete_array(c->pfiles);
+        c->pfiles = 0;
+    }
 }
 
 void* __malloc(size_t sz) {
