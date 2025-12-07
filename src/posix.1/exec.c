@@ -20,36 +20,6 @@ pid_t __getpid(void) {
 // TODO: -> .h
 void exec_sync(cmd_ctx_t* ctx);
 
-// TODO: replace old version with const key
-void set_ctx_kv(cmd_ctx_t* ctx, const char* key, const char* val)
-{
-    if (!ctx || !key || !val) return;
-
-    for (size_t i = 0; i < ctx->vars_num; ++i) {
-        if (strcmp(key, ctx->vars[i].key) == 0) {
-
-            /* replace existing value */
-            vPortFree(ctx->vars[i].value);
-            ctx->vars[i].value = copy_str(val);
-            return;
-        }
-    }
-
-    /* append new entry */
-    vars_t* newv = pvPortMalloc(sizeof(vars_t) * (ctx->vars_num + 1));
-
-    if (ctx->vars_num > 0) {
-        memcpy(newv, ctx->vars, sizeof(vars_t) * ctx->vars_num);
-        vPortFree(ctx->vars);
-    }
-
-    newv[ctx->vars_num].key   = copy_str(key);
-    newv[ctx->vars_num].value = copy_str(val);
-
-    ctx->vars = newv;
-    ctx->vars_num++;
-}
-
 static cmd_ctx_t* prep_ctx(
     cmd_ctx_t* parent,
     const char *path,
@@ -175,9 +145,8 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
     if (envp) {
         if (ctx->vars) {
             for (size_t i = 0; i < ctx->vars_num; ++i) {
-                // key может быть литералом — освобождать нельзя
-            /// TODO:    if (!is_literal(ctx->vars[i].key))
-              ///      vPortFree(ctx->vars[i].key);
+                if (ctx->vars[i].key)
+                    vPortFree(ctx->vars[i].key);
                 if (ctx->vars[i].value)
                     vPortFree(ctx->vars[i].value);
             }
@@ -185,7 +154,6 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
         }
         ctx->vars = NULL;
         ctx->vars_num = 0;
-        // импорт нового envp
         for (int i = 0; envp[i]; ++i) {
             char *kv = envp[i];
             char *eq = strchr(kv, '=');
@@ -194,7 +162,7 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
             char *key = pvPortMalloc(klen + 1);
             memcpy(key, kv, klen);
             key[klen] = '\0';
-            set_ctx_kv(ctx, key, eq + 1);
+            set_ctx_var(ctx, key, eq + 1);
             vPortFree(key);
         }
     }

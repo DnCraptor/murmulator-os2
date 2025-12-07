@@ -50,7 +50,7 @@ cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
             if (src->vars[i].value) {
                 res->vars[i].value = copy_str(src->vars[i].value);
             }
-            res->vars[i].key = src->vars[i].key; // const
+            res->vars[i].key = copy_str(src->vars[i].key);
         }
     }
     res->pboot_ctx = src->pboot_ctx; src->pboot_ctx = 0;
@@ -127,11 +127,15 @@ void __in_hfa() remove_ctx(cmd_ctx_t* src) {
     if (src->std_err) { f_close(src->std_err); vPortFree(src->std_err); }
     if (src->vars) {
         for (size_t i = 0; i < src->vars_num; ++i) {
+            if (src->vars[i].key) {
+                vPortFree(src->vars[i].key);
+            }
             if (src->vars[i].value) {
                 vPortFree(src->vars[i].value);
             }
         }
         vPortFree(src->vars);
+        src->vars = 0;
     }
     cleanup_bootb_ctx(src);
     src->next = 0; // each pipe should remove it by self
@@ -186,6 +190,7 @@ char* __in_hfa() concat2(const char* s1, size_t s, const char* s2) {
 }
 
 void __in_hfa() set_ctx_var(cmd_ctx_t* ctx, const char* key, const char* val) {
+    if (!ctx || !key || !val) return;
     //if (strcmp(key, "CD") == 0) {
     //    f_chdir(val);
     //}
@@ -211,7 +216,7 @@ void __in_hfa() set_ctx_var(cmd_ctx_t* ctx, const char* key, const char* val) {
         memcpy(ctx->vars, old, sizeof(vars_t) * ctx->vars_num);
         vPortFree(old);
     }
-    ctx->vars[ctx->vars_num].key = key; // const to be not reallocated
+    ctx->vars[ctx->vars_num].key = copy_str(key);
     ctx->vars[ctx->vars_num].value = copy_str(val);
     ctx->vars_num++;
     // goutf("%d/%d %s=%s\n", ctx->vars_num, ctx->vars_num, key, ctx->vars[ctx->vars_num - 1].value);
@@ -569,7 +574,7 @@ inline static cmd_ctx_t* __in_hfa() new_ctx(cmd_ctx_t* src) {
             if (src->vars[i].value) {
                 res->vars[i].value = copy_str(src->vars[i].value);
             }
-            res->vars[i].key = src->vars[i].key; // const
+            res->vars[i].key = copy_str(src->vars[i].key);
         }
     }
     res->stage = src->stage;
