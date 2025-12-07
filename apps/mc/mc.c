@@ -764,6 +764,9 @@ static void m_new(uint8_t cmd) {
     file_info_t* fp = selected_file(psp, true);
     if(fp) {
         construct_full_name_s(s_file, psp->s_path, fp->s_name);
+    } else {
+        string_replace_ss(s_file, psp->s_path);
+        string_push_back_c(s_file, '/');
     }
     if (edit_name("FILE NAME", s_file) && s_file->size) {
         string_replace_cs(s_cmd, "mcedit \"");
