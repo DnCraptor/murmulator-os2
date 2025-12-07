@@ -479,6 +479,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __closedir, // 363
     __readdir, // 364
     __rewinddir, // 365
+    0, // 366 TODO: replace it
     // driver
     register_driver, // 367
     drivers_info, // 368

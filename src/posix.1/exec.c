@@ -160,36 +160,17 @@ int __posix_spawn(
     return 0;
 }
 
+void gouta(char* buf);
+void goutf(const char *__restrict str, ...);
 int __execve(const char *pathname, char *const argv[], char *const envp[])
 {
+    gouta("__execve\n");
     if (!pathname) {
         errno = EFAULT;
         return -1;
     }
-
     cmd_ctx_t *ctx = get_cmd_ctx();
-
-    /* ----------------- unload OLD program ----------------- */
-    if (ctx->pboot_ctx) {
-        cleanup_bootb_ctx(ctx->pboot_ctx);
-        ctx->pboot_ctx = NULL;
-    }
-
-    /* ----------------- cleanup old argv ----------------- */
-    if (ctx->argv) {
-        for (int i = 0; i < ctx->argc; ++i)
-            vPortFree(ctx->argv[i]);
-        vPortFree(ctx->argv);
-        ctx->argv = NULL;
-    }
-    ctx->argc = 0;
-
-    /* ----------------- cleanup old orig_cmd ----------------- */
-    if (ctx->orig_cmd) {
-        vPortFree(ctx->orig_cmd);
-        ctx->orig_cmd = NULL;
-    }
-
+    goutf("__execve: [%p] %s\n", ctx, pathname);
     /* ----------------- cleanup old environment (if overwritten) ----------------- */
     if (envp) {
         if (ctx->vars) {
@@ -197,7 +178,6 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
                 // key может быть литералом — освобождать нельзя
             /// TODO:    if (!is_literal(ctx->vars[i].key))
               ///      vPortFree(ctx->vars[i].key);
-
                 if (ctx->vars[i].value)
                     vPortFree(ctx->vars[i].value);
             }
@@ -205,24 +185,23 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
         }
         ctx->vars = NULL;
         ctx->vars_num = 0;
-
         // импорт нового envp
         for (int i = 0; envp[i]; ++i) {
             char *kv = envp[i];
             char *eq = strchr(kv, '=');
             if (!eq) continue;
-
             size_t klen = eq - kv;
             char *key = pvPortMalloc(klen + 1);
             memcpy(key, kv, klen);
             key[klen] = '\0';
-
             set_ctx_kv(ctx, key, eq + 1);
-
             vPortFree(key);
         }
     }
 
+    /* ----------------- save for cleanup ----------------- */
+    char** oargv = ctx->argv;
+    size_t oargc = ctx->argc;
     /* ----------------- fill new argv ----------------- */
     if (argv) {
         int argc = 0;
@@ -238,8 +217,18 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
         ctx->argv[0] = copy_str(pathname);
     }
     /* ----------------- set new orig_cmd ----------------- */
+    if (ctx->orig_cmd) {
+        vPortFree(ctx->orig_cmd);
+        ctx->orig_cmd = NULL;
+    }
     ctx->orig_cmd = copy_str(pathname);
 
+    /* ----------------- cleanup outdated state ----------------- */
+    if (oargv) {
+        for (int i = 0; i < oargc; ++i)
+            vPortFree(oargv[i]);
+        vPortFree(oargv);
+    }
     /* ----------------- laod and jump into program ----------------- */
     exec_sync(ctx);
 // should not be there, but if

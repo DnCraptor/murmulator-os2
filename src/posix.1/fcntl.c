@@ -687,7 +687,21 @@ int __in_hfa() __fstatat(int dfd, const char *_path, struct stat *buf, int flags
     cmd_ctx_t* ctx = get_cmd_ctx();
     init_pfiles(ctx);
     // TODO: devices...
-    char* path = __realpathat(dfd, _path, 0, flags);
+    char* path = __realpathat(dfd, _path, 0, flags & AT_SYMLINK_NOFOLLOW);
+    if (!path) {
+        return -1;
+    }
+    if (strcmp(path, "/") == 0) {
+        buf->st_mode  = S_IFDIR | 0755;
+        buf->st_nlink = 1;
+        buf->st_size  = 0;
+        buf->st_mtime = 0;
+        buf->st_atime = 0;
+        buf->st_ctime = 0;
+        vPortFree(path);
+        errno = 0;
+        return 0;
+    }
     FILINFO fno;
     FRESULT fr = f_stat(path, &fno);
     if (fr != FR_OK) {

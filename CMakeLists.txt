@@ -278,7 +278,6 @@ if (MURM20)
         PWM_PIN1=11
         BEEPER_PIN=9
 
-        #DEBUG_APP_LOAD=1
         PICO_DEFAULT_LED_PIN=25
     )
 elseif (ZERO2)
@@ -569,6 +568,7 @@ message(STATUS ">Build Name = ${BUILD_NAME}")
 set (MOS_VERSION "${MOS_VERSION}-${BUILD_NUMBER}")
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     MOS_VERSION_STR="${MOS_VERSION}"
+    #DEBUG_APP_LOAD=1
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")

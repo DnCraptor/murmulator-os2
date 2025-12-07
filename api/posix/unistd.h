@@ -242,7 +242,7 @@ pid_t fork(void) {
 
 inline static
 int execve(const char* pathname, char* const argv[], char* const envp[]) {
-    typedef int (*fn_ptr_t)(const char*, char* const[], char* const[]);
+    typedef int (*fn_ptr_t)(const char*, char* const argv[], char* const envp[]);
     return ((fn_ptr_t)_sys_table_ptrs[377])(pathname, argv, envp);
 }
 

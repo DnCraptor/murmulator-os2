@@ -1057,7 +1057,7 @@ e1:
     vPortFree(pctx);
     #if DEBUG_APP_LOAD
 ///    debug_sections(bootb_ctx->sect_entries);
-    goutf("[%p][%p][%p][%p]\n", bootb_ctx->bootb[0], bootb_ctx->bootb[1], bootb_ctx->bootb[2], bootb_ctx->bootb[3]);
+    goutf("[%p][%p][%p][%p]\n", bootb_ctx->req_ver_fn, bootb_ctx->_init_fn, bootb_ctx->main_fn, bootb_ctx->_fini_fn);
     #endif
     if (bootb_ctx->main_fn == 0) {
         goutf("'main' global function is not found in (or failed to load from) the '%s' elf-file\n", fn);
@@ -1114,11 +1114,11 @@ void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
     if (bootb_ctx->_init_fn) {
         bootb_ctx->_fini_ctx = bootb_ctx->_init_fn();
         #if DEBUG_APP_LOAD
-        goutf("_init done: %p\n", _fini_ctx);
+        goutf("_init done: %p\n", bootb_ctx->_fini_ctx);
         #endif
     }
     #if DEBUG_APP_LOAD
-    goutf("EXEC main: [%p]\n", bootb_ctx->main);
+    goutf("EXEC main: [%p]\n", bootb_ctx->main_fn);
     goutf("EXEC signal: [%p]\n", bootb_sync_signal);
     goutf("EXEC ctx->argc: %d\n", ctx->argc);
     #endif
@@ -1126,7 +1126,7 @@ void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
     int res = bootb_ctx->main_fn ? bootb_ctx->main_fn(ctx->argc, ctx->argv) : -3;
     bootb_sync_signal = NULL;
     #if DEBUG_APP_LOAD
-    goutf("EXEC RET_CODE: %d -> _fini: %p\n", res, bootb_ctx->bootb[3]);
+    goutf("EXEC RET_CODE: %d -> _fini: %p(%p)\n", res, bootb_ctx->_fini_fn, bootb_ctx->_fini_ctx);
     #endif
     if (bootb_ctx->_fini_fn) {
         bootb_ctx->_fini_fn(bootb_ctx->_fini_ctx);
