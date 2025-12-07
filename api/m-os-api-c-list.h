@@ -152,6 +152,7 @@ static void list_inset_data_after(list_t* lst, node_t* n, void* s) {
 }
 
 static void list_erase_node(list_t* lst, node_t* n) {
+    if (!n) return;
     node_t* prev = n->prev;
     node_t* next = n->next;
     if (prev) prev->next = next;

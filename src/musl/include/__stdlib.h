@@ -12,6 +12,12 @@ void* __calloc(size_t n, size_t sz);
 void* __realloc(void* p, size_t sz);
 void __free(void* p);
 
+void* __malloc2(void* ctx, size_t sz);
+void* __calloc2(void* ctx, size_t n, size_t sz);
+void* __realloc2(void* ctx, void* p, size_t sz);
+void __free2(void* ctx, void* p);
+void __free_ctx(void* ctx);
+
 #define malloc(sz) __malloc(sz)
 #define calloc(sz0, sz1) __calloc(sz0, sz1)
 #define free(p) __free(p)

@@ -138,8 +138,8 @@ void __in_hfa() remove_ctx(cmd_ctx_t* src) {
     if (src->user_data) {
         vPortFree(src->user_data);
     }
-    vPortFree(src);
     __free_ctx(src);
+    vPortFree(src);
     // gouta("remove_ctx <<\n");
 }
 cmd_ctx_t* __in_hfa() get_cmd_startup_ctx() {

@@ -20,6 +20,7 @@ void* __malloc2(void* ctx, size_t sz) {
     if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
         return pvPortMalloc(sz);
     void* res = pvPortMalloc(sz);
+    if (!res) return NULL;
     list_push_back(((cmd_ctx_t*)ctx)->pallocs, res);
     return res;
 }
@@ -28,6 +29,7 @@ void* __calloc2(void* ctx, size_t n, size_t sz) {
     if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
         return pvPortCalloc(n, sz);
     void* res = pvPortCalloc(n, sz);
+    if (!res) return NULL;
     list_push_back(((cmd_ctx_t*)ctx)->pallocs, res);
     return res;
 }
@@ -36,9 +38,14 @@ void* __realloc2(void* ctx, void* p, size_t sz) {
     if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
         return pvPortRealloc(p, sz);
     list_t* pa = ((cmd_ctx_t*)ctx)->pallocs;
-    list_erase_node(pa, list_lookup(pa, p));
+    node_t* n = list_lookup(pa, p);
     void* res = pvPortRealloc(p, sz);
-    list_push_back(pa, res);
+    if (!res) return NULL;
+    if (!n) {
+        list_push_back(((cmd_ctx_t*)ctx)->pallocs, res);
+    } else {
+        n->data = res;
+    }
     return res;
 }
 
@@ -46,8 +53,12 @@ void __free2(void* ctx, void* p) {
     if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
         return vPortFree(p);
     list_t* pa = ((cmd_ctx_t*)ctx)->pallocs;
-    list_erase_node(pa, list_lookup(pa, p));
-    return vPortFree(p);
+    node_t* n = list_lookup(pa, p);
+    if (!n) {
+        vPortFree(p);
+    } else {
+        list_erase_node(pa, n);
+    }
 }
 
 void __free_ctx(void* ctx) {
