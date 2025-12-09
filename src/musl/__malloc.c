@@ -95,3 +95,8 @@ void __free(void* p) {
     return __free2(get_cmd_ctx(), p);
 }
 
+char* __copy_str(const char* s) {
+    char* res = (char*)__malloc(strlen(s) + 1);
+    strcpy(res, s);
+    return res;
+}

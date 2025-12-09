@@ -18,6 +18,8 @@ void* __realloc2(void* ctx, void* p, size_t sz);
 void __free2(void* ctx, void* p);
 void __free_ctx(void* ctx);
 
+char* __copy_str(const char* s);
+
 #define malloc(sz) __malloc(sz)
 #define calloc(sz0, sz1) __calloc(sz0, sz1)
 #define free(p) __free(p)

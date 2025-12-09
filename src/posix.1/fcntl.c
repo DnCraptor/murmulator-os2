@@ -692,12 +692,9 @@ int __in_hfa() __fstatat(int dfd, const char *_path, struct stat *buf, int flags
         return -1;
     }
     if (strcmp(path, "/") == 0) {
+        memset(buf, 0, sizeof(struct stat));
         buf->st_mode  = S_IFDIR | 0755;
         buf->st_nlink = 1;
-        buf->st_size  = 0;
-        buf->st_mtime = 0;
-        buf->st_atime = 0;
-        buf->st_ctime = 0;
         vPortFree(path);
         errno = 0;
         return 0;

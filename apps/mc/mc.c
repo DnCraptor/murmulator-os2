@@ -1408,12 +1408,14 @@ inline static void select_right_panel() {
     psp = right_panel;
     fill_panel(left_panel);
     fill_panel(right_panel);
+//    chdir(psp->s_path->p);
 }
 
 inline static void select_left_panel() {
     psp = left_panel;
     fill_panel(left_panel);
     fill_panel(right_panel);
+//    chdir(psp->s_path->p);
 }
 
 static void m_window() {

@@ -220,7 +220,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     swap_page_size, // 135
     //
     xTaskGetCurrentTaskHandle, // 136
-    copy_str, // 137
+    __copy_str, // 137
     get_cmd_ctx, // 138
     cleanup_ctx, // 139
     get_ctx_var, // 140

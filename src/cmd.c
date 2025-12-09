@@ -18,6 +18,7 @@ char* __in_hfa() copy_str(const char* s) {
     strcpy(res, s);
     return res;
 }
+
 cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
     cmd_ctx_t* res = __new_ctx();
     if (src->argc && src->argv) {
