@@ -2,6 +2,7 @@
 #include "unistd.h"
 #include "spawn.h"
 #include "cmd.h"
+#include "app.h"
 #include "sys_table.h"
 #include "__stdlib.h"
 
@@ -130,17 +131,27 @@ int __posix_spawn(
     return 0;
 }
 
-void gouta(char* buf);
-void goutf(const char *__restrict str, ...);
 int __execve(const char *pathname, char *const argv[], char *const envp[])
 {
-    gouta("__execve\n");
     if (!pathname) {
         errno = EFAULT;
         return -1;
     }
     cmd_ctx_t *ctx = get_cmd_ctx();
-    goutf("__execve: [%p] %s\n", ctx, pathname);
+    // history
+    {
+        char* tmp = get_ctx_var(ctx, "TEMP");
+        if(!tmp) tmp = "";
+        char * cmd_history_file = concat(tmp, ".cmd_history");
+        FIL* pfh = (FIL*)pvPortMalloc(sizeof(FIL));
+        f_open(pfh, cmd_history_file, FA_OPEN_ALWAYS | FA_WRITE | FA_OPEN_APPEND);
+        UINT br;
+        f_write(pfh, pathname, strlen(pathname), &br);
+        f_write(pfh, "\n", 1, &br);
+        f_close(pfh);
+        vPortFree(pfh);
+        vPortFree(cmd_history_file);
+}
     /* ----------------- cleanup old environment (if overwritten) ----------------- */
     if (envp) {
         vars_t* ovars = ctx->vars;
@@ -200,6 +211,7 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
         vPortFree(oargv);
     }
     /* ----------------- laod and jump into program ----------------- */
+    load_app(ctx);
     exec_sync(ctx);
 // should not be there, but if
     remove_ctx(ctx);

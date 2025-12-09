@@ -107,7 +107,6 @@ char* concat2(const char* s1, size_t sz, const char* s2);
 char* copy_str(const char* s);
 void show_logo(bool with_top);
 
-
 // helpers for `cmd` and `mc` to reduce their size
 #include "FreeRTOS.h"
 #include "task.h"
