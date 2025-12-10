@@ -1498,7 +1498,11 @@ static inline void redraw_current_panel() {
 static bool cmd_enter(cmd_ctx_t* ctx) {
     bool ff = altPressed;
     if (ff && ctrlPressed) { // W/A
-        int d = execve(s_cmd->p, 0, 0);
+        char* argv[] = {
+            s_cmd->p,
+            0
+        };
+        int d = execve(s_cmd->p, argv, 0);
         printf("execve should not return [%d]\n", d);
         while(1);
         /// TODO:__unreachable();
