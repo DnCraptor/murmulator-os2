@@ -224,6 +224,7 @@ int __fchdir(int);
 int __chdir(const char* name);
 
 pid_t __getpid(void);
+pid_t __getppid(void);
 
 #ifdef __cplusplus
 }

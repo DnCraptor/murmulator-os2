@@ -1139,6 +1139,17 @@ void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
 
 static void __in_hfa() vAppDetachedTask(void *pv) {
     cmd_ctx_t* ctx = (cmd_ctx_t*)pv;
+    int pid = 0;
+    for (size_t i = 0; i < pids->size; ++i) {
+        if (!pids->p[i]) {
+            pid = i;
+            pids->p[i] = ctx;
+            break;
+        }
+    }
+    if (!pid) {
+        pid = array_push_back(pids, ctx);
+    }
     #if DEBUG_APP_LOAD
     goutf("vAppDetachedTask: %s [%p]\n", ctx->orig_cmd, ctx);
     #endif
@@ -1197,8 +1208,9 @@ void __in_hfa() __exit(int status) {
     __unreachable();
 }
 
-void __in_hfa() exec(cmd_ctx_t* ctx) {
+void __in_hfa() exec(cmd_ctx_t* ctx) { // like init proc flow
     do {
+        pids->p[1] = ctx;
         cmd_ctx_t* pipe_ctx = ctx->next;
         #if DEBUG_APP_LOAD
         goutf("EXEC [%p]->[%p]\n", ctx, pipe_ctx);
@@ -1206,6 +1218,7 @@ void __in_hfa() exec(cmd_ctx_t* ctx) {
         if (ctx->detached) {
             cmd_ctx_t* ctxi = clone_ctx(ctx);
             ctxi->parent_task = 0;
+            ctxi->ppid = 1; // like init
             #if DEBUG_APP_LOAD
             goutf("Clone ctx [%p]->[%p]\n", ctx, ctxi);
             #endif
@@ -1288,9 +1301,18 @@ void __in_hfa() overflowHook( TaskHandle_t pxTask, char *pcTaskName ) {
 #define MOS_UF2_EXT ".m1p2"
 #endif
 
+array_t* /*of cmd_ctx_t*/ pids = 0;
+
 void __in_hfa() vCmdTask(void *pv) {
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     cmd_ctx_t* ctx = get_cmd_startup_ctx();
+    ctx->ppid = 0;
+    ctx->pid = 1; // like init proc
+    if (!pids) {
+        pids = new_array_v(0, 0, 0);
+        array_push_back(pids, 0); // pid == 0 has no ctx
+        array_push_back(pids, ctx); // pid == 1 this ctx (init)
+    }
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
     while(1) {
 #if DEBUG_HEAP_SIZE
@@ -1354,6 +1376,7 @@ void __in_hfa() vCmdTask(void *pv) {
         // repair system context
         ctx = get_cmd_startup_ctx();
         vTaskSetThreadLocalStoragePointer(th, 0, ctx);
+        pids->p[1] = ctx;
         continue;
 e:
         if (ctx->stage != PREPARED) { // it is expected cmd/cmd0 will prepare ctx for next run for application, in other case - cleanup ctx

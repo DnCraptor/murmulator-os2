@@ -18,6 +18,7 @@ void link_firmware(FIL* pf, const char* pathname);
 
 bool is_new_app(cmd_ctx_t* ctx);
 bool run_new_app(cmd_ctx_t* ctx);
+void exec_sync(cmd_ctx_t* ctx);
 
 bool load_app(cmd_ctx_t* ctx);
 void exec(cmd_ctx_t* ctx);

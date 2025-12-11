@@ -63,6 +63,7 @@ cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
     res->forse_flash = src->forse_flash;
     return res;
 }
+
 void cleanup_pfiles(cmd_ctx_t* ctx);
 void __in_hfa() cleanup_ctx(cmd_ctx_t* src) {
     // goutf("cleanup_ctx: [%p]\n", src);
@@ -98,7 +99,7 @@ void __in_hfa() cleanup_ctx(cmd_ctx_t* src) {
     }
     src->detached = false;
     src->ret_code = 0;
-    src->prev = 0;
+    src->prev = 0; // TODO: ensure old style PIPE is not broken in this case
     src->next = 0;
     src->stage = INITIAL;
     if (src->user_data) {

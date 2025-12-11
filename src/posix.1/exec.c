@@ -5,7 +5,8 @@
 #include "app.h"
 #include "sys_table.h"
 #include "__stdlib.h"
-
+#include "__stdio.h"
+#include "sys/wait.h"
 
 pid_t __fork(void) {
     // unsupported, use posix_spawn
@@ -14,12 +15,18 @@ pid_t __fork(void) {
 }
 
 pid_t __getpid(void) {
-    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
-    return (pid_t)(intptr_t)th;
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    return (pid_t)ctx->pid;
 }
 
-// TODO: -> .h
-void exec_sync(cmd_ctx_t* ctx);
+pid_t __getppid(void) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    return (pid_t)ctx->ppid;
+}
+
+pid_t __waitpid (pid_t pid, int* pstatus, int options) {
+    // tODO: use pids table to search
+}
 
 static cmd_ctx_t* prep_ctx(
     cmd_ctx_t* parent,
@@ -43,8 +50,7 @@ static cmd_ctx_t* prep_ctx(
     }
 
     /* --- set orig_cmd --- */
-    if (path)
-        child->orig_cmd = copy_str(path);
+    child->orig_cmd = path;
 
     /* --- copy IO descriptors (do NOT steal parent’s descriptors!) --- */
     child->std_in  = parent->std_in;
@@ -87,10 +93,22 @@ static cmd_ctx_t* prep_ctx(
     }
 
     /* --- child internal fields --- */
-    child->pboot_ctx   = parent->pboot_ctx;   /* or NULL if needed */
+    child->pboot_ctx   = NULL;
     child->parent_task = parent;
-    child->stage       = 0;
+    child->ppid        = parent->pid;
+    child->stage       = FOUND;
     child->ret_code    = 0;
+    child->pid = 0;
+    for (size_t i = 0; i < pids->size; ++i) {
+        if (!pids->p[i]) {
+            child->pid = i;
+            pids->p[i] = child;
+            break;
+        }
+    }
+    if (!child->pid) {
+        child->pid = array_push_back(pids, child);
+    }
 
     return child;
 }
@@ -103,6 +121,11 @@ static void vProcessTask(void *pv) {
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
     exec_sync(ctx);
+    if (ctx->parent_task) {
+        xTaskNotifyGive(ctx->parent_task);
+        // TODO: parent was finished earlier
+        return;
+    }
     remove_ctx(ctx);
     #if DEBUG_APP_LOAD
     goutf("vProcessTask: [%p] <<<\n", ctx);
@@ -119,10 +142,28 @@ int __posix_spawn(
     char *const argv[],
     char *const envp[]
 ) {
+    if (!argv || !argv[0]) {
+        return EFAULT;
+    }
+    if (!path) {
+        return ENOENT;
+    }
+    const char* rp = __realpath(path, 0);
+    if (!rp) {
+        return errno;
+    }
+
     cmd_ctx_t* parent = get_cmd_ctx();
-    cmd_ctx_t* child  = prep_ctx(parent, path, argv, envp);
-    if (!child) return ENOMEM;
+    cmd_ctx_t* child  = prep_ctx(parent, rp, argv, envp);
+    if (!child) {
+        return ENOMEM;
+    }
+    if (!load_app(child)) {
+        remove_ctx(child);
+        return EFAULT;
+    }
 // TODO:   apply_file_actions(child, actions);
+// TODO:   apply_proc_attr(child, attr);
     TaskHandle_t th;
     xTaskCreate(vProcessTask, child->argv[0], 1024/*x 4 = 4096*/, child, configMAX_PRIORITIES - 1, &th);
 

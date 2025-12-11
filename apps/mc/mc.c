@@ -1,12 +1,14 @@
 #include <stdint.h>
 // posix
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <spawn.h>
 // MOS specific
 #include <system/ff.h>
 #include <system/ver.h>
@@ -1497,17 +1499,24 @@ static inline void redraw_current_panel() {
 
 static bool cmd_enter(cmd_ctx_t* ctx) {
     bool ff = altPressed;
+    printf("%s\n", s_cmd->p);
     if (ff && ctrlPressed) { // W/A
         char* argv[] = {
             s_cmd->p,
             0
         };
-        int d = execve(s_cmd->p, argv, 0);
-        printf("execve should not return [%d]\n", d);
-        while(1);
+        pid_t pid;
+        posix_spawn(&pid, s_cmd->p, 0, 0, argv, 0);
+        int status;
+        wait(&status); // waitpid
+        string_resize(s_cmd, 0);
+        draw_cmd_line();
+        return false;
+        //int d = execve(s_cmd->p, argv, 0);
+        //printf("execve should not return [%d]\n", d);
+        //while(1);
         /// TODO:__unreachable();
     }
-    printf("%s\n", s_cmd->p);
     if ( cmd_enter_helper(ctx, s_cmd) ) {
         ctx->forse_flash = ff; // Alt+Enter was pressed
         return true;

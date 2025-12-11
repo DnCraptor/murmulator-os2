@@ -77,6 +77,17 @@ void __free_ctx(void* ctx) {
         delete_array(c->pfiles);
         c->pfiles = 0;
     }
+    if (c->pid) {
+        pids->p[c->pid] = 0;
+        if (c->pid > 1) {
+            for (size_t i = 0; i < pids->size; ++i) {
+                if(((cmd_ctx_t*)pids->p[i])->ppid == c->pid) {
+                    ((cmd_ctx_t*)pids->p[i])->parent_task = 0; // like old "detached" style
+                    ((cmd_ctx_t*)pids->p[i])->ppid = 1; // assign to init proc
+                }
+            }
+        }
+    }
 }
 
 void* __malloc(size_t sz) {

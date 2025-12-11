@@ -19,6 +19,7 @@ char* get_curr_dir(); // old system
 FIL * get_stdout(); // old system
 FIL * get_stderr(); // old system
 
+extern array_t* /*of cmd_ctx_t*/ pids;
 
 typedef struct {
     char* del_addr;
@@ -85,7 +86,9 @@ typedef struct cmd_ctx {
     volatile cmd_exec_stage_t stage;
     void* user_data;
     bool forse_flash;
-    TaskHandle_t parent_task;
+    TaskHandle_t parent_task; // TODO: optimise (ppid only)
+    long pid;
+    long ppid;
     array_t /*of FDESC*/ *pfiles; // open files per process
     array_t /*of DIR*/ *pdirs; // open directories per process
     list_t /*of void*/ *pallocs; // related to the process allocations

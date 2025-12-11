@@ -41,6 +41,7 @@
 #include "__getopt.h"
 #include "__libgen.h"
 #include "spawn.h"
+#include "sys/wait.h"
 
 #include "fts.h"
 
@@ -495,6 +496,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __execve, // 377
     __posix_spawn, // 378
     __getpid, // 379
+    __waitpid, // 380
+    __getppid, // 381
     // TODO:
     0
 };

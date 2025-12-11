@@ -251,11 +251,15 @@ pid_t getpid(void) {
     typedef pid_t (*fn_ptr_t)();
     return ((fn_ptr_t)_sys_table_ptrs[379])();
 }
+
+inline static
+pid_t getppid(void) {
+    typedef pid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[381])();
+}
 // TODO:
 // #include <signal.h>
 // int kill(pid_t pid, int sig);
-// #include <sys/wait.h>
-// pid_t waitpid(pid_t pid, int *status, int options);
 
 #ifdef __cplusplus
 }
