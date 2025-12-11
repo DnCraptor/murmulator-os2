@@ -13,6 +13,14 @@ extern "C" {
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
 #endif
 
+#define WNOHANG    1
+#define WUNTRACED  2
+
+#define WSTOPPED   2
+#define WEXITED    4
+#define WCONTINUED 8
+#define WNOWAIT    0x1000000
+
 typedef enum {
 	P_ALL = 0,
 	P_PID = 1,

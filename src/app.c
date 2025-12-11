@@ -540,7 +540,7 @@ void __in_hfa() cleanup_bootb_ctx(cmd_ctx_t* ctx) {
             // goutf("flash_addr [%p]\n", flash_addr);
             node_t* fn = flash_list->first;
             while (fn) {
-                uint32_t nn = fn->next;
+                node_t* nn = fn->next;
                 to_flash_rec_t* fse = (to_flash_rec_t*)fn->data;
                 uint32_t faddr = fse->offset + XIP_BASE;
                 if (faddr >= min_addr && faddr <= max_addr) {
@@ -1139,6 +1139,8 @@ void __in_hfa() exec_sync(cmd_ctx_t* ctx) {
 
 static void __in_hfa() vAppDetachedTask(void *pv) {
     cmd_ctx_t* ctx = (cmd_ctx_t*)pv;
+    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    ctx->task = th;
     int pid = 0;
     for (size_t i = 0; i < pids->size; ++i) {
         if (!pids->p[i]) {
@@ -1153,7 +1155,6 @@ static void __in_hfa() vAppDetachedTask(void *pv) {
     #if DEBUG_APP_LOAD
     goutf("vAppDetachedTask: %s [%p]\n", ctx->orig_cmd, ctx);
     #endif
-    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
     exec_sync(ctx);
     remove_ctx(ctx);
@@ -1170,6 +1171,7 @@ static void __in_hfa() vAppAttachedTask(void *pv) {
     goutf("vAppAttachedTask: %s [%p]\n", ctx->orig_cmd, ctx);
     #endif
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    ctx->task = th;
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
     exec_sync(ctx);
     #if DEBUG_APP_LOAD
@@ -1308,6 +1310,7 @@ void __in_hfa() vCmdTask(void *pv) {
     cmd_ctx_t* ctx = get_cmd_startup_ctx();
     ctx->ppid = 0;
     ctx->pid = 1; // like init proc
+    ctx->task = th;
     if (!pids) {
         pids = new_array_v(0, 0, 0);
         array_push_back(pids, 0); // pid == 0 has no ctx

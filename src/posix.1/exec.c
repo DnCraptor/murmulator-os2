@@ -24,8 +24,99 @@ pid_t __getppid(void) {
     return (pid_t)ctx->ppid;
 }
 
-pid_t __waitpid (pid_t pid, int* pstatus, int options) {
-    // tODO: use pids table to search
+static bool has_any_child(cmd_ctx_t *self) {
+    for (size_t i = 1; i < pids->size; ++i) {
+        cmd_ctx_t *c = pids->p[i];
+        if (c && c->ppid == self->pid)
+            return true;
+    }
+    return false;
+}
+
+pid_t __waitpid(pid_t pid, int* pstatus, int options) {
+    cmd_ctx_t* self = get_cmd_ctx();
+    // ================================
+    // 0. Специальный случай: pid == -1 (ждать любого ребёнка)
+    // ================================
+    if (pid == -1) {
+        // Ищем любого ребёнка в состоянии ZOMBIE
+        for (size_t i = 1; i < pids->size; i++) {
+            cmd_ctx_t* c = pids->p[i];
+            if (c && c->ppid == self->pid && c->stage == ZOMBIE) {
+                pid = i;
+                break;
+            }
+        }
+        if (pid == -1) {
+            // ребёнок ещё не завершён (или их нет)
+            if (!has_any_child(self)) {
+                errno = ECHILD;
+                return -1;                
+            }
+            if (options & WNOHANG) {
+                return 0;
+            }
+            // нет зомби → блокируемся до уведомления
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            // теперь ищем зомби снова
+            for (size_t i = 1; i < pids->size; i++) {
+                cmd_ctx_t* c = pids->p[i];
+                if (c && c->ppid == self->pid && c->stage == ZOMBIE) {
+                    pid = i;
+                    break;
+                }
+            }
+            if (pid == -1) {
+                // уведомление есть, но ребёнок исчез → ошибка?
+                errno = ECHILD;
+                return -1;
+            }
+        }
+    }
+    // --- 1. Проверить PID корректность -------------------------
+    if (pid <= 0 || pid >= (pid_t)pids->size) {
+        errno = ECHILD;
+        return -1;
+    }
+    cmd_ctx_t* child = (cmd_ctx_t*)pids->p[pid];
+    // ================================
+    // 2. Проверка: действительно ли это наш ребёнок
+    // ================================
+    if (!child || child->ppid != self->pid) {
+        errno = ECHILD;
+        return -1;
+    }
+    // ================================
+    // 3. Если ZOMBIE — мы можем не ждать
+    // ================================
+    if (child->stage != ZOMBIE) {
+        if (options & WNOHANG) {
+            return 0;
+        }
+        // блокируемся до уведомления от ребёнка
+        while (child->stage != ZOMBIE) {
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        }
+        // после пробуждения гарантированно ZOMBIE
+    }
+
+    // ================================
+    // 4. Зомби: извлекаем код завершения
+    // ================================
+    if (pstatus) {
+        // POSIX кодирует exit status так:
+        // (status >> 8) == exit_code
+        // (status & 0xFF) == сигнал (TODO:)
+        *pstatus = (child->ret_code & 0xFF) << 8;
+    }
+    // ================================
+    // 5. Уничтожить контекст процесса
+    // ================================
+    remove_ctx(child);
+    // ================================
+    // 6. Вернуть PID
+    // ================================
+    return pid;
 }
 
 static cmd_ctx_t* prep_ctx(
@@ -53,9 +144,11 @@ static cmd_ctx_t* prep_ctx(
     child->orig_cmd = path;
 
     /* --- copy IO descriptors (do NOT steal parent’s descriptors!) --- */
-    child->std_in  = parent->std_in;
-    child->std_out = parent->std_out;
-    child->std_err = parent->std_err;
+    if (parent) {
+        child->std_in  = parent->std_in;
+        child->std_out = parent->std_out;
+        child->std_err = parent->std_err;
+    }
 
     /* --- build environment --- */
     if (envp) {
@@ -81,7 +174,7 @@ static cmd_ctx_t* prep_ctx(
             child->vars[i].value = copy_str(eq + 1);
         }
 
-    } else {
+    } else if (parent) {
         /* inherit parent's environment */
         child->vars_num = parent->vars_num;
         child->vars = pvPortCalloc(child->vars_num, sizeof(vars_t));
@@ -94,22 +187,21 @@ static cmd_ctx_t* prep_ctx(
 
     /* --- child internal fields --- */
     child->pboot_ctx   = NULL;
-    child->parent_task = parent;
-    child->ppid        = parent->pid;
+    child->parent_task = parent ? parent->task : 0;
+    child->ppid        = parent ? parent->pid : 1;
     child->stage       = FOUND;
     child->ret_code    = 0;
-    child->pid = 0;
-    for (size_t i = 0; i < pids->size; ++i) {
+    child->pid = -1;
+    for (size_t i = 1; i < pids->size; ++i) {
         if (!pids->p[i]) {
             child->pid = i;
             pids->p[i] = child;
             break;
         }
     }
-    if (!child->pid) {
-        child->pid = array_push_back(pids, child);
+    if (child->pid == -1) {
+        child->pid = (long)array_push_back(pids, child);
     }
-
     return child;
 }
 
@@ -119,18 +211,19 @@ static void vProcessTask(void *pv) {
     goutf("vProcessTask: %s [%p]\n", ctx->orig_cmd, ctx);
     #endif
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    ctx->task = th;
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
     exec_sync(ctx);
+    ctx->stage = ZOMBIE;
     if (ctx->parent_task) {
         xTaskNotifyGive(ctx->parent_task);
-        // TODO: parent was finished earlier
-        return;
+    } else if (ctx->ppid && ctx->ppid < pids->size && pids->p[ctx->ppid]) {
+        xTaskNotifyGive(((cmd_ctx_t*)pids->p[ctx->ppid])->task);
     }
-    remove_ctx(ctx);
     #if DEBUG_APP_LOAD
     goutf("vProcessTask: [%p] <<<\n", ctx);
     #endif
-    vTaskDelete( NULL );
+    vTaskDelete(NULL);
     __unreachable();
 }
 
@@ -164,11 +257,10 @@ int __posix_spawn(
     }
 // TODO:   apply_file_actions(child, actions);
 // TODO:   apply_proc_attr(child, attr);
-    TaskHandle_t th;
-    xTaskCreate(vProcessTask, child->argv[0], 1024/*x 4 = 4096*/, child, configMAX_PRIORITIES - 1, &th);
+    xTaskCreate(vProcessTask, child->argv[0], 1024/*x 4 = 4096*/, child, configMAX_PRIORITIES - 1, 0);
 
     if (pid_out)
-        *pid_out = (pid_t)th;
+        *pid_out = (pid_t)child->pid;
     return 0;
 }
 
@@ -257,10 +349,16 @@ set_cp866_handler(0);
         vPortFree(oargv);
     }
     /* ----------------- laod and jump into program ----------------- */
-    load_app(ctx);
+    if( !load_app(ctx) ) {
+        errno = EFAULT;
+        return -1;
+    }
     exec_sync(ctx);
 // should not be there, but if
-    remove_ctx(ctx);
+    ctx->stage = ZOMBIE;
+    if (ctx->parent_task) {
+        xTaskNotifyGive(ctx->parent_task);
+    }
     #if DEBUG_APP_LOAD
     goutf("__execve: [%p] <<<\n", ctx);
     #endif

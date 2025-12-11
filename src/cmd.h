@@ -61,7 +61,8 @@ typedef enum {
     LOAD,
     EXECUTED,
     INVALIDATED,
-    SIGTERM
+    SIGTERM,
+    ZOMBIE
 } cmd_exec_stage_t;
 
 typedef struct cmd_ctx {
@@ -86,7 +87,8 @@ typedef struct cmd_ctx {
     volatile cmd_exec_stage_t stage;
     void* user_data;
     bool forse_flash;
-    TaskHandle_t parent_task; // TODO: optimise (ppid only)
+    TaskHandle_t task;
+    TaskHandle_t parent_task; // TODO: optimise (ppid only?)
     long pid;
     long ppid;
     array_t /*of FDESC*/ *pfiles; // open files per process

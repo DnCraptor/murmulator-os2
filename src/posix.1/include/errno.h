@@ -13,6 +13,7 @@ extern "C" {
 #define EIO       5   /* I/O error */
 #define ENOEXEC          8
 #define EBADF     9   /* Bad file descriptor */
+#define ECHILD          10
 #define	EAGAIN    11  /* No more processes */
 #define ENOMEM    12  /* Not enough memory */
 #define EACCES    13  /* Permission denied */

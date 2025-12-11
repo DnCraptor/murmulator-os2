@@ -81,9 +81,11 @@ void __free_ctx(void* ctx) {
         pids->p[c->pid] = 0;
         if (c->pid > 1) {
             for (size_t i = 0; i < pids->size; ++i) {
-                if(((cmd_ctx_t*)pids->p[i])->ppid == c->pid) {
-                    ((cmd_ctx_t*)pids->p[i])->parent_task = 0; // like old "detached" style
-                    ((cmd_ctx_t*)pids->p[i])->ppid = 1; // assign to init proc
+                cmd_ctx_t* c2 = (cmd_ctx_t*)pids->p[i];
+                if (!c2) continue;
+                if (c2->ppid == c->pid) {
+                    c2->parent_task = 0; // like old "detached" style
+                    c2->ppid = 1; // assign to init proc
                 }
             }
         }

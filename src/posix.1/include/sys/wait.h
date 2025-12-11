@@ -22,6 +22,14 @@ typedef long _pid_t;
 #define	_PID_T_DECLARED
 #endif
 
+#define WNOHANG    1
+#define WUNTRACED  2
+
+#define WSTOPPED   2
+#define WEXITED    4
+#define WCONTINUED 8
+#define WNOWAIT    0x1000000
+
 pid_t __waitpid (pid_t pid, int* pstatus, int options);
 
 /* End extern "C" if C++ */
