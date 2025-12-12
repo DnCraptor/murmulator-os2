@@ -156,6 +156,11 @@ cmd_ctx_t* __in_hfa() get_cmd_ctx() {
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     return th ? (cmd_ctx_t*) pvTaskGetThreadLocalStoragePointer(th, 0) : &ctx;
 }
+void __in_hfa() set_cmd_ctx(cmd_ctx_t* ctx) {
+    const TaskHandle_t th = xTaskGetCurrentTaskHandle();
+    if (th) vTaskSetThreadLocalStoragePointer(th, 0, ctx);
+}
+
 FIL* __in_hfa() get_stdout() {
     cmd_ctx_t* pctx = get_cmd_ctx();
     FIL* res = pctx ? pctx->std_out : ctx.std_out;

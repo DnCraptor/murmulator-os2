@@ -512,6 +512,9 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __setpgid, // 393
     __tcgetpgrp, // 394
     __tcsetpgrp, // 395
+    __posix_spawnp, // 396
+    __getenv, // 397
+    __access, // 398
     // TODO:
     0
 };

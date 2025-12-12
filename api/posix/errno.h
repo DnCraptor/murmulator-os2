@@ -32,6 +32,8 @@ extern "C" {
 #define ENOSYS          38
 #define ELOOP     40
 #define EOVERFLOW 75  /* Value too large for defined data type */
+#define EOPNOTSUPP      95
+#define ENOTSUP         EOPNOTSUPP
 
 #ifndef M_OS_API_SYS_TABLE_BASE
 #define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))

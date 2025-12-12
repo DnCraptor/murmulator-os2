@@ -8,6 +8,14 @@
 #include "__stdio.h"
 #include "sys/wait.h"
 #include "sys/fcntl.h"
+#include "sys/stat.h"
+
+typedef struct FDESC_s {
+    FIL* fp;
+    unsigned int flags;
+    char* path;
+} FDESC;
+static void close_fd_for_ctx(cmd_ctx_t* ctx, FDESC* fd);
 
 pid_t __fork(void) {
     // unsupported, use posix_spawn
@@ -300,11 +308,6 @@ pid_t __waitpid(pid_t pid, int* pstatus, int options) {
 
 // TODO: -> .h
 void init_pfiles(cmd_ctx_t* ctx);
-typedef struct FDESC_s {
-    FIL* fp;
-    unsigned int flags;
-    char* path;
-} FDESC;
 inline static bool is_closed_desc(const FDESC* fd) {
     if (fd && !fd->fp) return true;
     return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
@@ -468,6 +471,112 @@ static void vProcessTask(void *pv) {
     __unreachable();
 }
 
+static int apply_file_actions(cmd_ctx_t* child,
+                              const posix_spawn_file_actions_t *actions)
+{
+    if (!actions) return 0;
+
+    cmd_ctx_t* saved = get_cmd_ctx();
+    // Подменяем на child
+    set_cmd_ctx(child);
+
+    int err = 0;    
+    for (size_t i = 0; i < actions->count; ++i) {
+        posix_spawn_file_action_t *a = &actions->items[i];
+        switch (a->type) {
+       case ACTION_OPEN: {
+            int fd = __openat(AT_FDCWD, a->path, a->oflag, a->mode);
+            if (fd < 0) {
+                err = errno ? errno : EIO;
+                goto out;
+            }
+            // POSIX: open в file_actions обязан открыть ровно в a->fd
+            if (fd != a->fd) {
+                // перенесём в нужный дескриптор
+                if (__dup2(fd, a->fd) < 0) {
+                    err = errno ? errno : EIO;
+                    goto out;
+                }
+                __close(fd);
+            }
+            break;
+        }
+
+        case ACTION_CLOSE: {
+            if (__close(a->fd) < 0) {
+                err = errno ? errno : EBADF;
+                goto out;
+            }
+            break;
+        }
+
+        case ACTION_DUP2: {
+            if (__dup2(a->fd, a->newfd) < 0) {
+                err = errno ? errno : EBADF;
+                goto out;
+            }
+            break;
+        }
+
+        default:
+            err = ENOTSUP;
+            goto out;
+        }
+    }
+
+out:
+    // Восстанавливаем исходный контекст
+    set_cmd_ctx(saved);
+    return err;
+}
+
+static int apply_proc_attr(cmd_ctx_t* child,
+                           const posix_spawnattr_t *attr)
+{
+    if (!attr) return 0;
+
+    // --- RESETIDS ---
+    if (attr->flags & POSIX_SPAWN_RESETIDS) {
+        child->uid  = child->euid;
+        child->gid  = child->egid;
+    }
+
+    // --- SETPGROUP ---
+    if (attr->flags & POSIX_SPAWN_SETPGROUP) {
+        pid_t pg = attr->pgroup;
+        if (pg == 0)
+            pg = child->pid;
+        child->pgid = pg;
+    }
+
+    // --- SETSID ---
+    if (attr->flags & POSIX_SPAWN_SETSID) {
+        if (child->pid == child->pgid)
+            return EPERM;
+        child->sid = child->pid;
+        child->pgid = child->pid;
+        child->ctty = 0;
+    }
+
+    // --- Signals (ignored, but keep POSIX shape) ---
+    if (attr->flags & POSIX_SPAWN_SETSIGMASK) {
+        /* ignore — no signal model yet */
+    }
+    if (attr->flags & POSIX_SPAWN_SETSIGDEF) {
+        /* ignore — no signal model yet */
+    }
+
+    // --- Scheduling (ignored) ---
+    if (attr->flags & POSIX_SPAWN_SETSCHEDPARAM) {
+        /* ignore */
+    }
+    if (attr->flags & POSIX_SPAWN_SETSCHEDULER) {
+        /* ignore */
+    }
+
+    return 0;
+}
+
 int __posix_spawn(
     pid_t *pid_out,
     const char *path,
@@ -496,8 +605,16 @@ int __posix_spawn(
         remove_ctx(child);
         return EFAULT;
     }
-// TODO:   apply_file_actions(child, actions);
-// TODO:   apply_proc_attr(child, attr);
+    int err = apply_file_actions(child, actions);
+    if (err) {
+        remove_ctx(child);
+        return err;
+    }
+    err = apply_proc_attr(child, attr);
+    if (err) {
+        remove_ctx(child);
+        return err;
+    }
     xTaskCreate(vProcessTask, child->argv[0], 1024/*x 4 = 4096*/, child, configMAX_PRIORITIES - 1, 0);
 
     if (pid_out)
@@ -632,4 +749,47 @@ set_cp866_handler(0);
     #endif
     vTaskDelete( NULL );
     __unreachable();
+}
+
+char* __getenv (const char *v) {
+    return get_ctx_var(get_cmd_ctx(), v);
+}
+
+int __posix_spawnp(
+    pid_t *pid_out,
+    const char *path,
+    const posix_spawn_file_actions_t *actions,
+    const posix_spawnattr_t *attr,
+    char *const argv[],
+    char *const envp[]
+) {
+    if (!argv || !argv[0]) {
+        return EFAULT;
+    }
+    if (!path) {
+        return ENOENT;
+    }
+    if (path[0] == '/') {
+        return __posix_spawn(pid_out, path, actions, attr, argv, envp);
+    }
+    const char *p = __getenv("PATH");
+    if (!p) p = "/bin:/usr/bin"; // POSIX fallback
+    while (p && *p) {
+        char* end = p;
+        while (*end != 0 && *end != ':') end++; // lookup for the end of string
+        size_t len = end - p;
+        char* res = concat2(p, len, path);
+        // goutf("try path %s\n", res);
+        struct stat obuf;
+        if (__stat(res, &obuf) == 0) {
+            int r = __posix_spawn(pid_out, res, actions, attr, argv, envp);
+            vPortFree(res);
+            return r;
+        }
+        vPortFree(res);
+        res = 0;
+        if (!*end) break;
+        p += len + 1;
+    }
+    return ENOENT;
 }

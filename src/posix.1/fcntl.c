@@ -733,6 +733,76 @@ int __in_hfa() __fstatat(int dfd, const char *_path, struct stat *buf, int flags
     return 0;
 }
 
+int __in_hfa() __access(const char *pathname, int mode)
+{
+    if (!pathname) {
+        errno = EFAULT;
+        return -1;
+    }
+
+    /* Допустимы только R_OK/W_OK/X_OK; F_OK == 0 и в маске не участвует */
+    if (mode & ~(R_OK | W_OK | X_OK)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    struct stat st;
+    if (__stat(pathname, &st) < 0) {
+        /* errno уже выставлен __stat/__fstatat */
+        return -1;
+    }
+
+    /* F_OK (mode == 0) — существование уже проверили через __stat */
+    if ((mode & (R_OK | W_OK | X_OK)) == 0) {
+        errno = 0;
+        return 0;
+    }
+
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    uid_t uid = ctx->uid;   /* real uid */
+    gid_t gid = ctx->gid;   /* real gid */
+
+    mode_t m = st.st_mode;
+
+    /* uid == 0: читать/писать всегда можно, исполнять — если есть хоть один x-бит */
+    if (uid == 0) {
+        if (mode & X_OK) {
+            if (!(m & (S_IXUSR | S_IXGRP | S_IXOTH))) {
+                errno = EACCES;
+                return -1;
+            }
+        }
+        errno = 0;
+        return 0;
+    }
+
+    mode_t rmask, wmask, xmask;
+
+    if (uid == st.st_uid) {
+        rmask = S_IRUSR;  wmask = S_IWUSR;  xmask = S_IXUSR;
+    } else if (gid == st.st_gid) {
+        rmask = S_IRGRP;  wmask = S_IWGRP;  xmask = S_IXGRP;
+    } else {
+        rmask = S_IROTH;  wmask = S_IWOTH;  xmask = S_IXOTH;
+    }
+
+    if ((mode & R_OK) && !(m & rmask)) {
+        errno = EACCES;
+        return -1;
+    }
+    if ((mode & W_OK) && !(m & wmask)) {
+        errno = EACCES;
+        return -1;
+    }
+    if ((mode & X_OK) && !(m & xmask)) {
+        errno = EACCES;
+        return -1;
+    }
+
+    errno = 0;
+    return 0;
+}
+
 int __in_hfa() __stat(const char* _path, struct stat *buf) {
     return __fstatat(AT_FDCWD, _path, buf, AT_SYMLINK_FOLLOW);
 }

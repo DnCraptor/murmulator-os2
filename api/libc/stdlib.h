@@ -57,6 +57,12 @@ inline static void free (void * pv) {
     typedef void (*vPortFree_ptr_t)( void * pv );
     ((vPortFree_ptr_t)_sys_table_ptrs[33])(pv);
 }
+inline static 
+char *getenv (const char *v) {
+    typedef char* (*fn_ptr_t)(const char *);
+    return ((fn_ptr_t)_sys_table_ptrs[397])(v);
+}
+
 
 /// TODO:
 #if 0
@@ -90,8 +96,6 @@ _Noreturn void exit (int);
 _Noreturn void _Exit (int);
 int at_quick_exit (void (*) (void));
 _Noreturn void quick_exit (int);
-
-char *getenv (const char *);
 
 int system (const char *);
 

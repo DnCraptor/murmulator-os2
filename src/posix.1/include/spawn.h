@@ -29,40 +29,52 @@ typedef unsigned int mode_t;
 #define	_MODE_T_DECLARED
 #endif
 
-#define POSIX_SPAWN_RESETIDS 1
-#define POSIX_SPAWN_SETPGROUP 2
-#define POSIX_SPAWN_SETSIGDEF 4
-#define POSIX_SPAWN_SETSIGMASK 8
-#define POSIX_SPAWN_SETSCHEDPARAM 16
-#define POSIX_SPAWN_SETSCHEDULER 32
-#define POSIX_SPAWN_USEVFORK 64
-#define POSIX_SPAWN_SETSID 128
+#define POSIX_SPAWN_RESETIDS        0x0001
+#define POSIX_SPAWN_SETPGROUP       0x0002
+#define POSIX_SPAWN_SETSIGDEF       0x0004
+#define POSIX_SPAWN_SETSIGMASK      0x0008
+#define POSIX_SPAWN_SETSCHEDPARAM   0x0010
+#define POSIX_SPAWN_SETSCHEDULER    0x0020
+#define POSIX_SPAWN_USEVFORK        0x0040
+#define POSIX_SPAWN_SETSID          0x0080
 
 typedef struct {
-    int flags;       // POSIX_SPAWN_SETSIGMASK...
+    int flags;          // bitmask of POSIX_SPAWN_*
+    pid_t pgroup;       // for POSIX_SPAWN_SETPGROUP
+    unsigned long sigmask;   // stub for POSIX_SPAWN_SETSIGMASK
+    unsigned long sigdefault;// stub for POSIX_SPAWN_SETSIGDEF
+    int schedpolicy;    // stub for scheduler
+    int schedprio;      // stub for scheduler parameter
 } posix_spawnattr_t;
 
-
-typedef struct spawn_file_action {
-    int action;   // OPEN, CLOSE, DUP2
-    int fd;
-    int newfd;
-    char *path;
-    int oflag;
-    mode_t mode;
-    struct spawn_file_action *next;
-} spawn_file_action_t;
+enum {
+    ACTION_OPEN,
+    ACTION_CLOSE,
+    ACTION_DUP2
+};
 
 typedef struct {
-    spawn_file_action_t *head;
+    int type;
+    // open
+    int fd;
+    const char *path;
+    int oflag;
+    int mode;
+    // dup2
+    int newfd;
+} posix_spawn_file_action_t;
+
+typedef struct {
+    size_t count;
+    posix_spawn_file_action_t *items;
 } posix_spawn_file_actions_t;
 
 int __posix_spawn(pid_t *__restrict, const char *__restrict, const posix_spawn_file_actions_t *,
 	const posix_spawnattr_t *__restrict, char *const *__restrict, char *const *__restrict);
-/*
-int posix_spawnp(pid_t *__restrict, const char *__restrict, const posix_spawn_file_actions_t *,
+int __posix_spawnp(pid_t *__restrict, const char *__restrict, const posix_spawn_file_actions_t *,
 	const posix_spawnattr_t *__restrict, char *const *__restrict, char *const *__restrict);
 
+/*
 int posix_spawnattr_init(posix_spawnattr_t *);
 int posix_spawnattr_destroy(posix_spawnattr_t *);
 

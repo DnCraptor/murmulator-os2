@@ -34,6 +34,8 @@ extern "C" {
 #define ELOOP     40
 
 #define EOVERFLOW 75  /* Value too large for defined data type */
+#define EOPNOTSUPP      95
+#define ENOTSUP         EOPNOTSUPP
 
 /* You can define other standard POSIX errors here as needed */
 int* __errno_location();

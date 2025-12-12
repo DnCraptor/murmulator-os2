@@ -28,6 +28,8 @@ char* __copy_str(const char* s);
 #define memalign(alignment, size) __malloc(alignment, size)
 #define aligned_alloc(alignment, size) _malloc(alignment, size)
 
+char* __getenv (const char *v);
+
 #ifdef __cplusplus
 }
 #endif

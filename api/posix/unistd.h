@@ -349,6 +349,16 @@ int tcsetpgrp(int fd, pid_t pgrp) {
     return ((fn_ptr_t)_sys_table_ptrs[395])(fd, pgrp);
 }
 
+#define F_OK 0
+#define R_OK 4
+#define W_OK 2
+#define X_OK 1
+
+inline static
+int access(const char *pathname, int mode) {
+    typedef int (*fn_ptr_t)(const char *, int);
+    return ((fn_ptr_t)_sys_table_ptrs[398])(pathname, mode);
+}
 // TODO:
 // #include <signal.h>
 // int kill(pid_t pid, int sig);

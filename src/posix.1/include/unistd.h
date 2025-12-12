@@ -263,6 +263,13 @@ int   __setpgid(pid_t pid, pid_t pgid);
 int __tcgetpgrp(int fd);
 int __tcsetpgrp(int fd, pid_t pgrp);
 
+#define F_OK 0
+#define R_OK 4
+#define W_OK 2
+#define X_OK 1
+
+int __access(const char *, int);
+
 #ifdef __cplusplus
 }
 #endif
