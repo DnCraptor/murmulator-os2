@@ -367,7 +367,6 @@ static cmd_ctx_t* prep_ctx(
             child->vars[i].key   = key;
             child->vars[i].value = copy_str(eq + 1);
         }
-
     } else if (parent) {
         /* inherit parent's environment */
         child->vars_num = parent->vars_num;
@@ -405,6 +404,8 @@ static cmd_ctx_t* prep_ctx(
     if (parent) {
         // гарантируем, что у родителя pfiles/pdirs инициализированы
         init_pfiles(parent);
+        // гарантируем, что у ребёнка pfiles/pdirs инициализированы
+        init_pfiles(child);
         // копируем структуру таблицы pfiles
         for (size_t i = STDERR_FILENO + 1; i < parent->pfiles->size; ++i) {
             FDESC* pfd = (FDESC*)array_get_at(parent->pfiles, i);
@@ -442,7 +443,6 @@ static cmd_ctx_t* prep_ctx(
         }
         // Для pdirs POSIX ничего не обещает, поэтому безопаснее их не наследовать.
     }
-
     return child;
 }
 

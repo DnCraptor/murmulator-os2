@@ -10,6 +10,9 @@ extern "C" {
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
 #endif
 
+#include <errno.h>
+#include <string.h>
+
 /** TODO:
 #include <features.h>
 
@@ -98,9 +101,17 @@ int posix_spawnp(
     return ((posix_spawn_t)_sys_table_ptrs[396])(pid_out, path, actions, attr, argv, envp);
 }
 
-/*
-int posix_spawnattr_init(posix_spawnattr_t *);
-int posix_spawnattr_destroy(posix_spawnattr_t *);
+inline static
+int posix_spawnattr_init(posix_spawnattr_t* attr) {
+    if (!attr) return EINVAL;
+    memset(attr, 0, sizeof(posix_spawnattr_t));
+    return 0;
+}
+
+inline static
+int posix_spawnattr_destroy(posix_spawnattr_t *) {
+    return 0;
+}
 
 int posix_spawnattr_setflags(posix_spawnattr_t *, short);
 int posix_spawnattr_getflags(const posix_spawnattr_t *__restrict, short *__restrict);
@@ -131,7 +142,6 @@ int posix_spawn_file_actions_addchdir_np(posix_spawn_file_actions_t *__restrict,
 int posix_spawn_file_actions_addfchdir_np(posix_spawn_file_actions_t *, int);
 #endif
 
-*/
 
 #ifdef __cplusplus
 }
