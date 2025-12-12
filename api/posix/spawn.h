@@ -211,12 +211,98 @@ int posix_spawnattr_setschedpolicy(posix_spawnattr_t *attr, int policy)
     return 0;
 }
 
-int posix_spawn_file_actions_init(posix_spawn_file_actions_t *);
-int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t *);
+inline static
+int posix_spawn_file_actions_init(posix_spawn_file_actions_t *fa)
+{
+    if (!fa) return EINVAL;
+    fa->count = 0;
+    fa->items = NULL;
+    return 0;
+}
 
-int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t *__restrict, int, const char *__restrict, int, mode_t);
-int posix_spawn_file_actions_addclose(posix_spawn_file_actions_t *, int);
-int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t *, int, int);
+inline static
+int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t *fa)
+{
+    if (!fa) return EINVAL;
+    if (fa->items)
+        free(fa->items);
+    fa->items = NULL;
+    fa->count = 0;
+    return 0;
+}
+
+static
+int add_action(posix_spawn_file_actions_t *fa)
+{
+    size_t n = fa->count + 1;
+    posix_spawn_file_action_t *p =
+        realloc(fa->items, n * sizeof(posix_spawn_file_action_t));
+    if (!p)
+        return ENOMEM;
+    fa->items = p;
+    fa->count = n;
+    return 0;
+}
+
+inline static
+int posix_spawn_file_actions_addopen(
+        posix_spawn_file_actions_t *fa,
+        int fd, const char *path, int oflag, mode_t mode)
+{
+    if (!fa || !path) return EINVAL;
+
+    int r = add_action(fa);
+    if (r != 0) return r;
+
+    posix_spawn_file_action_t *a =
+        &fa->items[fa->count - 1];
+
+    a->type  = ACTION_OPEN;
+    a->fd    = fd;
+    a->path  = path;
+    a->oflag = oflag;
+    a->mode  = mode;
+
+    return 0;
+}
+
+inline static
+int posix_spawn_file_actions_addclose(
+        posix_spawn_file_actions_t *fa, int fd)
+{
+    if (!fa) return EINVAL;
+
+    int r = add_action(fa);
+    if (r != 0) return r;
+
+    posix_spawn_file_action_t *a =
+        &fa->items[fa->count - 1];
+
+    a->type = ACTION_CLOSE;
+    a->fd   = fd;
+
+    return 0;
+}
+
+inline static
+int posix_spawn_file_actions_adddup2(
+        posix_spawn_file_actions_t *fa,
+        int fd, int newfd)
+{
+    if (!fa) return EINVAL;
+
+    int r = add_action(fa);
+    if (r != 0) return r;
+
+    posix_spawn_file_action_t *a =
+        &fa->items[fa->count - 1];
+
+    a->type  = ACTION_DUP2;
+    a->fd    = fd;
+    a->newfd = newfd;
+
+    return 0;
+}
 
 #if defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
 int posix_spawn_file_actions_addchdir_np(posix_spawn_file_actions_t *__restrict, const char *__restrict);

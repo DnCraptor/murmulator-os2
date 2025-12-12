@@ -220,90 +220,91 @@ static bool has_any_child(cmd_ctx_t *self) {
     return false;
 }
 
-pid_t __waitpid(pid_t pid, int* pstatus, int options) {
-    cmd_ctx_t* self = get_cmd_ctx();
-    // ================================
-    // 0. Специальный случай: pid == -1 (ждать любого ребёнка)
-    // ================================
-    if (pid == -1) {
-        // Ищем любого ребёнка в состоянии ZOMBIE
-        for (size_t i = 1; i < pids->size; i++) {
-            cmd_ctx_t* c = pids->p[i];
-            if (c && c->ppid == self->pid && c->stage == ZOMBIE) {
-                pid = i;
-                break;
-            }
-        }
-        if (pid == -1) {
-            // ребёнок ещё не завершён (или их нет)
-            if (!has_any_child(self)) {
-                errno = ECHILD;
-                return -1;                
-            }
-            if (options & WNOHANG) {
-                return 0;
-            }
-            // нет зомби → блокируемся до уведомления
-            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-            // теперь ищем зомби снова
-            for (size_t i = 1; i < pids->size; i++) {
-                cmd_ctx_t* c = pids->p[i];
-                if (c && c->ppid == self->pid && c->stage == ZOMBIE) {
-                    pid = i;
-                    break;
-                }
-            }
-            if (pid == -1) {
-                // уведомление есть, но ребёнок исчез → ошибка?
-                errno = ECHILD;
-                return -1;
-            }
-        }
-    }
-    // --- 1. Проверить PID корректность -------------------------
-    if (pid <= 0 || pid >= (pid_t)pids->size) {
-        errno = ECHILD;
-        return -1;
-    }
-    cmd_ctx_t* child = (cmd_ctx_t*)pids->p[pid];
-    // ================================
-    // 2. Проверка: действительно ли это наш ребёнок
-    // ================================
-    if (!child || child->ppid != self->pid) {
-        errno = ECHILD;
-        return -1;
-    }
-    // ================================
-    // 3. Если ZOMBIE — мы можем не ждать
-    // ================================
-    if (child->stage != ZOMBIE) {
-        if (options & WNOHANG) {
-            return 0;
-        }
-        // блокируемся до уведомления от ребёнка
-        while (child->stage != ZOMBIE) {
-            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        }
-        // после пробуждения гарантированно ZOMBIE
+pid_t __waitpid(pid_t pid, int *pstatus, int options)
+{
+    cmd_ctx_t *self = get_cmd_ctx();
+
+    int mode = 0;
+    pid_t target_pgid = 0;
+
+    /*
+        mode:
+        1 = конкретный ребёнок (pid > 0)
+        2 = дети из self->pgid (pid == 0)
+        3 = любой ребёнок (pid == -1)
+        4 = дети из группы target_pgid (pid < -1)
+    */
+
+    if (pid > 0) {
+        mode = 1;
+    } else if (pid == 0) {
+        mode = 2;
+        target_pgid = self->pgid;
+    } else if (pid == -1) {
+        mode = 3;
+    } else { // pid < -1
+        mode = 4;
+        target_pgid = -pid;
     }
 
-    // ================================
-    // 4. Зомби: извлекаем код завершения
-    // ================================
-    if (pstatus) {
-        // POSIX кодирует exit status так:
-        // (status >> 8) == exit_code
-        // (status & 0xFF) == сигнал (TODO:)
-        *pstatus = (child->ret_code & 0xFF) << 8;
+search_zombie:
+    // 1. Ищем подходящего зомби
+    for (size_t i = 1; i < pids->size; i++) {
+        cmd_ctx_t *c = pids->p[i];
+        if (!c) continue;
+        if (c->ppid != self->pid) continue;
+
+        switch (mode) {
+            case 1: if (c->pid != pid) continue; break;
+            case 2: if (c->pgid != target_pgid) continue; break;
+            case 3: /* любой */ break;
+            case 4: if (c->pgid != target_pgid) continue; break;
+        }
+
+        if (c->stage == ZOMBIE) {
+            // нашли
+            if (pstatus)
+                *pstatus = (c->ret_code & 0xFF) << 8; // POSIX EXITSTATUS
+
+            pid_t rpid = c->pid;
+            remove_ctx(c);
+            return rpid;
+        }
     }
-    // ================================
-    // 5. Уничтожить контекст процесса
-    // ================================
-    remove_ctx(child);
-    // ================================
-    // 6. Вернуть PID
-    // ================================
-    return pid;
+
+    // 2. Зомби нет → проверим, есть ли вообще подходящие дети
+    {
+        int has_child = 0;
+
+        for (size_t i = 1; i < pids->size; i++) {
+            cmd_ctx_t *c = pids->p[i];
+            if (!c) continue;
+            if (c->ppid != self->pid) continue;
+
+            switch (mode) {
+                case 1: if (c->pid != pid) continue; break;
+                case 2: if (c->pgid != target_pgid) continue; break;
+                case 3: break;
+                case 4: if (c->pgid != target_pgid) continue; break;
+            }
+
+            has_child = 1;
+            break;
+        }
+
+        if (!has_child) {
+            errno = ECHILD;
+            return -1;
+        }
+    }
+
+    // 3. Если WNOHANG → возвращаем 0
+    if (options & WNOHANG)
+        return 0;
+
+    // 4. Ждём уведомления и повторяем поиск
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    goto search_zombie;
 }
 
 // TODO: -> .h
