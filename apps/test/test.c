@@ -24,6 +24,7 @@ int main() {
         log_write("chdir / failed\n");
         goto fail;
     }
+     log_write("chdir / succeeded\n");
 
     if (mkdir("/test", 0777) < 0) { log_write("mkdir failed\n"); goto fail; }
     log_write("mkdir succeeded\n");

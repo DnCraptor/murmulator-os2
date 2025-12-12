@@ -979,11 +979,12 @@ int __in_hfa() __dup(int oldfd) {
         goto e;
     }
     FIL* fp = fd->fp;
+    char* orig_path = fd->path;
     fd = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     if (!fd) { errno = ENOMEM; return -1; }
     fd->fp = fp;
     fd->flags = 0;
-    fd->path = fd->path;
+    fd->path = orig_path;
     int res = array_push_back(ctx->pfiles, fd);
     if (!res) {
         vPortFree(fd);

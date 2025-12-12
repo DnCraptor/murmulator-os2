@@ -44,15 +44,21 @@ int __chdir(const char* name)
         errno = EINVAL;
         return -1;
     }
-
-	struct stat sbp;
-	if (__stat(name, &sbp) < 0) {
+	struct stat* sbp = pvPortMalloc(sizeof(struct stat));
+    if (!sbp) {
+        errno = ENOMEM;
+        return -1;
+    }
+	if (__stat(name, sbp) < 0) {
+		vPortFree(sbp);
 		// errno installed by __stat
 		return -1;
 	}
+	vPortFree(sbp);
 
     set_ctx_var(get_cmd_ctx(), CD, name);
     errno = 0;
+	//goutf("CD: %s\n", name);
     return 0;
 }
 
