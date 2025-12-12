@@ -217,10 +217,6 @@ inline static long readlink(const char *restrict path, char *restrict buf, size_
     return readlinkat(AT_FDCWD, path, buf, bufsize);
 }
 
-inline static uid_t getuid(void) {
-    return 0;
-}
-
 inline static
 int chdir(const char* name) {
     typedef int (*fn_ptr_t)(const char*);
@@ -232,6 +228,18 @@ typedef long pid_t;
 typedef long _pid_t;
 #define __machine_off_t_defined
 #define	_PID_T_DECLARED
+#endif
+
+/* Type for user IDs */
+#ifndef _UID_T_DECLARED
+typedef unsigned int uid_t;
+#define	_UID_T_DECLARED
+#endif
+
+/* Type for group IDs */
+#ifndef _GID_T_DECLARED
+typedef unsigned int gid_t;
+#define	_GID_T_DECLARED
 #endif
 
 inline static
@@ -257,6 +265,90 @@ pid_t getppid(void) {
     typedef pid_t (*fn_ptr_t)();
     return ((fn_ptr_t)_sys_table_ptrs[381])();
 }
+
+inline static
+pid_t getpgid(pid_t pid) {
+    typedef pid_t (*fn_ptr_t)(pid_t);
+    return ((fn_ptr_t)_sys_table_ptrs[392])(pid);
+}
+
+inline static
+int   setpgid(pid_t pid, pid_t pgid) {
+    typedef int (*fn_ptr_t)(pid_t, pid_t);
+    return ((fn_ptr_t)_sys_table_ptrs[393])(pid, pgid);
+}
+
+inline static
+pid_t getpgrp(void) { return getpgid(0); }
+inline static
+int   setpgrp(void) { return setpgid(0, 0); }
+
+inline static
+pid_t setsid(void) {
+    typedef pid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[382])();
+}
+
+inline static
+pid_t getsid(pid_t pid) {
+    typedef pid_t (*fn_ptr_t)(pid_t);
+    return ((fn_ptr_t)_sys_table_ptrs[383])(pid);
+}
+
+inline static
+gid_t getgid(void) {
+    typedef gid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[384])();
+}
+
+inline static
+int setgid(gid_t gid) {
+    typedef int (*fn_ptr_t)(gid_t);
+    return ((fn_ptr_t)_sys_table_ptrs[385])(gid);
+}
+
+inline static
+uid_t getuid(void) {
+    typedef uid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[387])();
+}
+
+inline static
+uid_t geteuid(void) {
+    typedef uid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[388])();
+}
+
+inline static
+int setuid(uid_t uid) {
+    typedef int (*fn_ptr_t)(uid_t);
+    return ((fn_ptr_t)_sys_table_ptrs[389])(uid);
+}
+
+inline static
+gid_t getegid(void) {
+    typedef gid_t (*fn_ptr_t)();
+    return ((fn_ptr_t)_sys_table_ptrs[386])();
+}
+
+inline static
+int setegid(gid_t g) {
+    typedef int (*fn_ptr_t)(gid_t);
+    return ((fn_ptr_t)_sys_table_ptrs[391])(g);
+}
+
+inline static
+pid_t tcgetpgrp(int fd) {
+    typedef pid_t (*fn_ptr_t)(int);
+    return ((fn_ptr_t)_sys_table_ptrs[394])(fd);
+}
+
+inline static
+int tcsetpgrp(int fd, pid_t pgrp) {
+    typedef int (*fn_ptr_t)(int, pid_t);
+    return ((fn_ptr_t)_sys_table_ptrs[395])(fd, pgrp);
+}
+
 // TODO:
 // #include <signal.h>
 // int kill(pid_t pid, int sig);

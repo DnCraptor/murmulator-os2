@@ -498,6 +498,41 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __getpid, // 379
     __waitpid, // 380
     __getppid, // 381
+    __setsid, // 382
+    __getsid, // 383
+    __getgid, // 384
+    __setgid, // 385
+    __getegid, // 386
+    __getuid, // 387
+    __geteuid, // 388
+    __setuid, // 389
+    __seteuid, // 390
+    __setegid, // 391
+    __getpgid, // 392
+    __setpgid, // 393
+    __tcgetpgrp, // 394
+    __tcsetpgrp, // 395
     // TODO:
     0
 };
+gid_t __getgid(void);
+int __setgid(gid_t);
+
+uid_t __getuid(void);
+uid_t __geteuid(void);
+gid_t __getgid(void);
+gid_t __getegid(void);
+
+int __setuid(uid_t);    // можно ENOSYS
+int __seteuid(uid_t);   // можно ENOSYS
+int __setgid(gid_t);    // можно ENOSYS
+int __setegid(gid_t);   // можно ENOSYS
+
+pid_t __getpgid(pid_t pid);
+int   __setpgid(pid_t pid, pid_t pgid);
+
+//pid_t getpgrp(void);      // = getpgid(0)
+//int   setpgrp(void);      // = setpgid(0,0)
+
+int __tcgetpgrp(int fd);
+int __tcsetpgrp(int fd, pid_t pgrp);

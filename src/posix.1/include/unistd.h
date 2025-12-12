@@ -226,6 +226,43 @@ int __chdir(const char* name);
 pid_t __getpid(void);
 pid_t __getppid(void);
 
+pid_t __setsid(void);
+pid_t __getsid(pid_t);
+
+/* Type for user IDs */
+#ifndef _UID_T_DECLARED
+typedef unsigned int uid_t;
+#define	_UID_T_DECLARED
+#endif
+
+/* Type for group IDs */
+#ifndef _GID_T_DECLARED
+typedef unsigned int gid_t;
+#define	_GID_T_DECLARED
+#endif
+
+gid_t __getgid(void);
+int __setgid(gid_t);
+
+uid_t __getuid(void);
+uid_t __geteuid(void);
+gid_t __getgid(void);
+gid_t __getegid(void);
+
+int __setuid(uid_t);    // можно ENOSYS
+int __seteuid(uid_t);   // можно ENOSYS
+int __setgid(gid_t);    // можно ENOSYS
+int __setegid(gid_t);   // можно ENOSYS
+
+pid_t __getpgid(pid_t pid);
+int   __setpgid(pid_t pid, pid_t pgid);
+
+//pid_t getpgrp(void);      // = getpgid(0)
+//int   setpgrp(void);      // = setpgid(0,0)
+
+int __tcgetpgrp(int fd);
+int __tcsetpgrp(int fd, pid_t pgrp);
+
 #ifdef __cplusplus
 }
 #endif

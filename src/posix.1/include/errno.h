@@ -24,6 +24,7 @@ extern "C" {
 #define EISDIR    21  /* Is a directory */
 #define EINVAL    22  /* Invalid argument */
 #define ENFILE    23  /* Too many open files in system */
+#define ENOTTY          25
 #define EMFILE    24  /* Too many open files per process */
 #define ENOSPC    28  /* No space left on device */
 #define ESPIPE    29  /* Illegal seek */

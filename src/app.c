@@ -1141,6 +1141,8 @@ static void __in_hfa() vAppDetachedTask(void *pv) {
     cmd_ctx_t* ctx = (cmd_ctx_t*)pv;
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     ctx->task = th;
+    ctx->pgid = 1; // like init is owner for detached tasks
+    __setsid(); // ensure detached
     int pid = 0;
     for (size_t i = 0; i < pids->size; ++i) {
         if (!pids->p[i]) {
@@ -1310,6 +1312,9 @@ void __in_hfa() vCmdTask(void *pv) {
     cmd_ctx_t* ctx = get_cmd_startup_ctx();
     ctx->ppid = 0;
     ctx->pid = 1; // like init proc
+    ctx->pgid = 1;
+    ctx->sid = 1;
+    ctx->egid = 1;
     ctx->task = th;
     if (!pids) {
         pids = new_array_v(0, 0, 0);

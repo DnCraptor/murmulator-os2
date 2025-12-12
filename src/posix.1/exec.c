@@ -25,6 +25,184 @@ pid_t __getppid(void) {
     return (pid_t)ctx->ppid;
 }
 
+pid_t __setsid(void) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    if (ctx->pid == ctx->pgid) {
+        errno = EPERM;
+        return -1;
+    }
+    ctx->sid = ctx->pid;
+    ctx->pgid = ctx->pid;
+    ctx->ctty = 0;
+    return (pid_t)ctx->pid;
+}
+
+pid_t __getsid(pid_t pid) {
+    if (!pid) {
+        cmd_ctx_t *ctx = get_cmd_ctx();
+        errno = 0;
+        return ctx->sid;
+    }
+    if (pid > 0 && pid < pids->size) {
+        cmd_ctx_t *c = pids->p[pid];
+        if (!c) {
+            errno = ESRCH;
+            return -1;
+        }
+        return c->sid;
+    }
+    errno = ESRCH;
+    return -1;
+}
+
+gid_t __getgid(void) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    return ctx->gid;
+}
+
+int __setgid(gid_t gid) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    ctx->gid = gid;
+    ctx->egid = gid;
+    return 0;
+}
+
+gid_t __getegid(void) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    return ctx->egid;
+}
+
+uid_t __getuid(void) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    return ctx->uid;
+}
+uid_t __geteuid(void) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    return ctx->euid;
+}
+
+int __setuid(uid_t uid) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    ctx->uid = uid;
+    ctx->euid = uid;
+    return 0;
+}
+int __seteuid(uid_t uid) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    ctx->euid = uid;
+    return 0;
+}
+int __setegid(gid_t gid) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    ctx->egid = gid;
+    return 0;
+}
+
+pid_t __getpgid(pid_t pid) {
+    if (pid == 0) {
+        cmd_ctx_t *ctx = get_cmd_ctx();
+        errno = 0;
+        return ctx->pgid;
+    }
+
+    if (pid > 0 && pid < pids->size) {
+        cmd_ctx_t *ctx = pids->p[pid];
+        if (!ctx) {
+            errno = ESRCH;
+            return -1;
+        }
+        return ctx->pgid;
+    }
+
+    errno = ESRCH;
+    return -1;
+}
+
+int __setpgid(pid_t pid, pid_t pgid) {
+    cmd_ctx_t *self = get_cmd_ctx();
+
+    // pid == 0 → текущий процесс
+    if (pid == 0)
+        pid = self->pid;
+
+    // pgid == 0 → pgid = pid
+    if (pgid == 0)
+        pgid = pid;
+
+    // Проверка диапазона PID
+    if (pid <= 0 || pid >= pids->size) {
+        errno = ESRCH;
+        return -1;
+    }
+
+    cmd_ctx_t *proc = pids->p[pid];
+    if (!proc) {
+        errno = ESRCH;
+        return -1;
+    }
+
+    // Только процессы в одной сессии могут менять PGID
+    if (proc->sid != self->sid) {
+        errno = EPERM;
+        return -1;
+    }
+
+    // Нельзя менять PGID, если процесс уже лидер группы (PGID == PID)
+    if (proc->pgid == proc->pid) {
+        errno = EPERM;
+        return -1;
+    }
+
+    // Установка
+    proc->pgid = pgid;
+    return 0;
+}
+
+int __tcgetpgrp(int fd) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+
+    if (ctx->ctty != fd) {
+        errno = ENOTTY;
+        return -1;
+    }
+
+    return ctx->pgid;
+}
+
+int __tcsetpgrp(int fd, pid_t pgrp) {
+    cmd_ctx_t *ctx = get_cmd_ctx();
+
+    // Проверка: терминал должен быть управляющим для процесса
+    if (ctx->ctty != fd) {
+        errno = ENOTTY;
+        return -1;
+    }
+
+    // Поиск группы pgrp → нужно найти лидера группы
+    if (pgrp <= 0 || pgrp >= pids->size) {
+        errno = ESRCH;
+        return -1;
+    }
+
+    cmd_ctx_t *leader = pids->p[pgrp];
+    if (!leader) {
+        errno = ESRCH;
+        return -1;
+    }
+
+    // Группа должна быть в той же сессии
+    if (leader->sid != ctx->sid) {
+        errno = EPERM;
+        return -1;
+    }
+
+    // Установить foreground PGID
+    // В твоей модели foreground = pgid текущего процесса
+    ctx->pgid = pgrp;
+
+    return 0;
+}
+
 static bool has_any_child(cmd_ctx_t *self) {
     for (size_t i = 1; i < pids->size; ++i) {
         cmd_ctx_t *c = pids->p[i];
@@ -201,7 +379,8 @@ static cmd_ctx_t* prep_ctx(
     /* --- child internal fields --- */
     child->pboot_ctx   = NULL;
     child->parent_task = parent ? parent->task : 0;
-    child->ppid        = parent ? parent->pid : 1;
+    child->ppid        = parent ? parent->pid : 1; // 1 - like init proc
+    child->sid         = parent ? parent->sid : -1; // TODO: new session for no parent case
     child->stage       = FOUND;
     child->ret_code    = 0;
     child->pid = -1;
@@ -215,6 +394,9 @@ static cmd_ctx_t* prep_ctx(
     if (child->pid == -1) {
         child->pid = (long)array_push_back(pids, child);
     }
+    child->pgid = parent ? parent->pgid : child->pid;
+    child->gid = child->pgid;
+    child->egid = child->pgid;
 
     /* ===== Наследование POSIX-дескрипторов ===== */
     if (parent) {
@@ -269,6 +451,9 @@ static void vProcessTask(void *pv) {
     const TaskHandle_t th = xTaskGetCurrentTaskHandle();
     ctx->task = th;
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
+    if (ctx->sid <= 0) {
+        __setsid(); // ensure new session for no-parent case
+    }
     exec_sync(ctx);
     ctx->stage = ZOMBIE;
     if (ctx->parent_task) {

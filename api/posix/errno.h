@@ -13,6 +13,7 @@ extern "C" {
 #define EIO       5   /* I/O error */
 #define ENOEXEC          8
 #define EBADF     9   /* Bad file descriptor */
+#define ECHILD          10
 #define ENOMEM    12  /* Not enough memory */
 #define EACCES    13  /* Permission denied */
 #define EFAULT    14  /* Bad address: pointer points outside accessible memory */
@@ -22,6 +23,7 @@ extern "C" {
 #define EISDIR    21  /* Is a directory */
 #define EINVAL    22  /* Invalid argument */
 #define ENFILE    23  /* Too many open files in system */
+#define ENOTTY          25
 #define EMFILE    24  /* Too many open files per process */
 #define ENOSPC    28  /* No space left on device */
 #define ESPIPE    29  /* Illegal seek */

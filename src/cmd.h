@@ -91,6 +91,13 @@ typedef struct cmd_ctx {
     TaskHandle_t parent_task; // TODO: optimise (ppid only?)
     long pid;
     long ppid;
+    long pgid;
+    long sid;
+    long gid;
+    long egid;
+    long uid;
+    long euid;
+    long ctty;
     array_t /*of FDESC*/ *pfiles; // open files per process
     array_t /*of DIR*/ *pdirs; // open directories per process
     list_t /*of void*/ *pallocs; // related to the process allocations
