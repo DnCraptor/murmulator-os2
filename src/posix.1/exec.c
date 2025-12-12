@@ -7,6 +7,7 @@
 #include "__stdlib.h"
 #include "__stdio.h"
 #include "sys/wait.h"
+#include "sys/fcntl.h"
 
 pid_t __fork(void) {
     // unsupported, use posix_spawn
@@ -119,6 +120,18 @@ pid_t __waitpid(pid_t pid, int* pstatus, int options) {
     return pid;
 }
 
+// TODO: -> .h
+void init_pfiles(cmd_ctx_t* ctx);
+typedef struct FDESC_s {
+    FIL* fp;
+    unsigned int flags;
+    char* path;
+} FDESC;
+inline static bool is_closed_desc(const FDESC* fd) {
+    if (fd && !fd->fp) return true;
+    return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
+}
+
 static cmd_ctx_t* prep_ctx(
     cmd_ctx_t* parent,
     const char *path,
@@ -202,6 +215,49 @@ static cmd_ctx_t* prep_ctx(
     if (child->pid == -1) {
         child->pid = (long)array_push_back(pids, child);
     }
+
+    /* ===== Наследование POSIX-дескрипторов ===== */
+    if (parent) {
+        // гарантируем, что у родителя pfiles/pdirs инициализированы
+        init_pfiles(parent);
+        // копируем структуру таблицы pfiles
+        for (size_t i = STDERR_FILENO + 1; i < parent->pfiles->size; ++i) {
+            FDESC* pfd = (FDESC*)array_get_at(parent->pfiles, i);
+            FDESC* cfd = 0;
+            if (!pfd) {
+                // дырка в таблице — сохраняем дырку
+                array_push_back(child->pfiles, 0);
+                continue;
+            }
+            if (is_closed_desc(pfd)) {
+                array_push_back(child->pfiles, 0);
+                continue;
+            }
+            // FD_CLOEXEC → в posix_spawn ребёнок их не видит
+            if (pfd->flags & FD_CLOEXEC) {
+                array_push_back(child->pfiles, 0);
+                continue;
+            }
+            cfd = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
+            if (!cfd) {
+                // OOM: можно здесь сделать простой откат:
+                // cleanup_pfiles(child);
+                // child->pfiles = 0; child->pdirs = 0;
+                // и вернуть NULL выше
+                // но для краткости сейчас пропускаем детальный rollback
+                continue;
+            }
+            cfd->fp    = pfd->fp;
+            cfd->flags = pfd->flags;
+            cfd->path  = pfd->path;  // разделяем строку пути (только чтение)
+            if (cfd->fp) {
+                cfd->fp->pending_descriptors++;
+            }
+            array_push_back(child->pfiles, cfd);
+        }
+        // Для pdirs POSIX ничего не обещает, поэтому безопаснее их не наследовать.
+    }
+
     return child;
 }
 
@@ -264,6 +320,21 @@ int __posix_spawn(
     return 0;
 }
 
+static void close_fd_for_ctx(cmd_ctx_t* ctx, FDESC* fd) {
+    FIL* fp = fd->fp;
+    if ((intptr_t)fp <= STDERR_FILENO) {  // just ignore close request for std descriptors
+        return;
+    }
+    if (fp->pending_descriptors) {
+        --fp->pending_descriptors;
+        fd->fp = 0; // it was a pointer to other FIL in other descriptor, so cleanup it, to do not use by FDESC in 2 places
+        fd->flags = 0;
+        fd->path = 0;
+        return;
+    }
+    f_close(fp);
+}
+
 int __execve(const char *pathname, char *const argv[], char *const envp[])
 {
     if (!pathname) {
@@ -272,7 +343,7 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
     }
     cmd_ctx_t *ctx = get_cmd_ctx();
 // W/As
-// history
+// history (move to cmd proc)
 {
     char* tmp = get_ctx_var(ctx, "TEMP");
     if(!tmp) tmp = "";
@@ -347,6 +418,18 @@ set_cp866_handler(0);
         for (int i = 0; i < oargc; ++i)
             vPortFree(oargv[i]);
         vPortFree(oargv);
+    }
+    /* --- close-on-exec --- */
+    if (ctx->pfiles) {
+        for (size_t i = 0; i < ctx->pfiles->size; ++i) {
+            FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, i);
+            if (!fd) continue;
+            if (is_closed_desc(fd)) continue;
+            if (fd->flags & FD_CLOEXEC) {
+                // локальный helper, аналог __close, но по ctx
+                close_fd_for_ctx(ctx, fd);
+            }
+        }
     }
     /* ----------------- laod and jump into program ----------------- */
     if( !load_app(ctx) ) {

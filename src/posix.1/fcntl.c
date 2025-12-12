@@ -366,7 +366,7 @@ static void __in_hfa() dealloc_dir(void* p) {
     vPortFree(p);
 }
 
-static void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
+void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
     static bool posix_links_initialized = 0;
     vTaskSuspendAll();
     if (!posix_links_initialized) {
@@ -435,18 +435,26 @@ void __in_hfa() cleanup_pfiles(cmd_ctx_t* ctx) {
     for (size_t i = 0; i < ctx->pfiles->size; ++i) {
         FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, i);
         if (!fd) continue; // placeholder, just skip it
-        if ((intptr_t)fd->fp > STDERR_FILENO) {
-            if (fd->fp->obj.fs != 0) {
-                f_close(fd->fp);
+        FIL* fp = fd->fp;
+        if ((intptr_t)fp > STDERR_FILENO) {
+            if (fp->pending_descriptors > 0) {
+                fp->pending_descriptors--;
+                continue;
             }
-            vPortFree(fd->fp);
+            if (fp->obj.fs != 0) {
+                f_close(fp);
+            }
+            vPortFree(fp);
         }
         vPortFree(fd);
     }
     vPortFree(ctx->pfiles);
-    delete_array(ctx->pdirs);
-    vPortFree(ctx->pdirs);
     ctx->pfiles = 0;
+    if (ctx->pdirs) {
+        delete_array(ctx->pdirs);
+        vPortFree(ctx->pdirs);
+        ctx->pdirs = 0;
+    }
 }
 
 static BYTE __in_hfa() map_flags_to_ff_mode(int flags) {
@@ -508,7 +516,7 @@ static int __in_hfa() map_ff_fresult_to_errno(FRESULT fr) {
     }
 }
 
-inline static bool __in_hfa() is_closed_desc(const FDESC* fd) {
+inline static bool is_closed_desc(const FDESC* fd) {
     if (fd && !fd->fp) return true;
     return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }

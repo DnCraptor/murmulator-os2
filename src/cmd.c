@@ -140,6 +140,7 @@ void __in_hfa() remove_ctx(cmd_ctx_t* src) {
         src->vars = 0;
     }
     cleanup_bootb_ctx(src);
+    cleanup_pfiles(src);
     src->next = 0; // each pipe should remove it by self
     if (src->user_data) {
         vPortFree(src->user_data);

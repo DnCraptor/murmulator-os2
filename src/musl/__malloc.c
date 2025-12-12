@@ -69,14 +69,6 @@ void __free_ctx(void* ctx) {
         delete_list(c->pallocs);
         c->pallocs = 0;
     }
-    if (c->pdirs) {
-        delete_array(c->pdirs);
-        c->pdirs = 0;
-    }
-    if (c->pfiles) {
-        delete_array(c->pfiles);
-        c->pfiles = 0;
-    }
     if (c->pid) {
         pids->p[c->pid] = 0;
         if (c->pid > 1) {
