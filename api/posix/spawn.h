@@ -113,22 +113,103 @@ int posix_spawnattr_destroy(posix_spawnattr_t *) {
     return 0;
 }
 
-int posix_spawnattr_setflags(posix_spawnattr_t *, short);
-int posix_spawnattr_getflags(const posix_spawnattr_t *__restrict, short *__restrict);
+inline static
+int posix_spawnattr_getflags(const posix_spawnattr_t *attr, short *flags)
+{
+    if (!attr || !flags) return EINVAL;
+    *flags = (short)attr->flags;
+    return 0;
+}
 
-int posix_spawnattr_setpgroup(posix_spawnattr_t *, pid_t);
-int posix_spawnattr_getpgroup(const posix_spawnattr_t *__restrict, pid_t *__restrict);
+inline static
+int posix_spawnattr_setflags(posix_spawnattr_t *attr, short flags)
+{
+    if (!attr) return EINVAL;
+    attr->flags = flags;
+    return 0;
+}
 
-int posix_spawnattr_setsigmask(posix_spawnattr_t *__restrict, const sigset_t *__restrict);
-int posix_spawnattr_getsigmask(const posix_spawnattr_t *__restrict, sigset_t *__restrict);
+inline static
+int posix_spawnattr_getpgroup(const posix_spawnattr_t *attr, pid_t *pgroup)
+{
+    if (!attr || !pgroup) return EINVAL;
+    *pgroup = attr->pgroup;
+    return 0;
+}
 
-int posix_spawnattr_setsigdefault(posix_spawnattr_t *__restrict, const sigset_t *__restrict);
-int posix_spawnattr_getsigdefault(const posix_spawnattr_t *__restrict, sigset_t *__restrict);
+inline static
+int posix_spawnattr_setpgroup(posix_spawnattr_t *attr, pid_t pgroup)
+{
+    if (!attr) return EINVAL;
+    attr->pgroup = pgroup;
+    return 0;
+}
 
-int posix_spawnattr_setschedparam(posix_spawnattr_t *__restrict, const struct sched_param *__restrict);
-int posix_spawnattr_getschedparam(const posix_spawnattr_t *__restrict, struct sched_param *__restrict);
-int posix_spawnattr_setschedpolicy(posix_spawnattr_t *, int);
-int posix_spawnattr_getschedpolicy(const posix_spawnattr_t *__restrict, int *__restrict);
+inline static
+int posix_spawnattr_getsigmask(const posix_spawnattr_t *attr, sigset_t *sigmask)
+{
+    if (!attr || !sigmask) return EINVAL;
+    *(unsigned long*)sigmask = attr->sigmask;
+    return 0;
+}
+
+inline static
+int posix_spawnattr_setsigmask(posix_spawnattr_t *attr, const sigset_t *sigmask)
+{
+    if (!attr || !sigmask) return EINVAL;
+    attr->sigmask = *(unsigned long*)sigmask;
+    return 0;
+}
+
+inline static
+int posix_spawnattr_getsigdefault(const posix_spawnattr_t *attr, sigset_t *sigdefault)
+{
+    if (!attr || !sigdefault) return EINVAL;
+    *(unsigned long*)sigdefault = attr->sigdefault;
+    return 0;
+}
+
+inline static
+int posix_spawnattr_setsigdefault(posix_spawnattr_t *attr, const sigset_t *sigdefault)
+{
+    if (!attr || !sigdefault) return EINVAL;
+    attr->sigdefault = *(unsigned long*)sigdefault;
+    return 0;
+}
+
+inline static
+int posix_spawnattr_getschedparam(const posix_spawnattr_t *attr,
+                                  struct sched_param *param)
+{
+    if (!attr || !param) return EINVAL;
+    param->sched_priority = attr->schedprio;
+    return 0;
+}
+
+inline static
+int posix_spawnattr_setschedparam(posix_spawnattr_t *attr,
+                                  const struct sched_param *param)
+{
+    if (!attr || !param) return EINVAL;
+    attr->schedprio = param->sched_priority;
+    return 0;
+}
+
+inline static
+int posix_spawnattr_getschedpolicy(const posix_spawnattr_t *attr, int *policy)
+{
+    if (!attr || !policy) return EINVAL;
+    *policy = attr->schedpolicy;
+    return 0;
+}
+
+inline static
+int posix_spawnattr_setschedpolicy(posix_spawnattr_t *attr, int policy)
+{
+    if (!attr) return EINVAL;
+    attr->schedpolicy = policy;
+    return 0;
+}
 
 int posix_spawn_file_actions_init(posix_spawn_file_actions_t *);
 int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t *);

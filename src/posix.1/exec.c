@@ -313,6 +313,11 @@ inline static bool is_closed_desc(const FDESC* fd) {
     return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }
 
+void* alloc_file(void);
+void dealloc_file(void* p);
+void* alloc_dir(void);
+void dealloc_dir(void* p);
+
 static cmd_ctx_t* prep_ctx(
     cmd_ctx_t* parent,
     const char *path,
@@ -405,9 +410,10 @@ static cmd_ctx_t* prep_ctx(
         // гарантируем, что у родителя pfiles/pdirs инициализированы
         init_pfiles(parent);
         // гарантируем, что у ребёнка pfiles/pdirs инициализированы
-        init_pfiles(child);
+        child->pfiles = new_array_v(alloc_file, dealloc_file, NULL);
+        child->pdirs = new_array_v(alloc_dir, dealloc_dir, NULL);
         // копируем структуру таблицы pfiles
-        for (size_t i = STDERR_FILENO + 1; i < parent->pfiles->size; ++i) {
+        for (size_t i = 0; i < parent->pfiles->size; ++i) {
             FDESC* pfd = (FDESC*)array_get_at(parent->pfiles, i);
             FDESC* cfd = 0;
             if (!pfd) {
@@ -415,7 +421,7 @@ static cmd_ctx_t* prep_ctx(
                 array_push_back(child->pfiles, 0);
                 continue;
             }
-            if (is_closed_desc(pfd)) {
+            if (i > STDERR_FILENO && is_closed_desc(pfd)) {
                 array_push_back(child->pfiles, 0);
                 continue;
             }

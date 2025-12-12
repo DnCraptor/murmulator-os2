@@ -332,7 +332,7 @@ typedef struct FDESC_s {
     char* path;
 } FDESC;
 
-static void* __in_hfa() alloc_file(void) {
+void* __in_hfa() alloc_file(void) {
     FDESC* d = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     if (!d) return NULL;
     d->fp = (FIL*)pvPortCalloc(1, sizeof(FIL));
@@ -343,7 +343,7 @@ static void* __in_hfa() alloc_file(void) {
     return d;
 }
 
-static void __in_hfa() dealloc_file(void* p) {
+void __in_hfa() dealloc_file(void* p) {
     if (!p) return;
     FDESC* d = (FDESC*)p;
     if ((intptr_t)d->fp > STDERR_FILENO) vPortFree(d->fp);
@@ -351,11 +351,11 @@ static void __in_hfa() dealloc_file(void* p) {
     vPortFree(p);
 }
 
-static void* __in_hfa() alloc_dir(void) {
+void* __in_hfa() alloc_dir(void) {
     return pvPortCalloc(1, sizeof(DIR));
 }
 
-static void __in_hfa() dealloc_dir(void* p) {
+void __in_hfa() dealloc_dir(void* p) {
     if (!p) return;
     if (((DIR*)p)->dirent) {
         vPortFree(((DIR*)p)->dirent);
@@ -367,12 +367,12 @@ static void __in_hfa() dealloc_dir(void* p) {
 }
 
 void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
-    static bool posix_links_initialized = 0;
-    vTaskSuspendAll();
+    static volatile bool posix_links_initialized = 0;
     if (!posix_links_initialized) {
         FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
-        if (!pf) { errno = ENOMEM; goto ex; }
+        if (!pf) { errno = ENOMEM; return; }
         posix_links_initialized = 1;
+        vTaskSuspendAll();
         FRESULT r = f_open(pf, "/.extfs", FA_READ);
         if (r == FR_OK) {
             UINT br;
@@ -410,8 +410,9 @@ void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
             f_close(pf);
         }
         vPortFree(pf);
+    	xTaskResumeAll();
     }
-    if (!ctx || ctx->pfiles) goto ex;
+    if (!ctx || ctx->pfiles) return;
     ctx->pfiles = new_array_v(alloc_file, dealloc_file, NULL);
     ctx->pdirs = new_array_v(alloc_dir, dealloc_dir, NULL);
 
@@ -426,8 +427,6 @@ void __in_hfa() init_pfiles(cmd_ctx_t* ctx) {
     d = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
     d->fp = (void*)STDERR_FILENO;
     array_push_back(ctx->pfiles, d); // 2 - stderr
-ex:
-	xTaskResumeAll();
 }
 
 void __in_hfa() cleanup_pfiles(cmd_ctx_t* ctx) {
