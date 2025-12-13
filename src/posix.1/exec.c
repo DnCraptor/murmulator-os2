@@ -254,6 +254,7 @@ pid_t __waitpid(pid_t pid, int *pstatus, int options)
     cmd_ctx_t *self = get_cmd_ctx();
     
     deliver_signals(self);
+    kbd_remove_stdin_waiter(self);
     
     int mode = 0;
     pid_t target_pgid = 0;
@@ -333,10 +334,12 @@ search_zombie:
     if (options & WNOHANG)
         return 0;
 
+    kbd_remove_stdin_waiter(self);
     deliver_signals(self);
     // 4. Ждём уведомления и повторяем поиск
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     deliver_signals(self);
+    kbd_remove_stdin_waiter(self);
     goto search_zombie;
 }
 

@@ -5,6 +5,8 @@
 #include "poll.h"
 #include "errno.h"
 
+void kbd_add_stdin_waiter(TaskHandle_t th);
+void kbd_remove_stdin_waiter(TaskHandle_t th);
 void deliver_signals(cmd_ctx_t *ctx);
 extern volatile int __c; // keyboard.c
 
@@ -75,6 +77,19 @@ again:
     // 5. Перед блокировкой — сигналы
     deliver_signals(ctx);
 
+    int wants_stdin = 0;
+    for (nfds_t i = 0; i < nfds; ++i) {
+        if (fds[i].fd == 0 && (fds[i].events & POLLIN)) {
+            wants_stdin = 1;
+            break;
+        }
+    }
+
+    TaskHandle_t me = xTaskGetCurrentTaskHandle();
+    if (wants_stdin && !__c) {
+        kbd_add_stdin_waiter(me);
+    }
+
     // 6. Ожидание
     if (timeout < 0) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -82,7 +97,11 @@ again:
         TickType_t ticks = pdMS_TO_TICKS(timeout);
         if (ticks == 0) ticks = 1;
         ulTaskNotifyTake(pdTRUE, ticks);
-        timeout = 0; // POSIX: timeout уменьшается
+        timeout = 0;
+    }
+
+    if (wants_stdin) {
+        kbd_remove_stdin_waiter(me);
     }
 
     // 7. После пробуждения — сигналы

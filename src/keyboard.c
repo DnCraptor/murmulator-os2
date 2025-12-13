@@ -8,10 +8,68 @@
 #include "app.h"
 #include "overclock.h"
 
+static list_t* stdin_waiters = NULL;
+static volatile int stdin_waiters_lock = 0;
+
+static inline void lock_stdin_waiters(void)
+{
+    while (__atomic_test_and_set(&stdin_waiters_lock, __ATOMIC_ACQUIRE)) {
+        /* spin */
+    }
+}
+
+static inline void unlock_stdin_waiters(void)
+{
+    __atomic_clear(&stdin_waiters_lock, __ATOMIC_RELEASE);
+}
+
 static kbd_state_t ks = { 0 };
 
 kbd_state_t* get_kbd_state(void) {
     return &ks;
+}
+
+static inline void ensure_stdin_waiters(void) {
+    if (!stdin_waiters) {
+        stdin_waiters = new_list_v(NULL, NULL, NULL);
+    }
+}
+
+void kbd_add_stdin_waiter(TaskHandle_t th)
+{
+    ensure_stdin_waiters();
+    lock_stdin_waiters();
+    if (!list_lookup(stdin_waiters, th)) {
+        list_push_back(stdin_waiters, th);
+    }
+    unlock_stdin_waiters();
+}
+
+void kbd_remove_stdin_waiter(TaskHandle_t th)
+{
+    if (!stdin_waiters) return;
+    lock_stdin_waiters();
+    node_t* n = list_lookup(stdin_waiters, th);
+    if (n) {
+        list_erase_node(stdin_waiters, n);
+    }
+    unlock_stdin_waiters();
+}
+
+static inline void kbd_notify_stdin_ready(void)
+{
+    if (!stdin_waiters) return;
+
+    lock_stdin_waiters();
+    node_t* n = stdin_waiters->first;
+    while (n) {
+        TaskHandle_t th = (TaskHandle_t)n->data;
+        if (th) {
+            xTaskNotifyGive(th);
+        }
+        n = n->next;
+    }
+    unlock_stdin_waiters();
 }
 
 static const char scan_code_2_cp866_a[] = {
@@ -128,23 +186,27 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
         ks.input = 0;
         if (cp866_handler) cp866_handler(CHAR_CODE_UP, ps2scancode);
         __c = CHAR_CODE_UP;
+        kbd_notify_stdin_ready();
         return true;
     }
     if (ps2scancode == 0xE050 || ps2scancode == 0x50 && !(get_leds_stat() & PS2_LED_NUM_LOCK)) {
         ks.input = 0;
         if (cp866_handler) cp866_handler(CHAR_CODE_DOWN, ps2scancode);
         __c = CHAR_CODE_DOWN;
+        kbd_notify_stdin_ready();
         return true;
     }
     if (ps2scancode == 0xE09C) {
         if (cp866_handler) cp866_handler(CHAR_CODE_ENTER, ps2scancode);
         __c = CHAR_CODE_ENTER;
+        kbd_notify_stdin_ready();
         return true;
     }
     switch ((uint8_t)ks.input & 0xFF) {
         case 0x81: // ESC
             if (cp866_handler) cp866_handler(CHAR_CODE_ESC, ps2scancode);
             __c = CHAR_CODE_ESC;
+            kbd_notify_stdin_ready();
             return true;
         case 0x1D:
             ks.bCtrlPressed = true;
@@ -162,6 +224,7 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
             if (s) {
                 c = tricode2c(tricode, s);
                 __c = c;
+                kbd_notify_stdin_ready();
                 return true;
             }
             break;
@@ -191,6 +254,7 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
         case 0x0E:
             if (cp866_handler) cp866_handler(CHAR_CODE_BS, ps2scancode);
             __c = CHAR_CODE_BS;
+            kbd_notify_stdin_ready();
             return true;
         case 0x0F:
             ks.bTabPressed = true;
@@ -263,6 +327,7 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
         } else {
             __c = c;
         }
+        kbd_notify_stdin_ready();
     }
     return true;
 }
