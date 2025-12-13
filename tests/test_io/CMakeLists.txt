@@ -17,7 +17,7 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.22)
 include(pico_sdk_import.cmake)
 
-project(test C CXX ASM)
+project(test_io C CXX ASM)
 pico_sdk_init()
 
 SET(BUILD_NAME "${PROJECT_NAME}")
@@ -43,7 +43,7 @@ message(STATUS "")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/runtime" "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 
 add_executable(${PROJECT_NAME}
-    test.c
+    test_io.c
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -55,8 +55,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 configure_file(memmap.ld.in memmap.ld @ONLY)
 pico_set_linker_script(${PROJECT_NAME} ${CMAKE_CURRENT_BINARY_DIR}/memmap.ld)
 
-pico_set_program_name(${PROJECT_NAME} "Murmulator OS Applications: POSIX.1 test")
-pico_set_program_version(${PROJECT_NAME} "test")
+pico_set_program_name(${PROJECT_NAME} "Murmulator OS Applications: POSIX.1 test_io")
+pico_set_program_version(${PROJECT_NAME} "test_io")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     murmulator_runtime

@@ -4,6 +4,11 @@
 #include <sys/cdefs.h>   /* for __BEGIN_DECLS / __END_DECLS macros */
 #include <sys/types.h>   /* for nfds_t */
 
+#ifndef M_OS_API_SYS_TABLE_BASE
+#define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
+static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
+#endif
+
 __BEGIN_DECLS
 
 /* Structure used by poll() */
@@ -35,7 +40,10 @@ struct pollfd {
 typedef unsigned long nfds_t;
 
 /* Main function prototype */
-int poll(struct pollfd fds[], nfds_t nfds, int timeout);
+int poll(struct pollfd fds[], nfds_t nfds, int timeout) {
+    typedef int (*fn_ptr_t)(struct pollfd fds[], nfds_t nfds, int timeout);
+    return ((fn_ptr_t)_sys_table_ptrs[299])(fds, nfds, timeout);
+}
 
 __END_DECLS
 

@@ -38,6 +38,10 @@ int main(int argc, char **argv)
         printf("waitpid failed\n");
         return 1;        
     }
+    if ((status >> 8) != 0) {
+        printf("child exited with %d\n", status >> 8);
+        return 1;
+    }
 
     printf("setsid OK\n");
     return 0;

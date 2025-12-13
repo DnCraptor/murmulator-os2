@@ -104,6 +104,13 @@ again:
         kbd_remove_stdin_waiter(me);
     }
 
+    /* ЛОЖНОЕ ПРОБУЖДЕНИЕ:
+       poll имеет право проснуться, но не имеет права
+       вернуть POLLIN без реального символа */
+    if (wants_stdin && __c == 0) {
+        goto again;
+    }
+
     // 7. После пробуждения — сигналы
     deliver_signals(ctx);
 
