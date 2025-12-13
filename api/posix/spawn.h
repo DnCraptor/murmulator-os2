@@ -11,8 +11,12 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 #endif
 
 #include <errno.h>
-#include <string.h>
-
+#include <sys/types.h>   // pid_t, uid_t, gid_t, mode_t, size_t
+#include <signal.h>      // sigset_t
+#include <sched.h>       // struct sched_param
+#include <sys/stat.h>    // mode_t
+#include <stdlib.h>      // free, realloc
+#include <string.h>      // memcpy/strlen
 /** TODO:
 #include <features.h>
 

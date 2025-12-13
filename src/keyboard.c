@@ -1,6 +1,8 @@
 #include <pico.h>
 #include <pico/platform.h>
 #include <hardware/watchdog.h>
+#include "FreeRTOS.h"
+#include "task.h"
 #include "keyboard.h"
 #include "ps2.h"
 #include "ff.h"
@@ -331,9 +333,6 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
     }
     return true;
 }
-
-#include "FreeRTOS.h"
-#include "task.h"
 
 char getch_now(void) {
     char c = __c & 0xFF;
