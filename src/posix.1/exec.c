@@ -9,6 +9,7 @@
 #include "sys/wait.h"
 #include "sys/fcntl.h"
 #include "sys/stat.h"
+#include "signal.h"
 
 typedef struct FDESC_s {
     FIL* fp;
@@ -220,10 +221,40 @@ static bool has_any_child(cmd_ctx_t *self) {
     return false;
 }
 
+void deliver_signals(cmd_ctx_t *ctx)
+{
+    uint32_t pending = ctx->sig_pending & ~ctx->sig_blocked;
+    if (!pending)
+        return;
+
+    for (int sig = 1; sig < MAX_SIG; ++sig) {
+        if (pending & (1u << sig)) {
+            ctx->sig_pending &= ~(1u << sig);
+
+            sighandler_t h = ctx->sig_handler[sig];
+            if (h == SIG_IGN)
+                continue;
+
+            if (h == SIG_DFL) {
+                ctx->ret_code = sig;
+                ctx->stage = ZOMBIE;
+                if (ctx->parent_task)
+                    xTaskNotifyGive(ctx->parent_task);
+                vTaskDelete(NULL);
+                __unreachable();
+            }
+
+            h(sig);
+        }
+    }
+}
+
 pid_t __waitpid(pid_t pid, int *pstatus, int options)
 {
     cmd_ctx_t *self = get_cmd_ctx();
-
+    
+    deliver_signals(self);
+    
     int mode = 0;
     pid_t target_pgid = 0;
 
@@ -302,8 +333,10 @@ search_zombie:
     if (options & WNOHANG)
         return 0;
 
+    deliver_signals(self);
     // 4. Ждём уведомления и повторяем поиск
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    deliver_signals(self);
     goto search_zombie;
 }
 
@@ -327,6 +360,12 @@ static cmd_ctx_t* prep_ctx(
 ) {
     cmd_ctx_t* child = __new_ctx();
     if (!child) return NULL;
+
+    child->sig_pending = 0;
+    child->sig_blocked = 0;
+    for(int i=0;i<MAX_SIG;i++)
+        child->sig_handler[i] = SIG_DFL;
+    child->sig_default = DEFAULT_MASK;
 
     /* --- copy argv --- */
     if (argv) {
@@ -464,6 +503,7 @@ static void vProcessTask(void *pv) {
     if (ctx->sid <= 0) {
         __setsid(); // ensure new session for no-parent case
     }
+    deliver_signals(ctx);
     exec_sync(ctx);
     ctx->stage = ZOMBIE;
     if (ctx->parent_task) {
@@ -799,4 +839,99 @@ int __posix_spawnp(
         p += len + 1;
     }
     return ENOENT;
+}
+
+int __kill(pid_t pid, int sig)
+{
+    if (sig <= 0 || sig >= MAX_SIG) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    cmd_ctx_t *self = get_cmd_ctx();
+
+    // Выбор режима
+    int mode;
+    pid_t target_pgid = 0;
+
+    if (pid > 0) mode = 1;
+    else if (pid == 0) { mode = 2; target_pgid = self->pgid; }
+    else if (pid == -1) mode = 3;
+    else { mode = 4; target_pgid = -pid; }
+
+    int delivered = 0;
+
+    for (size_t i = 1; i < pids->size; i++) {
+        cmd_ctx_t* c = pids->p[i];
+        if (!c) continue;
+
+        switch (mode) {
+            case 1: if (c->pid != pid) continue; break;
+            case 2: if (c->pgid != target_pgid) continue; break;
+            case 3: /* all */ break;
+            case 4: if (c->pgid != target_pgid) continue; break;
+        }
+
+        // Посылаем сигнал — атомарно отмечаем, что он pending
+        c->sig_pending |= (1U << sig);
+
+        // Уведомляем задачу (разбудит waitpid и сам таск)
+        xTaskNotifyGive(c->task);
+
+        delivered = 1;
+        if (mode == 1) break; // конкретный pid — один раз
+    }
+
+    if (!delivered) {
+        errno = ESRCH;
+        return -1;
+    }
+
+    return 0;
+}
+
+sighandler_t __signal(int sig, sighandler_t handler)
+{
+    if (sig <= 0 || sig >= MAX_SIG || sig == SIGKILL) {
+        errno = EINVAL;
+        return SIG_ERR;
+    }
+
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    sighandler_t old = ctx->sig_handler[sig];
+    ctx->sig_handler[sig] = handler;
+    return old;
+}
+
+int __raise(int sig) {
+    return __kill(get_cmd_ctx()->pid, sig);
+}
+
+int __sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
+{
+    cmd_ctx_t *ctx = get_cmd_ctx();
+
+    if (oldset)
+        *oldset = ctx->sig_blocked;
+
+    if (!set)
+        return 0;
+
+    switch (how) {
+        case SIG_BLOCK:
+            ctx->sig_blocked |= *set;
+            ctx->sig_blocked &= ~(1u << SIGKILL);
+            break;
+        case SIG_UNBLOCK:
+            ctx->sig_blocked &= ~(*set);
+            break;
+        case SIG_SETMASK:
+            ctx->sig_blocked = *set;
+            ctx->sig_blocked &= ~(1u << SIGKILL);
+            break;
+        default:
+            errno = EINVAL;
+            return -1;
+    }
+    return 0;
 }

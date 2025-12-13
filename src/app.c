@@ -1212,6 +1212,8 @@ void __in_hfa() __exit(int status) {
     __unreachable();
 }
 
+void deliver_signals(cmd_ctx_t *ctx);
+
 void __in_hfa() exec(cmd_ctx_t* ctx) { // like init proc flow
     do {
         pids->p[1] = ctx;
@@ -1237,7 +1239,9 @@ void __in_hfa() exec(cmd_ctx_t* ctx) { // like init proc flow
             #if DEBUG_APP_LOAD
             goutf("ctx [%p], ulTaskNotifyTake[%p]\n", ctx, ctx->parent_task);
             #endif
+            deliver_signals(ctx);
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            deliver_signals(ctx);
             #if DEBUG_APP_LOAD
             goutf("ctx [%p], ulTaskNotifyTake passed\n", ctx);
             #endif

@@ -65,6 +65,10 @@ typedef enum {
     ZOMBIE
 } cmd_exec_stage_t;
 
+#define MAX_SIG 32 
+
+typedef void (*sighandler_t)(int);
+
 typedef struct cmd_ctx {
     uint32_t argc;
     char** argv;
@@ -98,6 +102,10 @@ typedef struct cmd_ctx {
     long uid;
     long euid;
     long ctty;
+    uint32_t sig_pending;        // битовая маска сигналов
+    uint32_t sig_blocked;        // маска заблокированных сигналов
+    sighandler_t sig_handler[MAX_SIG];
+    uint32_t sig_default;        // маска сигналов с дефолтным действием
     array_t /*of FDESC*/ *pfiles; // open files per process
     array_t /*of DIR*/ *pdirs; // open directories per process
     list_t /*of void*/ *pallocs; // related to the process allocations

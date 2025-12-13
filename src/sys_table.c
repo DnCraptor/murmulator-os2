@@ -42,6 +42,7 @@
 #include "__libgen.h"
 #include "spawn.h"
 #include "sys/wait.h"
+#include "signal.h"
 
 #include "fts.h"
 
@@ -515,27 +516,10 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __posix_spawnp, // 396
     __getenv, // 397
     __access, // 398
+    __kill, // 399
+    __signal, // 400
+    __raise, // 401
+    __sigprocmask, // 402
     // TODO:
     0
 };
-gid_t __getgid(void);
-int __setgid(gid_t);
-
-uid_t __getuid(void);
-uid_t __geteuid(void);
-gid_t __getgid(void);
-gid_t __getegid(void);
-
-int __setuid(uid_t);    // можно ENOSYS
-int __seteuid(uid_t);   // можно ENOSYS
-int __setgid(gid_t);    // можно ENOSYS
-int __setegid(gid_t);   // можно ENOSYS
-
-pid_t __getpgid(pid_t pid);
-int   __setpgid(pid_t pid, pid_t pgid);
-
-//pid_t getpgrp(void);      // = getpgid(0)
-//int   setpgrp(void);      // = setpgid(0,0)
-
-int __tcgetpgrp(int fd);
-int __tcsetpgrp(int fd, pid_t pgrp);

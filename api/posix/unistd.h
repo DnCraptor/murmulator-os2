@@ -359,9 +359,6 @@ int access(const char *pathname, int mode) {
     typedef int (*fn_ptr_t)(const char *, int);
     return ((fn_ptr_t)_sys_table_ptrs[398])(pathname, mode);
 }
-// TODO:
-// #include <signal.h>
-// int kill(pid_t pid, int sig);
 
 #ifdef __cplusplus
 }

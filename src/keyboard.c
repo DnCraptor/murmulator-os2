@@ -113,7 +113,7 @@ void set_cp866_handler(cp866_handler_t h) {
 #define CHAR_CODE_TAB   '\t'
 #define CHAR_CODE_ESC   0x1B
 
-static volatile int __c = 0;
+volatile int __c = 0;
 bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
     if (scancode_handler) {
         if (scancode_handler(ps2scancode)) {
@@ -276,8 +276,14 @@ char getch_now(void) {
     return c;
 }
 
+void deliver_signals(cmd_ctx_t *ctx);
+
 char __getch(void) {
-    while(!__c) vTaskDelay(50); // TODO: Queue ?
+    while (!__c) {
+        deliver_signals(get_cmd_ctx());   // ← ПЕРЕД блокировкой
+        vTaskDelay(50);
+        deliver_signals(get_cmd_ctx());   // ← ПОСЛЕ пробуждения
+    }
     char c = __c & 0xFF;
     __c = 0;
     return c;
@@ -285,7 +291,11 @@ char __getch(void) {
 
 int __getc(FIL* f) {
     if (f == NULL) {
-        while(!__c) vTaskDelay(50); // TODO: Queue ?
+        while (!__c) {
+            deliver_signals(get_cmd_ctx());   // ← ПЕРЕД блокировкой
+            vTaskDelay(50);
+            deliver_signals(get_cmd_ctx());   // ← ПОСЛЕ пробуждения
+        }
         int c = __c;
         __c = 0;
         return c;
