@@ -1,5 +1,5 @@
 # murmulator-os
-Murmulator OS v.2.2.1<br/>
+Murmulator OS v.2.2.3<br/>
 
 # Hardware needed
 Raspberry Pi Pico 2 (RP2350)<br/>
@@ -109,8 +109,22 @@ Press and hold any other key on the Murmulator reset or power-on, to boot (skip 
 
 # config.sys
 Use it to override for "M-OS system variables" or:<br/>
-CPU - to overclock or downclock the system on start. It may be useful to set some less freq. in case your board unable to support default<br/>
+CPU - (MHz) to overclock or downclock the system on start. It may be useful to set some less freq. in case your board unable to support default<br/>
+VREG - (enum) to overvoltage: 20 - 1.6V; 21 - 1.65V...<br/>
+FLASH - (MHz) to overclock flash memory chip (default - 88)<br/>
+FLASH_T - (hex uint32_t) to overclock flash memory chip (alernative way)<br/>
+PSRAM - (MHz) to overclock QSPI PSRAM chip (default - 88)<br/>
+PSRAM_T - (hex uint32_t) to overclock QSPI PSRAM chip (alternative way)<br/>
+<br/>
 Example:<br/>
 CPU=352<br/>
+VREG=21<br/>
+FLASH=100<br/>
+PSRAM=166<br/>
+<br/>
 It forces to change CPU frequency to 352 MHz to avoid overload<br/>
-N.B. Default volage for RP2350 in MOS is 1.6V (not yet to be reconfigured)<br/>
+N.B. Default volage for RP2350 in MOS is 1.6V, default CPU freq. 378 Mhz (252 for some builds)<br/>
+<br/>
+Otehr example (in direct timings):<br/>
+FLASH_T=60007404<br/>
+PSRAM_T=605E4505<br/>
