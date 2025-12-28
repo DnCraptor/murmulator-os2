@@ -9,6 +9,7 @@
 #include "cmd.h"
 #include "app.h"
 #include "overclock.h"
+#include "unistd.h"
 
 static list_t* stdin_waiters = NULL;
 static volatile int stdin_waiters_lock = 0;
@@ -174,42 +175,51 @@ void set_cp866_handler(cp866_handler_t h) {
 #define CHAR_CODE_ESC   0x1B
 
 volatile int __c = 0;
-bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
-    if (scancode_handler) {
-        if (scancode_handler(ps2scancode)) {
-            return true;
-        }
-    }
+
+static volatile pid_t stdin_owner_pid = 1; // по умолчанию init/shell (pid=1)
+
+void kbd_set_stdin_owner(pid_t pid)
+{
+    if (pid <= 0) pid = 1;
+    stdin_owner_pid = pid;
+}
+
+pid_t kbd_get_stdin_owner(void)
+{
+    return stdin_owner_pid;
+}
+
+bool __not_in_flash() handleScancode(const uint32_t ps2scancode) {
     static char tricode[4] = {0};
     size_t s;
     char c = 0;
     ks.input = ps2scancode;
-    if (ps2scancode == 0xE048 || ps2scancode == 0x48 && !(get_leds_stat() & PS2_LED_NUM_LOCK)) {
+    if ((ps2scancode == 0xE048 || ps2scancode == 0x48) && !(get_leds_stat() & PS2_LED_NUM_LOCK)) {
         ks.input = 0;
         if (cp866_handler) cp866_handler(CHAR_CODE_UP, ps2scancode);
         __c = CHAR_CODE_UP;
         kbd_notify_stdin_ready();
-        return true;
+        goto ex;
     }
-    if (ps2scancode == 0xE050 || ps2scancode == 0x50 && !(get_leds_stat() & PS2_LED_NUM_LOCK)) {
+    if ((ps2scancode == 0xE050 || ps2scancode == 0x50) && !(get_leds_stat() & PS2_LED_NUM_LOCK)) {
         ks.input = 0;
         if (cp866_handler) cp866_handler(CHAR_CODE_DOWN, ps2scancode);
         __c = CHAR_CODE_DOWN;
         kbd_notify_stdin_ready();
-        return true;
+        goto ex;
     }
     if (ps2scancode == 0xE09C) {
         if (cp866_handler) cp866_handler(CHAR_CODE_ENTER, ps2scancode);
         __c = CHAR_CODE_ENTER;
         kbd_notify_stdin_ready();
-        return true;
+        goto ex;
     }
     switch ((uint8_t)ks.input & 0xFF) {
         case 0x81: // ESC
             if (cp866_handler) cp866_handler(CHAR_CODE_ESC, ps2scancode);
             __c = CHAR_CODE_ESC;
             kbd_notify_stdin_ready();
-            return true;
+            goto ex;
         case 0x1D:
             ks.bCtrlPressed = true;
             if (ks.bRightShift || ks.bLeftShift) ks.bRus = !ks.bRus;
@@ -227,7 +237,7 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
                 c = tricode2c(tricode, s);
                 __c = c;
                 kbd_notify_stdin_ready();
-                return true;
+                goto ex;
             }
             break;
         case 0x53:
@@ -257,7 +267,7 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
             if (cp866_handler) cp866_handler(CHAR_CODE_BS, ps2scancode);
             __c = CHAR_CODE_BS;
             kbd_notify_stdin_ready();
-            return true;
+            goto ex;
         case 0x0F:
             ks.bTabPressed = true;
             break;
@@ -285,7 +295,7 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
     }
     if (ks.bCtrlPressed && ks.bAltPressed && ks.bDelPressed) {
         watchdog_enable(1, true);
-        return true;
+        goto ex;
     }
     if (ks.bTabPressed && ks.bCtrlPressed) {
         if (ks.bPlusPressed) {
@@ -318,7 +328,7 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
                 } else {
                     tricode[s++] = c;
                     tricode[s] = 0;
-                    return true;
+                    goto ex;
                 }
             }
         }
@@ -331,11 +341,24 @@ bool __scratch_y("kbd_driver_text") handleScancode(const uint32_t ps2scancode) {
         }
         kbd_notify_stdin_ready();
     }
+ex:
+    if (scancode_handler) {
+        scancode_handler(ps2scancode);
+    }
     return true;
 }
 
 char getch_now(void) {
-    char c = __c & 0xFF;
+    cmd_ctx_t *ctx = get_cmd_ctx();
+    pid_t me = ctx ? ctx->pid : 1;
+    pid_t owner = stdin_owner_pid;
+
+    // если stdin принадлежит не нам — ничего не трогаем
+    if (owner != 0 && owner != me) {
+        return 0;
+    }
+
+    char c = (char)__c;
     __c = 0;
     return c;
 }

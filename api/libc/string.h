@@ -28,21 +28,78 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 
 #include <stddef.h>
 
+inline static
+int memcmp(const void *a, const void *b, size_t n)
+{
+    const unsigned char *p = (const unsigned char *)a;
+    const unsigned char *q = (const unsigned char *)b;
+
+    while (n--) {
+        unsigned char x = *p++;
+        unsigned char y = *q++;
+        if (x != y)
+            return (x < y) ? -1 : 1;
+    }
+    return 0;
+}
+
 /*
-int memcmp (const void *, const void *, size_t);
 void *memchr (const void *, int, size_t);
 
 int strcoll (const char *, const char *);
 size_t strxfrm (char *__restrict, const char *__restrict, size_t);
 
-char *strchr (const char *, int);
-
 size_t strcspn (const char *, const char *);
 size_t strspn (const char *, const char *);
 char *strpbrk (const char *, const char *);
-char *strstr (const char *, const char *);
 char *strtok (char *__restrict, const char *__restrict);
 */
+
+inline static
+char *strstr(const char *haystack, const char *needle)
+{
+    if (!*needle)
+        return (char *)haystack;
+
+    const unsigned char *h = (const unsigned char *)haystack;
+    const unsigned char *n = (const unsigned char *)needle;
+    unsigned char first = n[0];
+
+    for (;; ++h) {
+        unsigned char c = *h;
+        if (c == 0)
+            return 0;
+        if (c != first)
+            continue;
+
+        /* candidate match */
+        const unsigned char *h2 = h + 1;
+        const unsigned char *n2 = n + 1;
+
+        for (;;) {
+            unsigned char nc = *n2;
+            if (nc == 0)
+                return (char *)h;     /* full match */
+            if (*h2 != nc)
+                break;
+            ++h2;
+            ++n2;
+        }
+    }
+}
+
+inline static
+char *strchr(const char *s, int c) {
+    const unsigned char *p = (const unsigned char *)s;
+    const unsigned char ch = (unsigned char)c;
+    for (;;) {
+        unsigned char v = *p;
+        if (v == ch) return (char *)p;
+        if (v == 0)  return 0;
+        ++p;
+    }
+    __builtin_unreachable();
+}
 
 inline static
 char* strncat(char* restrict dst, const char* restrict src, size_t n)

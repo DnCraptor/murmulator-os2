@@ -1159,6 +1159,11 @@ static void __in_hfa() vAppDetachedTask(void *pv) {
     #endif
     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
     exec_sync(ctx);
+    /* === RESET GLOBAL INPUT HANDLERS === */
+    set_usb_detached_handler(0);
+    set_scancode_handler(0);
+    set_cp866_handler(0);
+    /* ================================== */
     remove_ctx(ctx);
     #if DEBUG_APP_LOAD
     goutf("vAppDetachedTask: [%p] <<<\n", ctx);
@@ -1235,6 +1240,7 @@ void __in_hfa() exec(cmd_ctx_t* ctx) { // like init proc flow
             goutf("ctx [%p]\n", ctx);
             #endif
             ctx->parent_task = xTaskGetCurrentTaskHandle();
+            kbd_set_stdin_owner(ctx->pid);
             xTaskCreate(vAppAttachedTask, ctx->argv[0], 1024/*x 4 = 4096*/, ctx, configMAX_PRIORITIES - 1, NULL);
             #if DEBUG_APP_LOAD
             goutf("ctx [%p], ulTaskNotifyTake[%p]\n", ctx, ctx->parent_task);
@@ -1246,6 +1252,14 @@ void __in_hfa() exec(cmd_ctx_t* ctx) { // like init proc flow
             goutf("ctx [%p], ulTaskNotifyTake passed\n", ctx);
             #endif
             cleanup_bootb_ctx(ctx);
+            // === child finished: cleanup global handlers (W/A safety net) ===
+            set_usb_detached_handler(0);
+            set_scancode_handler(0);
+            set_cp866_handler(0);
+
+            // === foreground stdin back to init/shell ===
+            kbd_set_stdin_owner(1);
+            /* ================================== */
             if (ctx->stage != PREPARED) { // it is expected cmd/cmd0 will prepare ctx for next run for application, in other case - cleanup ctx
                 cleanup_ctx(ctx);
             }
@@ -1391,6 +1405,11 @@ void __in_hfa() vCmdTask(void *pv) {
         pids->p[1] = ctx;
         continue;
 e:
+        /* === RESET GLOBAL INPUT HANDLERS === */
+        set_usb_detached_handler(0);
+        set_scancode_handler(0);
+        set_cp866_handler(0);
+        /* ================================== */
         if (ctx->stage != PREPARED) { // it is expected cmd/cmd0 will prepare ctx for next run for application, in other case - cleanup ctx
             cleanup_ctx(ctx);
         }
