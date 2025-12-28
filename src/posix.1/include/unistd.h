@@ -270,6 +270,8 @@ int __tcsetpgrp(int fd, pid_t pgrp);
 
 int __access(const char *, int);
 
+char* __getcwd(char *buf, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

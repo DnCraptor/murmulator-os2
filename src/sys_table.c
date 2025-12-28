@@ -520,6 +520,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __signal, // 400
     __raise, // 401
     __sigprocmask, // 402
+    __getcwd, // 403
     // TODO:
     0
 };

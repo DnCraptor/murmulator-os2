@@ -13,7 +13,10 @@ extern "C" {
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;
 #endif
 
+/// TODO: posix/limits.h ?
+#if !defined(PATH_MAX)
 #define PATH_MAX 255
+#endif
 
 #ifndef AT_FDCWD
 #define AT_FDCWD (-100)
@@ -358,6 +361,13 @@ inline static
 int access(const char *pathname, int mode) {
     typedef int (*fn_ptr_t)(const char *, int);
     return ((fn_ptr_t)_sys_table_ptrs[398])(pathname, mode);
+}
+
+
+inline static
+char* getcwd(char *buf, size_t size) {
+    typedef char* (*fn_ptr_t)(char*, size_t);
+    return ((fn_ptr_t)_sys_table_ptrs[403])(buf, size);
 }
 
 #ifdef __cplusplus

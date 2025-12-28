@@ -59,4 +59,25 @@ static inline int iscntrl(int _c)
 	return (_c == -1 ? 0 : (_c >= 0 && _c <= 0x1F) || (_c == 0x7F));
 }
 
+inline static int isgraph(int c)
+{
+    unsigned char uc = (unsigned char)c;
+    return (uc >= 0x21 && uc <= 0x7E);
+}
+
+inline static int isalpha(int c)
+{
+    unsigned char uc = (unsigned char)c;
+    return (uc >= 'A' && uc <= 'Z') ||
+           (uc >= 'a' && uc <= 'z');
+}
+
+inline static int isalnum(int c)
+{
+    unsigned char uc = (unsigned char)c;
+    return (uc >= '0' && uc <= '9') ||
+           (uc >= 'A' && uc <= 'Z') ||
+           (uc >= 'a' && uc <= 'z');
+}
+
 #endif

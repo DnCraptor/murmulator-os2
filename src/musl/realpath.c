@@ -21,7 +21,7 @@ static const char* ctx_cwd(cmd_ctx_t* ctx) {
     return (cd && cd[0]) ? cd : "/";
 }
 
-char* __libc() getcwd(char *buf, size_t size) {
+char* __libc() __getcwd(char *buf, size_t size) {
     if (!size) { errno = EINVAL; return 0; }
     cmd_ctx_t* ctx = get_cmd_ctx();
     const char* cwd = ctx_cwd(ctx);
@@ -113,7 +113,7 @@ char* __libc() __realpathat(int dfd, const char *restrict filename, char *restri
 	}
 	if (filename[0] != '/' && filename[0] != '\\') {
 		if (dfd == AT_FDCWD) {
-			if(!getcwd(output, PATH_MAX)) goto err;
+			if(!__getcwd(output, PATH_MAX)) goto err;
 		} else {
 			if(!get_dir(dfd, output, PATH_MAX))  goto err;
 		}
