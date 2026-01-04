@@ -931,17 +931,16 @@ int __in_hfa() __read(int fildes, void *buf, size_t count) {
         while (n < count) {
             char c = fd->flags & O_NONBLOCK ? getch_now() : __getch();
             if (c == 0 && (fd->flags & O_NONBLOCK)) {
+                if (n > 0) return n;
                 errno = EAGAIN;
                 return -1;
             }
             p[n++] = c;
             if (n == count) break;
             if (c == '\n' || c == '\r') {
-                p[n] = 0;
                 break;
             }
         }
-        errno = 0;
         return n;
     }
 

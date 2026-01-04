@@ -412,5 +412,19 @@ fail:
     buf[0] = '0' + (errno - (errno / 10) * 10);
     log_write(buf);
     log_write("\n");
-    return -1;
+
+    { // non-blocking input
+        printf("NONBLOCK STDIN test\nType in:");
+        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+        char c;
+        ssize_t r;
+        do {
+            r = read(STDIN_FILENO, &c, 1);
+            usleep(1000);
+        } while (r <= 0);
+        printf("READ: %c\n", c);
+    }
+
+    return 0;
 }

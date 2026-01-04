@@ -22,6 +22,8 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 #define AT_FDCWD (-100)
 #endif
 
+#include <sys/types.h>
+
 #define STDIN_FILENO  0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
@@ -369,6 +371,14 @@ char* getcwd(char *buf, size_t size) {
     typedef char* (*fn_ptr_t)(char*, size_t);
     return ((fn_ptr_t)_sys_table_ptrs[403])(buf, size);
 }
+
+inline static
+int usleep(useconds_t usec) {
+    typedef void (*vTaskDelay_ptr_t)(unsigned long);
+    ((vTaskDelay_ptr_t)_sys_table_ptrs[2])( usec / 1000 );
+    return 0;
+}
+
 
 #ifdef __cplusplus
 }
