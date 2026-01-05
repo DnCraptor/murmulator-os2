@@ -375,10 +375,11 @@ char* getcwd(char *buf, size_t size) {
 inline static
 int usleep(useconds_t usec) {
     typedef void (*vTaskDelay_ptr_t)(unsigned long);
-    ((vTaskDelay_ptr_t)_sys_table_ptrs[2])( usec / 1000 );
+    unsigned long ticks = usec / 1000;
+    if (ticks == 0) ticks = 1;
+    ((vTaskDelay_ptr_t)_sys_table_ptrs[2])( ticks );
     return 0;
 }
-
 
 #ifdef __cplusplus
 }

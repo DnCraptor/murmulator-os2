@@ -226,9 +226,6 @@ void __time_critical_func(render_core)() {
     sem_acquire_blocking(&vga_start_semaphore);
     while(!reboot_is_requested) {
         pcm_call();
-#if 0
-        if (drv == TFT_DRV) refresh_lcd();
-#endif
         tight_loop_contents();
     }
     watchdog_enable(1, true);
@@ -660,7 +657,7 @@ static void __in_hfa() startup_vga(void) {
             if (!pio9PD && !pio9PU) {
                 drv = TFT_DRV;
             } else {
-    drv = HDMI_DRV;
+                drv = HDMI_DRV;
             }
         }
         #else

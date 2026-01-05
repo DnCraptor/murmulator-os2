@@ -39,7 +39,9 @@ set(MURM1x ON)
 #set(HID ON)
 #set(VGA ON)
 set(VGAHDMI ON)
-#set(TFT ON)
+set(TFT ON)
+set(ILI9341 ON)
+
 #set(CPU_MHZ 252)
 #set(CPU_MHZ 352)
 #set(CPU_MHZ 366)
@@ -225,6 +227,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     # do not touch last 512 bytes in RAM on launch app, say, no more RAM
     RESERVED_RAM=512
     PSRAM_NO_FUGE=1
+    TFT_INV=${TFT_INV}
 )
 
 if (MURM20)
@@ -505,8 +508,12 @@ IF (TFT)
         target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
         target_link_libraries(${PROJECT_NAME} PRIVATE hdmi)
         target_compile_definitions(${PROJECT_NAME} PRIVATE TFT)
-        target_compile_definitions(${PROJECT_NAME} PRIVATE ILI9341)
-        SET(BUILD_NAME "${BUILD_NAME}-VGA-HDMI-ILI9341")
+        IF (ILI9341)
+            SET(BUILD_NAME "${BUILD_NAME}-ILI9341-VGA-HDMI")
+            target_compile_definitions(${PROJECT_NAME} PRIVATE ILI9341)
+        ELSE ()
+            SET(BUILD_NAME "${BUILD_NAME}-ST7789-VGA-HDMI")
+        ENDIF ()
     else ()
         target_link_libraries(${PROJECT_NAME} PRIVATE st7789)
         target_compile_definitions(${PROJECT_NAME} PRIVATE TFT)

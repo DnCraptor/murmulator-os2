@@ -95,7 +95,6 @@ static uint st7789_chan;
 
 uint16_t palette[256];
 
-uint8_t* text_buffer = NULL;
 static uint8_t* graphics_buffer = NULL;
 
 static uint graphics_buffer_width = 320;
@@ -246,10 +245,6 @@ void tft_graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16
     graphics_buffer_height = height;
 }
 
-void graphics_set_textbuffer(uint8_t* buffer) {
-    text_buffer = buffer;
-}
-
 void tft_graphics_set_offset(const int x, const int y) {
     graphics_buffer_shift_x = x;
     graphics_buffer_shift_y = y;
@@ -283,8 +278,8 @@ void __not_in_flash() refresh_lcd() {
 
                 for (int x = 0; x < TEXTMODE_COLS; x++) {
                     const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
-                    const uint8_t c = text_buffer[offset];
-                    const uint8_t colorIndex = text_buffer[offset + 1];
+                    const uint8_t c = graphics_buffer[offset];
+                    const uint8_t colorIndex = graphics_buffer[offset + 1];
                     const uint8_t glyph_row = font_6x8[c * 8 + y % 8];
 
                     for (uint8_t bit = 0; bit < 6; bit++) {
