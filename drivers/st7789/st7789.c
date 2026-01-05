@@ -357,17 +357,17 @@ bool tft_is_mode_text(int mode) {
 }
 
 bool tft_is_text_mode() {
-    return hdmi_is_mode_text(graphics_mode);
+    return graphics_mode == 0;
 }
 
 uint32_t tft_console_width(void) {
-    if (graphics_mode == 1) {
+    if (graphics_mode == 0) {
         return graphics_buffer_width / font_width;
     }
     return graphics_buffer_width;
 }
 uint32_t tft_console_height(void) {
-    if (graphics_mode == 1) {
+    if (graphics_mode == 0) {
         return graphics_buffer_height / font_height;
     }
     return graphics_buffer_height;
