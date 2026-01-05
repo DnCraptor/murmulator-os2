@@ -184,8 +184,17 @@ void stop_pixels() {
     st7789_set_pixel_mode(pio, sm, false);
 }
 
+// shared with VGA/HDMI
+extern volatile uint8_t font_width;
+extern volatile uint8_t font_height;
+extern volatile uint8_t* font_table;
+
 uint offset;
 void tft_graphics_init() {
+    font_width = 6;
+    font_height = 8;
+    font_table = font_6x8;
+
     offset = pio_add_program(pio, &st7789_lcd_program);
     sm = pio_claim_unused_sm(pio, true);
     st7789_lcd_program_init(pio, sm, offset, TFT_DATA_PIN, TFT_CLK_PIN, SERIAL_CLK_DIV);
@@ -353,13 +362,13 @@ bool tft_is_text_mode() {
 
 uint32_t tft_console_width(void) {
     if (graphics_mode == 1) {
-        return graphics_buffer_width / 6;
+        return graphics_buffer_width / font_width;
     }
     return graphics_buffer_width;
 }
 uint32_t tft_console_height(void) {
     if (graphics_mode == 1) {
-        return graphics_buffer_height / 8;
+        return graphics_buffer_height / font_height;
     }
     return graphics_buffer_height;
 }

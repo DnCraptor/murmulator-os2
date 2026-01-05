@@ -827,10 +827,10 @@ void __in_hfa() common_print(char* buf) {
     if (!graphics_buffer) {
         return;
     }
-    uint32_t width = get_screen_width();
-    uint32_t height = get_screen_height();
     char c;
     if (!is_buffer_text()) {
+        uint32_t width = get_screen_width();
+        uint32_t height = get_screen_height();
         while (c = *buf++) {
             if (c == '\r') continue; // ignore DOS stile \r\n, only \n to start new line
             if (c == '\n') {
@@ -851,6 +851,8 @@ void __in_hfa() common_print(char* buf) {
         }
         return;
     }
+    uint32_t width = get_console_width();
+    uint32_t height = get_console_height();
     uint8_t* t_buf = graphics_buffer + width * 2 * pos_y + 2 * pos_x;
     while (c = *buf++) {
         if (c == '\r') continue; // ignore DOS stile \r\n, only \n to start new line
@@ -878,10 +880,9 @@ void __in_hfa() common_print(char* buf) {
 void __in_hfa() common_backspace(void) {
     char* graphics_buffer = get_buffer();
     if (!graphics_buffer) return;
-    uint32_t width = get_screen_width();
-    uint32_t height = get_screen_height();
     if (!is_buffer_text()) {
-     //   common_print_char(graphics_buffer, width, pos_x, pos_y, ' ');
+        uint32_t width = get_screen_width();
+        uint32_t height = get_screen_height();
         pos_x--;
         if (pos_x < 0) {
             pos_x = width / font_width;
@@ -895,6 +896,8 @@ void __in_hfa() common_backspace(void) {
         common_print_char(graphics_buffer, width, height, pos_x, pos_y, con_color, con_bgcolor, ' ');
         return;
     }
+    uint32_t width = get_console_width();
+    uint32_t height = get_console_height();
     pos_x--;
     if (pos_x < 0) {
         pos_x = width - 2;
@@ -911,15 +914,17 @@ void __in_hfa() common_backspace(void) {
 void __in_hfa() common_draw_text(const char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
     char* graphics_buffer = get_buffer();
     if (!graphics_buffer) return;
-    uint32_t width = get_screen_width();
-    uint32_t height = get_screen_height();
     if (!is_buffer_text()) {
+        uint32_t width = get_screen_width();
+        uint32_t height = get_screen_height();
         for (int xi = x; xi < width * 2; ++xi) {
             if (!(*string)) break;
             common_print_char(graphics_buffer, width, height, xi, y, color, bgcolor, *string++);
         }
         return;
     }
+    uint32_t width = get_console_width();
+    uint32_t height = get_console_height();
     uint8_t* t_buf = graphics_buffer + width * 2 * y + 2 * x;
     uint8_t c = (bgcolor << 4) | (color & 0xF);
     for (int xi = x; xi < width * 2; ++xi) {
