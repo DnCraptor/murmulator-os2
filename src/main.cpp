@@ -678,7 +678,7 @@ static void __in_hfa() startup_vga(void) {
     vTaskDelay(300);
 #if TFT
     if (drv == TFT_DRV) {
-        xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 2, NULL);
+        xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
     }
 #endif
     clrScr(0);

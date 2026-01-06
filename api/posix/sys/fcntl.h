@@ -165,6 +165,14 @@ inline static int open(const char *path, int oflag, ...) {
 /* File descriptor flags */
 #define FD_CLOEXEC      1   /* close-on-exec flag */
 
+struct flock {
+    short l_type;    /* F_RDLCK, F_WRLCK, F_UNLCK */
+    short l_whence;  /* SEEK_SET, SEEK_CUR, SEEK_END */
+    off_t l_start;   /* initial offset */
+    off_t l_len;     /* len; 0 = fo EOF */
+    pid_t l_pid;     /* ownner's PID (for F_GETLK) */
+};
+
 /*
  * fcntl() - perform various operations on a file descriptor
  *
@@ -201,7 +209,15 @@ inline static int fcntl(int fd, int cmd, ...) {
     int a3 = 0;
     va_start(ap, cmd);
     switch (cmd) {
+        case F_SETLK:
+        case F_SETLKW:
+        case F_GETLK:
+        // actually `int` contains `struct flock*` for these cases ^^^
         case F_SETFL:
+        case F_DUPFD:
+        case F_DUPFD_CLOEXEC:
+        case F_SETOWN:
+        case F_GETOWN:
         case F_SETFD: {
             a3 = va_arg(ap, int);
             break;
