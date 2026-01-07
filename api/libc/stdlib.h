@@ -63,6 +63,12 @@ char *getenv (const char *v) {
     return ((fn_ptr_t)_sys_table_ptrs[397])(v);
 }
 
+inline static 
+int abs (int i) { return i < 0 ? -(unsigned)i : i; }
+inline static 
+long labs (long i) { return i < 0 ? -(unsigned long)i : i; }
+inline static 
+long long llabs (long long i)  { return i < 0 ? -(unsigned long long)i : i; }
 
 /// TODO:
 #if 0
@@ -101,10 +107,6 @@ int system (const char *);
 
 void *bsearch (const void *, const void *, size_t, size_t, int (*)(const void *, const void *));
 void qsort (void *, size_t, size_t, int (*)(const void *, const void *));
-
-int abs (int);
-long labs (long);
-long long llabs (long long);
 
 typedef struct { int quot, rem; } div_t;
 typedef struct { long quot, rem; } ldiv_t;

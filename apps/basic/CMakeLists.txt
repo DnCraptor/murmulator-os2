@@ -32,7 +32,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 # INCLUDE FILES THAT SHOULD BE COMPILED:
-file(GLOB_RECURSE SRC "*.cpp" "*.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../api/*.c")
+file(GLOB_RECURSE SRC "*.cpp" "*.c") # "${CMAKE_CURRENT_SOURCE_DIR}/../../api/*.c")
 
 message(STATUS "Add source files:")
 foreach (SRC_FILE IN LISTS SRC)
@@ -40,52 +40,41 @@ foreach (SRC_FILE IN LISTS SRC)
 endforeach ()
 message(STATUS "")
 
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/runtime" "${CMAKE_CURRENT_BINARY_DIR}/runtime")
+
 add_executable(${PROJECT_NAME}
     basic.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/m-os-api-math.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/m-os-api-sdtfn.c
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/libc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../api/posix
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../api
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../freertos_config
 )
 
 configure_file(memmap.ld.in memmap.ld @ONLY)
 pico_set_linker_script(${PROJECT_NAME} ${CMAKE_CURRENT_BINARY_DIR}/memmap.ld)
 
 pico_set_program_name(${PROJECT_NAME} "Murmulator OS Applications: basic")
-pico_set_program_version(${PROJECT_NAME} "test")
+pico_set_program_version(${PROJECT_NAME} "basic")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-#    pico_runtime
-#    pico_stdlib
+    murmulator_runtime
 )
 
-#family_configure_device_example(${PROJECT_NAME} noos)
-# -fPIC -shared
-target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage -r)
+target_link_options(${PROJECT_NAME} PRIVATE
+    -Xlinker
+    --print-memory-usage
+    -r
+)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 target_compile_options(${PROJECT_NAME} PUBLIC
+        -fno-builtin-printf
         -fno-jump-tables  # suppress __gnu_thumb1_case_uni symbol generation
-        -Wno-error=suggest-attribute=format
-        -Wno-error=cast-qual
-        -Wno-error=unused-parameter
-        -Wno-error=conversion
-        -Wno-error=format=
-        -Wno-error=sign-compare
-        -Wno-error=missing-field-initializers
-        -Wno-error=switch
-        -Wno-error=implicit-fallthrough=
-        -Wno-error=stringop-truncation
-        -Wno-error=restrict
-        -w
+        -Werror=implicit-function-declaration
 )
 endif ()
-
-target_compile_definitions(${PROJECT_NAME} PRIVATE ELF_MODE)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 

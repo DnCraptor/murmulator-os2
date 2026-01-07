@@ -206,25 +206,25 @@ struct flock {
  */
 inline static int fcntl(int fd, int cmd, ...) {
     va_list ap;
-    int a3 = 0;
+    uintptr_t a3 = 0;
     va_start(ap, cmd);
     switch (cmd) {
         case F_SETLK:
         case F_SETLKW:
         case F_GETLK:
-        // actually `int` contains `struct flock*` for these cases ^^^
+            a3 = (uintptr_t)va_arg(ap, struct flock *);
+            break;
         case F_SETFL:
         case F_DUPFD:
         case F_DUPFD_CLOEXEC:
         case F_SETOWN:
-        case F_GETOWN:
         case F_SETFD: {
-            a3 = va_arg(ap, int);
+            a3 = (uintptr_t)va_arg(ap, int);
             break;
         }
     }
     va_end(ap);
-    typedef int (*fn_ptr_t)(int, int, int);
+    typedef int (*fn_ptr_t)(int, int, uintptr_t);
     return ((fn_ptr_t)_sys_table_ptrs[272])(fd, cmd, a3);
 }
 

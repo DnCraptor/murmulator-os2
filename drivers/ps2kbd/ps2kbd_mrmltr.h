@@ -50,7 +50,7 @@ private:
   void __not_in_flash_func(handleActions)();
   uint8_t __not_in_flash_func(hidCodePage0)(uint8_t ps2code);
   uint8_t __not_in_flash_func(hidCodePage1)(uint8_t ps2code);
-  void clearHidKeys();
+  bool clearHidKeys();
   
 public:
 

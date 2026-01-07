@@ -86,10 +86,7 @@ typedef unsigned int mode_t;
  *   EINVAL  : cmd is invalid or argument is inappropriate
  *   ENOLCK  : cannot acquire lock (for F_SETLK/F_SETLKW)
  */
-int __fcntl(int fd, int cmd, int flags);
-inline static int fcntl(int fd, int cmd, ...) {
-    return __fcntl(fd, cmd, 0);
-}
+int __fcntl(int fd, int cmd, uintptr_t flags);
 
 /**
  * openat() — open a file relative to a directory file descriptor

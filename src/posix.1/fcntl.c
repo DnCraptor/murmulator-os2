@@ -1140,7 +1140,7 @@ int __in_hfa() __dup2(int oldfd, int newfd)
  *
  * Unimplemented commands will return -1 and set errno = EINVAL.
  */
-int __in_hfa() __fcntl(int fd, int cmd, int flags) {
+int __in_hfa() __fcntl(int fd, int cmd, uintptr_t flags) {
     if (fd < 0) goto e;
     cmd_ctx_t* ctx = get_cmd_ctx();
     init_pfiles(ctx);

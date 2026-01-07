@@ -177,9 +177,16 @@ __in_lfa() Ps2Kbd_Mrmltr::Ps2Kbd_Mrmltr(
   clearActions();
 }
 
-void __in_lfa() Ps2Kbd_Mrmltr::clearHidKeys() {
+bool __in_lfa() Ps2Kbd_Mrmltr::clearHidKeys() {
+  bool res = _report.modifier != 0;
   _report.modifier = 0;
-  for (int i = 0; i < HID_KEYBOARD_REPORT_MAX_KEYS; ++i) _report.keycode[i] = HID_KEY_NONE;
+  for (int i = 0; i < HID_KEYBOARD_REPORT_MAX_KEYS; ++i) {
+    if (_report.keycode[i] != HID_KEY_NONE) {
+      res = true;
+      _report.keycode[i] = HID_KEY_NONE;
+    }
+  }
+  return res;
 }
 
 inline static uint8_t hidKeyToMod(uint8_t hidKeyCode) {
@@ -349,8 +356,11 @@ void __in_lfa() Ps2Kbd_Mrmltr::tick() {
       uint32_t rc = _pio->rxf[_sm];    
       // printf("PS/2 drain rc %4.4lX (%ld)\n", rc, rc);
     }
-    clearHidKeys();
+    // Release all currently pressed keys to prevent sticky keys
+    hid_keyboard_report_t prev = _report;
+    bool changed = clearHidKeys();
     clearActions();
+    if (changed) _keyHandler(&_report, &prev);
   }
   
   while (!pio_sm_is_rx_fifo_empty(_pio, _sm)) {
