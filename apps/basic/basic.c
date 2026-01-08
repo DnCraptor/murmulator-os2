@@ -163,7 +163,8 @@
 #define HASPULSE
 #define HASSTEFANSEXT
 #define HASERRORMSG
-#define HASVT52
+//#define HASVT52
+#define HASKEYBOARD
 #define HASFLOAT
 #define HASGRAPH
 #define HASDARTMOUTH

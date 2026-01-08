@@ -468,12 +468,12 @@ void vgawrite(char c) {}
  * they need to provide
  * 	kbdavailable(), kbdread(), kbdcheckch()
  * the later is for interrupting running BASIC code
- */
 void kbdbegin() {}
 int kbdstat(char c) {return 0; }
 char kbdavailable(){ return 0;}
 char kbdread() { return 0;}
 char kbdcheckch() { return 0;}
+ */
 
 /* vt52 code stubs - unused here - needed for basic.c */
 mem_t vt52avail() {return 0;}

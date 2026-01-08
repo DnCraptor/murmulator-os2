@@ -44,6 +44,7 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/runtime" "${CMAKE_CURRE
 
 add_executable(${PROJECT_NAME}
     basic.c
+    kbd_posix.c
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
