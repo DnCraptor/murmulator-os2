@@ -23,11 +23,11 @@
 
 MEMORY
 {
-    LFA(rx) : ORIGIN = 0x10000000, LENGTH = @FIRMWARE_OFFSET@k /* LOW FLASH AREA (boot-loader, BIOS) */
-    PFA(rx) : ORIGIN = 0x10000000 + (@FIRMWARE_OFFSET@k), LENGTH = 13992k /* PROGRAM FLASH AREA (paged applications) */
- /*   LCA(rw) : ORIGIN = 0x10000000+(@FLASH_SIZE@k-2048k), LENGTH = 1920k /* LIBC FLASH AREA (for shared musl code) */
-    HFA(rw) : ORIGIN = 0x10000000+(@FLASH_SIZE@k-256k), LENGTH = 252k   /* HIGH FLASH AREA (for not critical utilities functions) */
-    SYS_TABLE(rw) : ORIGIN = 0x10000000+(@FLASH_SIZE@k-4k), LENGTH = 4k /* Table with system/bios/libc functions' pointers */
+    BOOT2(rx) : ORIGIN = 0x10000000, LENGTH = 4k
+    PFA(rx) : ORIGIN = 0x10000000 + 4k, LENGTH = 16M - 260k
+    ERASE(rx) : ORIGIN = 0x10000000 + 16M - 260k, LENGTH = 4k
+    HFA(rw) : ORIGIN = 0x10000000+(16M - 256k), LENGTH = 252k   /* HIGH FLASH AREA (for not critical utilities functions) */
+    SYS_TABLE(rw) : ORIGIN = 0x10000000+(16M - 4k), LENGTH = 4k /* Table with system/bios/libc functions' pointers */
     PSRAM(rwx) : ORIGIN = 0x11000000, LENGTH = 16M /* shared PSRAM */
     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 512k  /* shared fast SRAM */
     SCRATCH_X(rwx) : ORIGIN = 0x20080000, LENGTH = 4k /* shared stack in SRAM */
@@ -40,7 +40,7 @@ SECTIONS
 {
     .flash_begin : {
         __flash_binary_start = .;
-    } > LFA
+    } > HFA
 
     /* The bootrom will enter the image at the point indicated in your
        IMAGE_DEF, which is usually the reset handler of your vector table.
@@ -51,6 +51,20 @@ SECTIONS
        to perform the same initial flash setup that would be performed on a
        cold boot.
     */
+
+    .xip_hdr : {
+        __logical_binary_start = .;
+        KEEP(*(.vectors))
+        KEEP(*(.binary_info_header))
+        __binary_info_header_end = .;
+        KEEP(*(.embedded_block))     /* тут должен лежать IMAGE_DEF */
+        __embedded_block_end = .;
+        . = ALIGN(4);
+    } > BOOT2
+
+    .erase : {
+        KEEP(*(.erase_block))
+    } > ERASE
 
     .sys_table : {
         __sys_table_start__ = .;
@@ -83,12 +97,6 @@ SECTIONS
     } > PSRAM
 
     .text : {
-        __logical_binary_start = .;
-        KEEP (*(.vectors))
-        KEEP (*(.binary_info_header))
-        __binary_info_header_end = .;
-        KEEP (*(.embedded_block))
-        __embedded_block_end = .;
         KEEP (*(.reset))
 
         /* TODO revisit this now memset/memcpy/float in ROM */
@@ -134,33 +142,12 @@ SECTIONS
 
         *(.eh_frame*)
         . = ALIGN(4);
-    } > LFA
+    } > HFA
     
     /* TODO: analize what may be moved higher */
     .lca : {
         *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .text*)
     } > HFA
-
-    /* Note the boot2 section is optional, and should be discarded if there is
-       no reference to it *inside* the binary, as it is not called by the
-       bootrom. (The bootrom performs a simple best-effort XIP setup and
-       leaves it to the binary to do anything more sophisticated.) However
-       there is still a size limit of 256 bytes, to ensure the boot2 can be
-       stored in boot RAM.
-
-       Really this is a "XIP setup function" -- the name boot2 is historic and
-       refers to its dual-purpose on RP2040, where it also handled vectoring
-       from the bootrom into the user image.
-    */
-
-    .boot2 : {
-        __boot2_start__ = .;
-        *(.boot2)
-        __boot2_end__ = .;
-    } > LFA
-
-    ASSERT(__boot2_end__ - __boot2_start__ <= 256,
-        "ERROR: Pico second stage bootloader must be no more than 256 bytes in size")
 
     .rodata : {
         *(EXCLUDE_FILE(*libgcc.a: *libc.a:*lib_a-mem*.o *libm.a:) .rodata*)
@@ -311,7 +298,7 @@ SECTIONS
     .flash_end : {
         KEEP(*(.embedded_end_block*))
         PROVIDE(__flash_binary_end = .);
-    } > LFA =0xaa
+    } > HFA =0xaa
 
     /* stack limit is poorly named, but historically is maximum heap ptr */
     __StackLimit = ORIGIN(RAM) + LENGTH(RAM);

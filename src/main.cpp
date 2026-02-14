@@ -943,20 +943,31 @@ static void __in_hfa() vPostInit(void *pv) {
 
 __attribute__((constructor))
 static void before_main(void) {
-    char* y = (char*)0x20000000 + (512 << 10) - 4;
-	bool magicSkip = (y[0] == 0x37 && y[1] == 0x0F && y[2] == 0xF0 && y[3] == 0x17);
-    if (magicSkip) {
-        *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
-        asm volatile (
-            "mov r0, %[start]\n"
-            "ldr r1, =%[vtable]\n"
-            "str r0, [r1]\n"
-            "ldmia r0, {r0, r1}\n"
-            "msr msp, r0\n"
-            "bx r1\n"
-                :: [start] "r" (XIP_BASE + (FIRMWARE_OFFSET << 10)), [vtable] "X" (PPB_BASE + M33_VTOR_OFFSET)
-        );
-
+    if ( *(uint32_t*)(0x20000000 + (512 << 10) - 4) != 0x17F00FFF &&    // magic (enter to UI)
+         *(uint32_t*)(0x20000000 + (512 << 10) - 8) == 0x383da910       // magic 3 (enter to target)
+    ) {
+        *(uint32_t*)(0x20000000 + (512 << 10) - 8) = 0; // cleanup magic 3 (expected to be set each time, if required)
+        if (((uint32_t*)ZERO_BLOCK_ADDRESS)[1023] == 0x3836d91b) {  // magic 5
+            asm volatile (
+                "mov r0, %[start]\n"
+                "ldr r1, =%[vtable]\n"
+                "str r0, [r1]\n"
+                "ldmia r0, {r0, r1}\n"
+                "msr msp, r0\n"
+                "bx r1\n"
+                :: [start] "r" (XIP_BASE + (64ul << 10)), [vtable] "X" (PPB_BASE + M33_VTOR_OFFSET)
+            );
+        } else {
+            // VTOR deliberately stays at 0x10000000 to preserve app IRQ vectors;
+            // we only override Reset via manual jump using archived block
+            asm volatile (
+                "ldr r0, =%[zb_addr]\n"
+                "ldmia r0, {r0, r1}\n"
+                "msr msp, r0\n"
+                "bx r1\n"
+                :: [zb_addr] "X" (ZERO_BLOCK_ADDRESS)
+            );
+        }
         __unreachable();
     }
 }

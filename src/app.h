@@ -11,6 +11,9 @@ extern "C" {
 
 #define FIRMWARE_MARKER_FN "/.firmware"
 
+#define ZERO_BLOCK_OFFSET ((16ul << 20) - (256ul << 10) - (4ul << 10))
+#define ZERO_BLOCK_ADDRESS (XIP_BASE + ZERO_BLOCK_OFFSET)
+
 void reboot_me(void);
 bool load_firmware(char* pathname);
 void run_app(char * name);

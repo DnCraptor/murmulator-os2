@@ -109,15 +109,20 @@ void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offse
     rec->size = FLASH_SECTOR_SIZE;
     flash_addr = flash_target_offset + FLASH_SECTOR_SIZE + XIP_BASE;
     list_push_back(flash_list, rec);
-    uint8_t *e = (uint8_t*)(XIP_BASE + flash_target_offset);
-    for (uint32_t i = 0; i < FLASH_SECTOR_SIZE; ++i) {
-        if (e[i] != buffer[i]) {
-            e = 0;
-            break;
+
+    if (flash_target_offset == ZERO_BLOCK_OFFSET) {
+     // заставить всегда стирать/писать, не читая XIP на сравнение
+    } else {
+        uint8_t *e = (uint8_t*)(XIP_BASE + flash_target_offset);
+        for (uint32_t i = 0; i < FLASH_SECTOR_SIZE; ++i) {
+            if (e[i] != buffer[i]) {
+                e = 0;
+                break;
+            }
         }
-    }
-    if (e) { // the block is already eq.s to flash state
-        return;
+        if (e) { // the block is already eq.s to flash state
+            return;
+        }
     }
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     multicore_lockout_start_blocking();
@@ -135,6 +140,10 @@ void __in_hfa() link_firmware(FIL* pf, const char* pathname) {
     f_close(pf);
 }
 
+const uint8_t erase_blok[4096]
+    __aligned(4096)
+    __attribute__((section(".erase_block"), used)) = { [0 ... 4095] = 0xFF };
+
 bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
     FILINFO* pfi = (FILINFO*)pvPortMalloc(sizeof(FILINFO));
     FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
@@ -149,6 +158,10 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
     UF2_Block_t* uf2 = (UF2_Block_t*)pvPortMalloc(sizeof(UF2_Block_t));
     char* alloc = (char*)pvPortCalloc(1, FLASH_SECTOR_SIZE + 511);
     char* buffer = (char*)((uint32_t)(alloc + 511) & 0xFFFFFE00); // align 512
+
+    size_t len = strlen(pathname);
+    bool over_mode = strcmp(pathname + len - 4, ".UF2") == 0 ||
+                 strcmp(pathname + len - 4, ".uf2") == 0;
 
     uint32_t flash_target_offset = 0;
     uint32_t already_written = 0;
@@ -166,9 +179,31 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
         already_written += FLASH_SECTOR_SIZE;
         uint32_t pcts = already_written * 100 / expected_to_write_size;
         if (pcts > 100) pcts = 100;
-        if (flash_target_offset < (FIRMWARE_OFFSET << 10)) {
-            fgoutf(get_stdout(), "Unexpected offset: %ph (%d%%). Breaking the process...\n", flash_target_offset, pcts);
-            goto err;
+
+        if (over_mode) {
+            if (flash_target_offset == 0) { // .uf2 mode
+                uint32_t *v = (uint32_t*)buffer;
+                uint32_t nm = v[1023];
+                v[1023] = 0x3836d91a; // MAGIC 2
+                // save original block
+                flash_block(buffer, ZERO_BLOCK_OFFSET);
+                /// patch 0x10000004 by my entry point
+                v[1] = *(uint32_t*)(XIP_BASE + 4); // my Reset (any MSP, ISRx, ets. is ok for me)
+                v[1023] = nm; // recover original value
+            }
+        } else {
+            if (flash_target_offset < (FIRMWARE_OFFSET << 10)) {
+                fgoutf(get_stdout(), "Unexpected offset: %ph (%d%%). Breaking the process...\n", flash_target_offset, pcts);
+                goto err;
+            }
+            if (flash_target_offset == (FIRMWARE_OFFSET << 10)) {
+                uint32_t *v = (uint32_t*)buffer;
+                uint32_t nm = v[1023];
+                v[1023] = 0x3836d91b; // MAGIC 5
+                // save original block
+                flash_block(buffer, ZERO_BLOCK_OFFSET);
+                v[1023] = nm; // recover original value
+            }
         }
         fgoutf(get_stdout(), "Erase and write to flash, offset: %ph (%d%%)\n", flash_target_offset, pcts);
         flash_block(buffer, flash_target_offset);
@@ -179,6 +214,7 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
     goutf("Write FIRMWARE MARKER '%s' to '%s'\n", pathname, FIRMWARE_MARKER_FN);
     link_firmware(pf, pathname);
     goutf("Reboot is required!\n");
+    *(uint32_t*)(0x20000000 + (512 << 10) - 8) = 0x383da910; // magic 3
     reboot_is_requested = true;
     while(true) ;
 err:
@@ -194,7 +230,7 @@ bool __in_hfa() load_firmware(char* pathname) {
     FILINFO* pfileinfo = pvPortMalloc(sizeof(FILINFO));
     f_stat(pathname, pfileinfo);
     size_t sz = (size_t)((pfileinfo->fsize >> 1) & 0xFFFFFFFF);
-    size_t max = (flash_size - (128l << 10));
+    size_t max = (flash_size - (260ul << 10));
     if (max < sz) { // TODO: free, ...
         goutf("ERROR: Firmware too large: %dK (%dK max) Canceled!\n", (sz >> 10), (max >> 10));
         vPortFree(pfileinfo);
@@ -1363,7 +1399,12 @@ void __in_hfa() vCmdTask(void *pv) {
         if (b_exists) {
             size_t len = strlen(ctx->orig_cmd); // TODO: more than one?
             // goutf("Command found: %s\n", ctx->orig_cmd);
-            if (len > 4 && strcmp(ctx->orig_cmd + len - 5, MOS_UF2_EXT) == 0) {
+            if (len > 4 && 
+                (strcmp(ctx->orig_cmd + len - 5, MOS_UF2_EXT) == 0 ||
+                 strcmp(ctx->orig_cmd + len - 4, ".UF2") == 0 ||
+                 strcmp(ctx->orig_cmd + len - 4, ".uf2") == 0
+                )
+            ) {
                 if(load_firmware(ctx->orig_cmd)) { // TODO: by ctx
                     ctx->stage = LOAD;
                     vTaskSetThreadLocalStoragePointer(th, 0, ctx);
