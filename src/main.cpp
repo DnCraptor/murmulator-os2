@@ -257,14 +257,20 @@ static const char ccmd[] = "/mos2/cmd";
 static bool skip_firmware = false;
 
 static void __always_inline check_firmware() {
-    if (skip_firmware) return;
+    if (skip_firmware
+//    || (
+//         ((uint32_t*)ZERO_BLOCK_ADDRESS)[1023] != 0x3836d91a &&
+//         ((uint32_t*)ZERO_BLOCK_ADDRESS)[1023] != 0x3836d91b
+//       )
+    ) return;
     FIL f;
     if(f_open(&f, FIRMWARE_MARKER_FN, FA_READ) == FR_OK) {
         f_close(&f);
         f_unmount(SD);
-        char* y = (char*)0x20000000 + (512 << 10) - 4;
-	    y[0] = 0x37; y[1] = 0x0F; y[2] = 0xF0; y[3] = 0x17;
-        watchdog_enable(1, false);
+        *(uint32_t*)(0x20000000 + (512 << 10) - 8) = 0x383da910; // magic 3
+        watchdog_enable(100, false);
+        while(1);
+        __unreachable();
     }
 }
 
