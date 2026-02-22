@@ -484,7 +484,7 @@ static cmd_ctx_t* prep_ctx(
             cfd->fp    = pfd->fp;
             cfd->flags = pfd->flags;
             cfd->path  = pfd->path;  // разделяем строку пути (только чтение)
-            if (cfd->fp) {
+            if (cfd->fp && !pfd->pipe && (intptr_t)cfd->fp > STDERR_FILENO) {
                 cfd->fp->pending_descriptors++;
             }
             cfd->pipe     = pfd->pipe;

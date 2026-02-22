@@ -428,6 +428,25 @@ void __in_hfa() cleanup_pfiles(cmd_ctx_t* ctx) {
     for (size_t i = 0; i < ctx->pfiles->size; ++i) {
         FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, i);
         if (!fd) continue; // placeholder, just skip it
+        if (fd->pipe) {
+            pipe_buf_t* pb = fd->pipe;
+            xSemaphoreTake(pb->mutex, portMAX_DELAY);
+            if (fd->pipe_end == 0) pb->readers--;
+            else                   pb->writers--;
+            int total = pb->readers + pb->writers;
+            TaskHandle_t wakeup = pb->reader_task
+                                ? pb->reader_task
+                                : pb->writer_task;
+            xSemaphoreGive(pb->mutex);
+            if (wakeup) xTaskNotifyGive(wakeup);
+            if (total == 0) {
+                vSemaphoreDelete(pb->mutex);
+                vPortFree(pb);
+            }
+            fd->pipe = NULL;
+            vPortFree(fd);
+            continue;
+        }
         FIL* fp = fd->fp;
         if ((intptr_t)fp > STDERR_FILENO) {
             if (fp->pending_descriptors > 0) {
@@ -837,6 +856,11 @@ int __in_hfa() __fstat(int fildes, struct stat *buf) {
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
+    if (fd->pipe) {
+        buf->st_mode = S_IFIFO | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+        buf->st_size = (off_t)fd->pipe->count;
+        goto ok;
+    }
     FIL* fp = fd->fp;
     if ((intptr_t)fp == STDIN_FILENO) { // stdin
         buf->st_mode  = S_IFCHR | S_IRUSR | S_IRGRP | S_IROTH;
@@ -1176,18 +1200,27 @@ int __in_hfa() __dup(int oldfd) {
     }
     FIL* fp = fd->fp;
     char* orig_path = fd->path;
-    fd = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
-    if (!fd) { errno = ENOMEM; return -1; }
-    fd->fp = fp;
-    fd->flags = 0;
-    fd->path = orig_path;
-    int res = array_push_back(ctx->pfiles, fd);
+    FDESC* nfd = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
+    if (!nfd) { errno = ENOMEM; return -1; }
+    nfd->fp       = fp;
+    nfd->flags    = 0;
+    nfd->path     = orig_path;
+    nfd->pipe     = fd->pipe;
+    nfd->pipe_end = fd->pipe_end;
+    int res = array_push_back(ctx->pfiles, nfd);
     if (!res) {
-        vPortFree(fd);
+        vPortFree(nfd);
         errno = ENOMEM;
         return -1;
     }
-    ++fp->pending_descriptors;
+    if (fd->pipe) {
+        xSemaphoreTake(fd->pipe->mutex, portMAX_DELAY);
+        if (fd->pipe_end == 0) fd->pipe->readers++;
+        else                   fd->pipe->writers++;
+        xSemaphoreGive(fd->pipe->mutex);
+    } else {
+        ++fp->pending_descriptors;
+    }
     errno = 0;
     return res;
 e:
@@ -1221,14 +1254,23 @@ int __in_hfa() __dup3(int oldfd, int newfd, int flags) {
     }
     FIL* fp0 = fd0->fp;
     FIL* fp1 = fd1->fp;
-    if ((intptr_t)fp1 > STDERR_FILENO && !fp1->pending_descriptors) { // not STD and not in use by other descriptors, so we can remove it
+    if (!fd1->pipe && (intptr_t)fp1 > STDERR_FILENO && !fp1->pending_descriptors) { // not STD and not in use by other descriptors, so we can remove it
         vPortFree(fd1->fp);
     }
     fd1->fp = fp0;
     fd1->flags = 0;
     fd1->path = fd0->path;
+    fd1->pipe     = fd0->pipe;
+    fd1->pipe_end = fd0->pipe_end;
+    if (fd0->pipe) {
+        xSemaphoreTake(fd0->pipe->mutex, portMAX_DELAY);
+        if (fd0->pipe_end == 0) fd0->pipe->readers++;
+        else                    fd0->pipe->writers++;
+        xSemaphoreGive(fd0->pipe->mutex);
+    } else {
+        fp0->pending_descriptors++;
+    }
     ctx->pfiles->p[newfd] = fd1;
-    fp0->pending_descriptors++;
     errno = 0;
     return newfd;
 e:
@@ -1926,7 +1968,8 @@ int __pipe2(int pipefd[2], int flags) {
     rd->fp       = (FIL*)STDIN_FILENO;  // заглушка, не используется
     rd->pipe     = pb;
     rd->pipe_end = 0;
-    rd->flags    = O_RDONLY | (flags & (O_NONBLOCK | O_CLOEXEC));
+    rd->flags    = O_RDONLY | (flags & O_NONBLOCK);
+    if (flags & O_CLOEXEC) rd->flags |= FD_CLOEXEC;
 
     // write end
     FDESC* wr = pvPortCalloc(1, sizeof(FDESC));
@@ -1934,7 +1977,8 @@ int __pipe2(int pipefd[2], int flags) {
     wr->fp       = (FIL*)STDOUT_FILENO; // заглушка
     wr->pipe     = pb;
     wr->pipe_end = 1;
-    wr->flags    = O_WRONLY | (flags & (O_NONBLOCK | O_CLOEXEC));
+    wr->flags    = O_WRONLY | (flags & O_NONBLOCK);
+    if (flags & O_CLOEXEC) wr->flags |= FD_CLOEXEC;
 
     pipefd[0] = array_push_back(ctx->pfiles, rd);
     pipefd[1] = array_push_back(ctx->pfiles, wr);
