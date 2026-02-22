@@ -1,5 +1,5 @@
 # murmulator-os
-Murmulator OS v.2.2.3<br/>
+Murmulator OS v.2.3.1<br/>
 
 # Hardware needed
 Raspberry Pi Pico 2 (RP2350)<br/>
@@ -95,7 +95,7 @@ PATH - list of directories to lookup for applications<br/>
 GMODE - set initial graphics mode<br/>
 TEMP - specify a folder with temporary files<br/>
 CD - defualt path for cd command<br/>
-
+<br/>
 # Boot-loader mode
 If uf2 application was started from M-OS, and such application is not designed for M-OS, it is possible to return to M-OS only via reboot:<br/>
 Press [F10] (DPAD [START]+[SELECT]) and hold on the Murmulator reset or power-on, in this case uf2 application will be repaired you will return to last saved on Flash.<br/>
@@ -115,6 +115,7 @@ FLASH - (MHz) to overclock flash memory chip (default - 88)<br/>
 FLASH_T - (hex uint32_t) to overclock flash memory chip (alernative way)<br/>
 PSRAM - (MHz) to overclock QSPI PSRAM chip (default - 88)<br/>
 PSRAM_T - (hex uint32_t) to overclock QSPI PSRAM chip (alternative way)<br/>
+STACK - defualt stack size (4 KB is used by default)<br/>
 <br/>
 Example:<br/>
 CPU=352<br/>

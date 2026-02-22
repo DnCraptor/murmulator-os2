@@ -11,6 +11,8 @@
 #include "sys/stat.h"
 #include "signal.h"
 
+extern uint32_t default_stack;
+
 typedef struct FDESC_s {
     FIL* fp;
     unsigned int flags;
@@ -597,6 +599,8 @@ static int apply_proc_attr(cmd_ctx_t* child,
         child->pgid = pg;
     }
 
+    child->stack_size = attr->stack_size ? attr->stack_size : default_stack;
+
     // --- SETSID ---
     if (attr->flags & POSIX_SPAWN_SETSID) {
         if (child->pid == child->pgid)
@@ -663,7 +667,7 @@ int __posix_spawn(
         remove_ctx(child);
         return err;
     }
-    xTaskCreate(vProcessTask, child->argv[0], 1024/*x 4 = 4096*/, child, configMAX_PRIORITIES - 1, 0);
+    xTaskCreate(vProcessTask, child->argv[0], child->stack_size, child, configMAX_PRIORITIES - 1, 0);
 
     if (pid_out)
         *pid_out = (pid_t)child->pid;

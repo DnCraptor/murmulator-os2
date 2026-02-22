@@ -116,6 +116,7 @@ typedef struct cmd_ctx {
     list_t /*of void*/ *pallocs; // related to the process allocations
     int proc_errno;
     mode_t umask;
+    uint32_t stack_size; // in 32-bit words
 } cmd_ctx_t;
 
 cmd_ctx_t* get_cmd_startup_ctx(); // system

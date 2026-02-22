@@ -45,6 +45,7 @@ typedef struct {
     unsigned long sigdefault;// stub for POSIX_SPAWN_SETSIGDEF
     int schedpolicy;    // stub for scheduler
     int schedprio;      // stub for scheduler parameter
+    unsigned long stack_size; // in 32-bit words
 } posix_spawnattr_t;
 
 enum {

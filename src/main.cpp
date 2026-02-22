@@ -47,6 +47,7 @@ int flash_mhz = FLASH_FREQ_MHZ;
 int psram_mhz = PSRAM_FREQ_MHZ;
 uint new_flash_timings = 0;
 uint new_psram_timings = 0;
+extern "C" uint default_stack = 1024; // in 32-bit words
 static int vreg = VREG_VOLTAGE_1_60;
 static int new_vreg = VREG_VOLTAGE_1_60;
 
@@ -401,6 +402,10 @@ static void load_config_sys() {
                 if (*endptr == 0 && qmi_hw->m[1].timing != new_psram_timings) {
                     psram_timings();
                 }
+            } else if (strcmp(t, "STACK") == 0) {
+                t = next_token(t);
+                set_ctx_var(ctx, "STACK", t);
+                default_stack = atoi(t) >> 2;
             } else if (strcmp(t, BASE) == 0) {
                 t = next_token(t);
                 set_ctx_var(ctx, BASE, t);
@@ -980,7 +985,7 @@ static void before_main(void) {
 
 int main() {
     init();
-    xTaskCreate(vPostInit, "cmd", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
+    xTaskCreate(vPostInit, "cmd", default_stack, NULL, configMAX_PRIORITIES - 1, NULL);
 	vTaskStartScheduler(); // it should never return
     draw_text("vTaskStartScheduler failed", 0, 4, 13, 1);
     while(sys_table_ptrs[0]);
