@@ -510,8 +510,10 @@ static int __in_hfa() map_ff_fresult_to_errno(FRESULT fr) {
 }
 
 inline static bool is_closed_desc(const FDESC* fd) {
-    if (fd && !fd->fp) return true;
-    return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
+    if (!fd) return true;
+    if (fd->pipe) return false;  // pipe fd — always open until explicitly closed
+    if (!fd->fp) return true;
+    return (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }
 
 static FDESC* __in_hfa() array_lookup_first_closed(array_t* arr, size_t* pn) {

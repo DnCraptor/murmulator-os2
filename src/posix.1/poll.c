@@ -15,8 +15,10 @@ void deliver_signals(cmd_ctx_t *ctx);
 extern volatile int __c; // keyboard.c
 
 inline static bool is_closed_desc(const FDESC* fd) {
-    if (fd && !fd->fp) return true;
-    return fd && (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
+    if (!fd) return true;
+    if (fd->pipe) return false;  // pipe fd — always open until explicitly closed
+    if (!fd->fp) return true;
+    return (intptr_t)fd->fp > STDERR_FILENO && fd->fp->obj.fs == 0;
 }
 
 static short poll_fd_events(int fd, short events)

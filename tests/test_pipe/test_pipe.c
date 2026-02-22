@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef void (*goutf_ptr_t)(const char *__restrict str, ...) _ATTRIBUTE ((__format__ (__goutf__, 1, 2)));
+#define goutf(...) ((goutf_ptr_t)_sys_table_ptrs[41])(__VA_ARGS__)
+
 /* ------------------------------------------------------------------ */
 /*  helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -18,10 +21,10 @@ static int g_failed = 0;
 #define CHECK(expr, name)                                   \
     do {                                                    \
         if (!(expr)) {                                      \
-            printf("%s: FAILED (errno=%d)\n", name, errno); \
+            goutf("%s: FAILED (errno=%d)\n", name, errno); \
             g_failed++;                                     \
         } else {                                            \
-            printf("%s: PASSED\n", name);                   \
+            goutf("%s: PASSED\n", name);                   \
         }                                                   \
     } while (0)
 
@@ -127,7 +130,7 @@ static void test_pipe2_nonblock(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  6. poll() on pipe — POLLIN when data available                      */
+/*  6. poll() on pipe ï¿½ POLLIN when data available                      */
 /* ------------------------------------------------------------------ */
 static void test_poll_pollin(void)
 {
@@ -145,7 +148,7 @@ static void test_poll_pollin(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  7. poll() on pipe — no POLLIN when empty                            */
+/*  7. poll() on pipe ï¿½ no POLLIN when empty                            */
 /* ------------------------------------------------------------------ */
 static void test_poll_empty(void)
 {
@@ -178,7 +181,7 @@ static void test_poll_hup(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  9. poll() POLLOUT — write end ready when buffer not full            */
+/*  9. poll() POLLOUT ï¿½ write end ready when buffer not full            */
 /* ------------------------------------------------------------------ */
 static void test_poll_pollout(void)
 {
@@ -214,7 +217,7 @@ static void test_spawn_pipe(char *self_path)
     posix_spawn_file_actions_destroy(&fa);
 
     if (r != 0) {
-        printf("spawn pipe child: FAILED (r=%d)\n", r);
+        goutf("spawn pipe child: FAILED (r=%d)\n", r);
         g_failed++;
         close(fds[0]);
         close(fds[1]);
@@ -243,15 +246,15 @@ static int child_pipe_mode(void)
     char *nl = strchr(buf, '\n');
     if (nl) *nl = '\0';
     if (strcmp(buf, "PIPE_OK") == 0) {
-        printf("pipe child: got token OK\n");
+        goutf("pipe child: got token OK\n");
         return 0;
     }
-    printf("pipe child: unexpected token '%s'\n", buf);
+    goutf("pipe child: unexpected token '%s'\n", buf);
     return 1;
 }
 
 /* ------------------------------------------------------------------ */
-/*  11. Large write — multiple chunks                                   */
+/*  11. Large write ï¿½ multiple chunks                                   */
 /* ------------------------------------------------------------------ */
 static void test_large_write(void)
 {
@@ -266,7 +269,7 @@ static void test_large_write(void)
         int w = write(fds[1], chunk, sizeof(chunk));
         if (w < 0) {
             if (errno == EAGAIN) break;
-            printf("large write unexpected error: FAILED\n");
+            goutf("large write unexpected error: FAILED\n");
             g_failed++;
             goto out;
         }
@@ -281,7 +284,7 @@ static void test_large_write(void)
         int r = read(fds[0], chunk, sizeof(chunk));
         if (r < 0) {
             if (errno == EAGAIN) break;
-            printf("large read unexpected error: FAILED\n");
+            goutf("large read unexpected error: FAILED\n");
             g_failed++;
             goto out;
         }
@@ -296,7 +299,7 @@ out:
 }
 
 /* ------------------------------------------------------------------ */
-/*  12. fstat() on pipe fd — must report S_IFIFO                       */
+/*  12. fstat() on pipe fd ï¿½ must report S_IFIFO                       */
 /* ------------------------------------------------------------------ */
 static void test_fstat_pipe(void)
 {
@@ -322,7 +325,7 @@ int main(int argc, char **argv)
         return child_pipe_mode();
     }
 
-    printf("=== pipe/pipe2 test suite ===\n");
+    goutf("=== pipe/pipe2 test suite ===\n");
 
     test_basic();
     test_eof_on_writer_close();
@@ -337,6 +340,6 @@ int main(int argc, char **argv)
     test_large_write();
     test_fstat_pipe();
 
-    printf("=== %s ===\n", g_failed == 0 ? "ALL PASSED" : "SOME FAILED");
+    goutf("=== %s ===\n", g_failed == 0 ? "ALL PASSED" : "SOME FAILED");
     return g_failed == 0 ? 0 : 1;
 }
