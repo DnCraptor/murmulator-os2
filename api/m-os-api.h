@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #if !M_API_VERSION
-#define M_API_VERSION 27
+#define M_API_VERSION 28
 #endif
 
 #ifndef M_OS_API_SYS_TABLE_BASE
@@ -280,7 +280,7 @@ typedef enum {
     LOAD,
     EXECUTED,
     INVALIDATED,
-    SIGTERM
+    SIGTERM_ST
 } cmd_exec_stage_t;
 
 typedef struct cmd_ctx {

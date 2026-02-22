@@ -1474,7 +1474,7 @@ int __in_hfa() kill(uint32_t task_number) {
             res = 1;
             cmd_ctx_t* ctx = (cmd_ctx_t*) pvTaskGetThreadLocalStoragePointer(pxTaskStatusArray[ x ].xHandle, 0);
             if (ctx) {
-                ctx->stage = SIGTERM;
+                ctx->stage = SIGTERM_ST;
                 if (ctx->pboot_ctx && ctx->pboot_ctx->sig_fn) {
                     ctx->pboot_ctx->sig_fn(15); // signal SIGTERM
                     res = 2;

@@ -61,7 +61,7 @@ typedef enum {
     LOAD,
     EXECUTED,
     INVALIDATED,
-    SIGTERM,
+    SIGTERM_ST,
     ZOMBIE
 } cmd_exec_stage_t;
 

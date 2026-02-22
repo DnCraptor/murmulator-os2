@@ -46,7 +46,7 @@ typedef enum {
     LOAD,
     EXECUTED,
     INVALIDATED,
-    SIGTERM
+    SIGTERM_ST
 } cmd_exec_stage_t;
 
 typedef struct cmd_ctx {

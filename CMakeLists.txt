@@ -28,7 +28,7 @@ option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
 #set(INC_BUILD ON)
 
-set(HID ON)
+#set(HID ON)
 
 #set(MURM1x ON)
 set(MURM20 ON)
@@ -222,7 +222,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     OVERCLOCKING=${CPU_MHZ}
     PICO_FLASH_SIZE_BYTES=16777216
 
-    M_API_VERSION=27
+    M_API_VERSION=28
     MIN_API_VERSION=14
 
     # do not touch last 512 bytes in RAM on launch app, say, no more RAM

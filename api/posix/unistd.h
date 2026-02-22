@@ -381,6 +381,16 @@ int usleep(useconds_t usec) {
     return 0;
 }
 
+inline static
+int pipe2(int pipefd[2], int flags) {
+    typedef int (*fn_ptr_t)(int[2], int);
+    return ((fn_ptr_t)_sys_table_ptrs[404])(pipefd, flags);
+}
+
+inline static
+int pipe(int pipefd[2]) { return pipe2(pipefd, 0); }
+
+
 #ifdef __cplusplus
 }
 #endif

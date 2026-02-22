@@ -171,10 +171,7 @@ inline static char* concat(const char* s1, const char* s2) {
     return ((fn_ptr_t)_sys_table_ptrs[129])(s1, s2);
 }
 
-inline static void* malloc(size_t xWantedSize) {
-    typedef void* (*pvPortMalloc_ptr_t)( size_t xWantedSize );
-    return ((pvPortMalloc_ptr_t)_sys_table_ptrs[32])(xWantedSize);
-}
+#include <stdlib.h> // for malloc
 
 inline static char *strdup(const char *s)
 {

@@ -272,6 +272,8 @@ int __access(const char *, int);
 
 char* __getcwd(char *buf, size_t size);
 
+int __pipe2(int pipefd[2], int flags);
+
 #ifdef __cplusplus
 }
 #endif

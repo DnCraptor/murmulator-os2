@@ -10,14 +10,10 @@
 #include "sys/fcntl.h"
 #include "sys/stat.h"
 #include "signal.h"
+#include "pipe.h"
 
 extern uint32_t default_stack;
 
-typedef struct FDESC_s {
-    FIL* fp;
-    unsigned int flags;
-    char* path;
-} FDESC;
 static void close_fd_for_ctx(cmd_ctx_t* ctx, FDESC* fd);
 
 pid_t __fork(void) {
@@ -487,6 +483,14 @@ static cmd_ctx_t* prep_ctx(
             cfd->path  = pfd->path;  // разделяем строку пути (только чтение)
             if (cfd->fp) {
                 cfd->fp->pending_descriptors++;
+            }
+            cfd->pipe     = pfd->pipe;
+            cfd->pipe_end = pfd->pipe_end;
+            if (cfd->pipe) {
+                xSemaphoreTake(cfd->pipe->mutex, portMAX_DELAY);
+                if (cfd->pipe_end == 0) cfd->pipe->readers++;
+                else                    cfd->pipe->writers++;
+                xSemaphoreGive(cfd->pipe->mutex);
             }
             array_push_back(child->pfiles, cfd);
         }

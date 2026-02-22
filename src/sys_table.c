@@ -448,7 +448,7 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __vsscanf, // 336
     __perror, // 337
     __setvbuf, // 338
-    // POSIZ
+    // POSIX
     __linkat, // 339
     __symlinkat, // 340
     __realpath, // 341
@@ -521,6 +521,8 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __raise, // 401
     __sigprocmask, // 402
     __getcwd, // 403
+    // API v28 2.3.1
+    __pipe2, // 404
     // TODO:
     0
 };

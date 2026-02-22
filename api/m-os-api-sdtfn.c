@@ -49,7 +49,7 @@ int __required_m_api_verion(void) {
     return M_API_VERSION;
 }
 
-// only SIGTERM is supported for now
+// only SIGTERM is supported for there (TODO: remove it)
 int signal(void) {
     marked_to_exit = true;
     return 0;

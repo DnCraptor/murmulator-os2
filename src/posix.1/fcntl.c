@@ -6,6 +6,7 @@
 #include "errno.h"
 #include "unistd.h"
 #include "dirent.h"
+#include "signal.h"
 
 #include "ff.h"
 #include "../../api/m-os-api-c-array.h"
@@ -15,6 +16,7 @@
 #include <string.h>
 #include "sys_table.h"
 #include "cmd.h" // cmd_ctx_t* get_cmd_ctx(); char* copy_str(const char* s); // cmd.h
+#include "pipe.h"
 
 mode_t __umask(mode_t mask) {
     cmd_ctx_t* ctx = get_cmd_ctx();
@@ -323,12 +325,6 @@ ex:
 	xTaskResumeAll();
     return r;
 }
-
-typedef struct FDESC_s {
-    FIL* fp;
-    unsigned int flags;
-    char* path;
-} FDESC;
 
 void* __in_hfa() alloc_file(void) {
     FDESC* d = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
@@ -663,6 +659,26 @@ int __in_hfa() __close(int fildes) {
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
+    if (fd->pipe) {
+        pipe_buf_t* pb = fd->pipe;
+        xSemaphoreTake(pb->mutex, portMAX_DELAY);
+        if (fd->pipe_end == 0) pb->readers--;
+        else                   pb->writers--;
+        int total = pb->readers + pb->writers;
+        // разбудить ожидающих, чтобы они увидели EOF/EPIPE
+        TaskHandle_t wakeup = pb->reader_task ? pb->reader_task : pb->writer_task;
+        xSemaphoreGive(pb->mutex);
+        if (wakeup) xTaskNotifyGive(wakeup);
+        if (total == 0) {
+            vSemaphoreDelete(pb->mutex);
+            vPortFree(pb);
+        }
+        fd->pipe = NULL;
+        fd->fp   = NULL;
+        vPortFree(fd);
+        errno = 0;
+        return 0;
+    }
     FIL* fp = fd->fp;
     if ((intptr_t)fp <= STDERR_FILENO) {  // just ignore close request for std descriptors
         errno = 0;
@@ -906,6 +922,104 @@ ex:
     return 0;
 }
 
+static int pipe_read(FDESC* fd, void* buf, size_t count) {
+    pipe_buf_t* pb = fd->pipe;
+    if (fd->pipe_end != 0) { errno = EBADF; return -1; }
+
+again:
+    xSemaphoreTake(pb->mutex, portMAX_DELAY);
+    if (pb->count == 0) {
+        if (pb->writers == 0) {          // все writer'ы закрыты → EOF
+            xSemaphoreGive(pb->mutex);
+            return 0;
+        }
+        if (fd->flags & O_NONBLOCK) {
+            xSemaphoreGive(pb->mutex);
+            errno = EAGAIN;
+            return -1;
+        }
+        // блокируемся — запишем себя и ждём
+        pb->reader_task = xTaskGetCurrentTaskHandle();
+        xSemaphoreGive(pb->mutex);
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        deliver_signals(get_cmd_ctx());
+        goto again;
+    }
+
+    size_t n = count < pb->count ? count : pb->count;
+    uint8_t* dst = buf;
+    for (size_t i = 0; i < n; i++) {
+        dst[i] = pb->buf[pb->read_pos];
+        pb->read_pos = (pb->read_pos + 1) % PIPE_BUF_SIZE;
+    }
+    pb->count -= n;
+
+    TaskHandle_t wt = pb->writer_task;
+    pb->writer_task = NULL;
+    TaskHandle_t pt = pb->poll_task;
+    pb->poll_task = NULL;
+    xSemaphoreGive(pb->mutex);
+
+    if (wt) xTaskNotifyGive(wt);
+    if (pt) xTaskNotifyGive(pt);
+
+    errno = 0;
+    return (int)n;
+}
+
+static int pipe_write(FDESC* fd, const void* buf, size_t count) {
+    pipe_buf_t* pb = fd->pipe;
+    if (fd->pipe_end != 1) { errno = EBADF; return -1; }
+
+    xSemaphoreTake(pb->mutex, portMAX_DELAY);
+    if (pb->readers == 0) {          // нет читателей → SIGPIPE
+        xSemaphoreGive(pb->mutex);
+        __kill(get_cmd_ctx()->pid, SIGPIPE);
+        errno = EPIPE;
+        return -1;
+    }
+    xSemaphoreGive(pb->mutex);
+
+    const uint8_t* src = buf;
+    size_t written = 0;
+    while (written < count) {
+        xSemaphoreTake(pb->mutex, portMAX_DELAY);
+        size_t space = PIPE_BUF_SIZE - pb->count;
+        if (space == 0) {
+            if (fd->flags & O_NONBLOCK) {
+                xSemaphoreGive(pb->mutex);
+                if (written) { errno = 0; return written; }
+                errno = EAGAIN;
+                return -1;
+            }
+            pb->writer_task = xTaskGetCurrentTaskHandle();
+            xSemaphoreGive(pb->mutex);
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            deliver_signals(get_cmd_ctx());
+            continue;
+        }
+        size_t n = count - written;
+        if (n > space) n = space;
+        for (size_t i = 0; i < n; i++) {
+            pb->buf[pb->write_pos] = src[written + i];
+            pb->write_pos = (pb->write_pos + 1) % PIPE_BUF_SIZE;
+        }
+        pb->count += n;
+        written += n;
+
+        TaskHandle_t rt = pb->reader_task;
+        pb->reader_task = NULL;
+        TaskHandle_t pt = pb->poll_task;
+        pb->poll_task = NULL;
+        xSemaphoreGive(pb->mutex);
+
+        if (rt) xTaskNotifyGive(rt);
+        if (pt) xTaskNotifyGive(pt);
+    }
+    errno = 0;
+    return (int)written;
+}
+
 int __in_hfa() __read(int fildes, void *buf, size_t count) {
     if (!buf) {
         errno = EFAULT;
@@ -921,6 +1035,9 @@ int __in_hfa() __read(int fildes, void *buf, size_t count) {
     FDESC* fd = (FDESC*)array_get_at(ctx->pfiles, fildes);
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
+    }
+    if (fd->pipe) {
+        return pipe_read(fd, buf, count);
     }
     FIL* fp = fd->fp;
     if ((intptr_t)fp == STDIN_FILENO) {
@@ -992,6 +1109,9 @@ e:
     if (fd == 0 || is_closed_desc(fd)) {
         goto e;
     }
+    if (fd->pipe) {
+        return pipe_write(fd, buf, count);
+    }    
     FIL* fp = fd->fp;
     if ((intptr_t)fp == STDIN_FILENO) {
         goto nperm;
@@ -1782,5 +1902,49 @@ int __fchmod(int d, mode_t m)
         }
     }
     errno = EBADF;
+    return -1;
+}
+
+int __pipe2(int pipefd[2], int flags) {
+    if (!pipefd) { errno = EFAULT; return -1; }
+
+    pipe_buf_t* pb = pvPortCalloc(1, sizeof(pipe_buf_t));
+    if (!pb) { errno = ENOMEM; return -1; }
+
+    pb->mutex       = xSemaphoreCreateMutex();
+    pb->readers     = 1;
+    pb->writers     = 1;
+
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    init_pfiles(ctx);
+
+    // read end
+    FDESC* rd = pvPortCalloc(1, sizeof(FDESC));
+    if (!rd) { goto oom; }
+    rd->fp       = (FIL*)STDIN_FILENO;  // заглушка, не используется
+    rd->pipe     = pb;
+    rd->pipe_end = 0;
+    rd->flags    = O_RDONLY | (flags & (O_NONBLOCK | O_CLOEXEC));
+
+    // write end
+    FDESC* wr = pvPortCalloc(1, sizeof(FDESC));
+    if (!wr) { vPortFree(rd); goto oom; }
+    wr->fp       = (FIL*)STDOUT_FILENO; // заглушка
+    wr->pipe     = pb;
+    wr->pipe_end = 1;
+    wr->flags    = O_WRONLY | (flags & (O_NONBLOCK | O_CLOEXEC));
+
+    pipefd[0] = array_push_back(ctx->pfiles, rd);
+    pipefd[1] = array_push_back(ctx->pfiles, wr);
+
+    if (!pipefd[0] || !pipefd[1]) { goto oom; }
+
+    errno = 0;
+    return 0;
+
+oom:
+    vSemaphoreDelete(pb->mutex);
+    vPortFree(pb);
+    errno = ENOMEM;
     return -1;
 }
