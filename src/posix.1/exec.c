@@ -442,6 +442,7 @@ static cmd_ctx_t* prep_ctx(
         child->pid = (long)array_push_back(pids, child);
     }
     child->pgid = parent ? parent->pgid : child->pid;
+    child->umask = parent ? parent->umask : 022;
     child->gid = child->pgid;
     child->egid = child->pgid;
 

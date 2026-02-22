@@ -16,12 +16,10 @@
 #include "sys_table.h"
 #include "cmd.h" // cmd_ctx_t* get_cmd_ctx(); char* copy_str(const char* s); // cmd.h
 
-/// TODO: by process ctx
-static mode_t local_mask = 022;
-
 mode_t __umask(mode_t mask) {
-    mode_t prev = local_mask;
-    local_mask = mask & 0777;
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    mode_t prev = ctx->umask;
+    ctx->umask = mask & 0777;
     return prev;
 }
 
@@ -626,7 +624,7 @@ int __in_hfa() __openat(int dfd, const char* _path, int flags, mode_t mode) {
     }
     FIL*  pf = fd->fp;
     pf->pending_descriptors = 0;
-    if (flags & O_CREAT) mode &= ~local_mask;
+    if (flags & O_CREAT) mode &= ~ctx->umask;
     BYTE ff_mode = map_flags_to_ff_mode(flags);
     FRESULT fr = f_open(pf, path, ff_mode);
     if (fr != FR_OK) {
@@ -1531,7 +1529,7 @@ int __in_hfa() __mkdirat(int dirfd, const char *pathname, mode_t mode) {
     }
     uint32_t hash = get_hash(path);
     vTaskSuspendAll();
-    mode &= ~local_mask;
+    mode &= ~ctx->umask;
     posix_link_t* lnk = posix_add_link(hash, path, 'O', (mode | S_IFDIR), 0, true);
     if (!lnk) {
         xTaskResumeAll();

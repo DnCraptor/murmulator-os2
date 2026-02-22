@@ -11,6 +11,7 @@ static void* allocator(void) {
 void* __new_ctx(void) {
     cmd_ctx_t* res = (cmd_ctx_t*)pvPortCalloc(1, sizeof(cmd_ctx_t));
     res->pallocs = new_list_v(allocator, vPortFree, 0);
+    res->umask = 022;
     return res;
 }
 

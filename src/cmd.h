@@ -69,6 +69,11 @@ typedef enum {
 
 typedef void (*sighandler_t)(int);
 
+#ifndef _MODE_T_DECLARED
+#define _MODE_T_DECLARED
+typedef unsigned int mode_t;
+#endif
+
 typedef struct cmd_ctx {
     uint32_t argc;
     char** argv;
@@ -110,6 +115,7 @@ typedef struct cmd_ctx {
     array_t /*of DIR*/ *pdirs; // open directories per process
     list_t /*of void*/ *pallocs; // related to the process allocations
     int proc_errno;
+    mode_t umask;
 } cmd_ctx_t;
 
 cmd_ctx_t* get_cmd_startup_ctx(); // system

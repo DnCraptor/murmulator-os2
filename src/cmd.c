@@ -7,7 +7,10 @@ const char TEMP[] = "TEMP";
 const char _mc_con[] = ".mc.con";
 const char _cmd_history[] = ".cmd_history";
 
-static cmd_ctx_t ctx = { 0 };
+static cmd_ctx_t ctx = { 
+    0,
+    .umask = 022
+};
 
 extern uint32_t butter_psram_size;
 size_t __in_hfa() get_heap_total() {
@@ -61,6 +64,7 @@ cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
     res->ret_code = src->ret_code;
     res->user_data = 0;
     res->forse_flash = src->forse_flash;
+    res->umask = src->umask;
     return res;
 }
 

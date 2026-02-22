@@ -28,7 +28,7 @@ option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
 #set(INC_BUILD ON)
 
-#set(HID ON)
+set(HID ON)
 
 #set(MURM1x ON)
 set(MURM20 ON)
@@ -42,10 +42,10 @@ set(VGAHDMI ON)
 set(TFT ON)
 set(ILI9341 ON)
 
-#set(CPU_MHZ 252)
+set(CPU_MHZ 252)
 #set(CPU_MHZ 352)
 #set(CPU_MHZ 366)
-set(CPU_MHZ 378)
+#set(CPU_MHZ 378)
 #set(CPU_MHZ 424)
 set(FLASH_FREQ_MHZ "66")
 set(PSRAM_FREQ_MHZ "88")
@@ -65,7 +65,7 @@ set(FLASH_SIZE 16384)
 set(FIRMWARE_OFFSET 64)
 
 if(NOT MOS_VERSION)
-set(MOS_VERSION "2.3.0")
+set(MOS_VERSION "2.3.1")
 endif ()
 
 include(pico_sdk_import.cmake)
