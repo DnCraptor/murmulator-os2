@@ -364,8 +364,9 @@ static cmd_ctx_t* prep_ctx(
 
     child->sig_pending = 0;
     child->sig_blocked = 0;
-    for(int i=0;i<MAX_SIG;i++)
+    for(int i = 0; i < MAX_SIG; ++i) {
         child->sig_handler[i] = SIG_DFL;
+    }
     child->sig_default = DEFAULT_MASK;
 
     /* --- copy argv --- */
@@ -473,14 +474,6 @@ static cmd_ctx_t* prep_ctx(
                 continue;
             }
             cfd = (FDESC*)pvPortCalloc(1, sizeof(FDESC));
-            if (!cfd) {
-                // OOM: можно здесь сделать простой откат:
-                // cleanup_pfiles(child);
-                // child->pfiles = 0; child->pdirs = 0;
-                // и вернуть NULL выше
-                // но для краткости сейчас пропускаем детальный rollback
-                continue;
-            }
             cfd->fp    = pfd->fp;
             cfd->flags = pfd->flags;
             cfd->path  = pfd->path;  // разделяем строку пути (только чтение)
@@ -560,10 +553,7 @@ static int apply_file_actions(cmd_ctx_t* child,
         }
 
         case ACTION_CLOSE: {
-            if (__close(a->fd) < 0) {
-                err = errno ? errno : EBADF;
-                goto out;
-            }
+            __close(a->fd);  // POSIX: ignore EBADF for non-existent fds
             break;
         }
 

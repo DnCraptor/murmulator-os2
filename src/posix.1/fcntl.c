@@ -33,7 +33,6 @@ char* __realpathat(int dfd, const char *restrict filename, char *restrict resolv
 uint32_t __in_hfa() get_hash(const char *pathname) {
     uint32_t h = 2166136261u;
     while (*pathname) {
-        unsigned char c = 
         h ^= (unsigned char)*pathname++;
         h *= 16777619u;
     }
@@ -460,11 +459,12 @@ void __in_hfa() cleanup_pfiles(cmd_ctx_t* ctx) {
         }
         vPortFree(fd);
     }
-    vPortFree(ctx->pfiles);
+    vPortFree(ctx->pfiles->p);  // освобождаем внутренний массив указателей
+    vPortFree(ctx->pfiles);     // освобождаем array_t struct
     ctx->pfiles = 0;
     if (ctx->pdirs) {
-        delete_array(ctx->pdirs);
-        vPortFree(ctx->pdirs);
+        delete_array(ctx->pdirs);  // освобождает p и arr внутри
+        // НЕ vPortFree(ctx->pdirs) — delete_array уже освободил
         ctx->pdirs = 0;
     }
 }
