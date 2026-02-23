@@ -711,13 +711,14 @@ int __execve(const char *pathname, char *const argv[], char *const envp[])
 {
     char* tmp = get_ctx_var(ctx, "TEMP");
     if(!tmp) tmp = "";
-    char * cmd_history_file = concat(tmp, ".cmd_history");
+    char* cmd_history_file = concat(tmp, ".cmd_history");
     FIL* pfh = (FIL*)pvPortMalloc(sizeof(FIL));
-    f_open(pfh, cmd_history_file, FA_OPEN_ALWAYS | FA_WRITE | FA_OPEN_APPEND);
-    UINT br;
-    f_write(pfh, pathname, strlen(pathname), &br);
-    f_write(pfh, "\n", 1, &br);
-    f_close(pfh);
+    if(FR_OK == f_open(pfh, cmd_history_file, FA_OPEN_ALWAYS | FA_WRITE | FA_OPEN_APPEND)) {
+        UINT br;
+        f_write(pfh, pathname, strlen(pathname), &br);
+        f_write(pfh, "\n", 1, &br);
+        f_close(pfh);
+    }
     vPortFree(pfh);
     vPortFree(cmd_history_file);
 }

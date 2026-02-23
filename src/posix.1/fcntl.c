@@ -713,13 +713,15 @@ int __in_hfa() __close(int fildes) {
         TaskHandle_t wakeup = pb->reader_task ? pb->reader_task : pb->writer_task;
         xSemaphoreGive(pb->mutex);
         if (wakeup) xTaskNotifyGive(wakeup);
-        if (total == 0) {
+        if (total == 0) { // no more users for the buffer and mutex
             vSemaphoreDelete(pb->mutex);
             vPortFree(pb);
         }
         fd->pipe = NULL;
-        fd->fp   = NULL;
-        vPortFree(fd);
+        fd->fp   = NULL;  // is_closed_desc увидит !fd->fp → true
+        fd->flags = 0;
+        fd->path  = NULL;
+        // fd остаётся в pfiles — переиспользуется при следующем open
         errno = 0;
         return 0;
     }
@@ -1978,40 +1980,56 @@ int __pipe2(int pipefd[2], int flags) {
     pipe_buf_t* pb = pvPortCalloc(1, sizeof(pipe_buf_t));
     if (!pb) { errno = ENOMEM; return -1; }
 
-    pb->mutex       = xSemaphoreCreateMutex();
-    pb->readers     = 1;
-    pb->writers     = 1;
+    pb->mutex   = xSemaphoreCreateMutex();
+    pb->readers = 1;
+    pb->writers = 1;
 
     cmd_ctx_t* ctx = get_cmd_ctx();
     init_pfiles(ctx);
 
+    FDESC* rd = NULL;
+    FDESC* wr = NULL;
+    size_t n_rd, n_wr;
+
     // read end
-    FDESC* rd = pvPortCalloc(1, sizeof(FDESC));
-    if (!rd) { goto oom; }
-    rd->fp       = (FIL*)STDIN_FILENO;  // заглушка, не используется
+    rd = array_lookup_first_closed(ctx->pfiles, &n_rd);
+    if (!rd) {
+        rd = pvPortCalloc(1, sizeof(FDESC));
+        if (!rd) goto oom;
+        n_rd = array_push_back(ctx->pfiles, rd);
+        if (!n_rd) { vPortFree(rd); rd = NULL; goto oom; }
+    }
+    rd->fp       = (FIL*)STDIN_FILENO;
     rd->pipe     = pb;
     rd->pipe_end = 0;
     rd->flags    = O_RDONLY | (flags & O_NONBLOCK);
     if (flags & O_CLOEXEC) rd->flags |= FD_CLOEXEC;
 
     // write end
-    FDESC* wr = pvPortCalloc(1, sizeof(FDESC));
-    if (!wr) { vPortFree(rd); goto oom; }
-    wr->fp       = (FIL*)STDOUT_FILENO; // заглушка
+    wr = array_lookup_first_closed(ctx->pfiles, &n_wr);
+    if (!wr) {
+        wr = pvPortCalloc(1, sizeof(FDESC));
+        if (!wr) goto oom;
+        n_wr = array_push_back(ctx->pfiles, wr);
+        if (!n_wr) { vPortFree(wr); wr = NULL; goto oom; }
+    }
+    wr->fp       = (FIL*)STDOUT_FILENO;
     wr->pipe     = pb;
     wr->pipe_end = 1;
     wr->flags    = O_WRONLY | (flags & O_NONBLOCK);
     if (flags & O_CLOEXEC) wr->flags |= FD_CLOEXEC;
 
-    pipefd[0] = array_push_back(ctx->pfiles, rd);
-    pipefd[1] = array_push_back(ctx->pfiles, wr);
-
-    if (!pipefd[0] || !pipefd[1]) { goto oom; }
+    pipefd[0] = (int)n_rd;
+    pipefd[1] = (int)n_wr;
 
     errno = 0;
     return 0;
 
 oom:
+    // rd/wr могут быть переиспользованными слотами — не освобождаем,
+    // только сбрасываем pipe-поля если успели выставить
+    if (rd && rd->pipe) { rd->pipe = NULL; rd->fp = NULL; rd->flags = 0; }
+    if (wr && wr->pipe) { wr->pipe = NULL; wr->fp = NULL; wr->flags = 0; }
     vSemaphoreDelete(pb->mutex);
     vPortFree(pb);
     errno = ENOMEM;

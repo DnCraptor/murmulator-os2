@@ -195,7 +195,7 @@ char* __in_hfa() concat(const char* s1, const char* s2) {
 char* __in_hfa() concat2(const char* s1, size_t s, const char* s2) {
     char* res = (char*)pvPortMalloc(s + strlen(s2) + 2);
     if (!res) return res;
-    strncpy(res, s1, s);
+    memcpy(res, s1, s);
     res[s] = '/';
     strcpy(res + s + 1, s2);
     return res;
