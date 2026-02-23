@@ -18,6 +18,7 @@ size_t __in_hfa() get_heap_total() {
 }
 char* __in_hfa() copy_str(const char* s) {
     char* res = (char*)pvPortMalloc(strlen(s) + 1);
+    if (!res) return NULL;
     strcpy(res, s);
     return res;
 }
@@ -63,7 +64,7 @@ cmd_ctx_t* __in_hfa() clone_ctx(cmd_ctx_t* src) {
     res->stage = src->stage;
     res->ret_code = src->ret_code;
     res->user_data = 0;
-    res->forse_flash = src->forse_flash;
+    res->force_flash = src->force_flash;
     res->umask = src->umask;
     return res;
 }
@@ -110,7 +111,7 @@ void __in_hfa() cleanup_ctx(cmd_ctx_t* src) {
         vPortFree(src->user_data);
         src->user_data = 0;
     }
-    src->forse_flash = false;
+    src->force_flash = false;
     cleanup_pfiles(src);
     __free_ctx(src);
     // gouta("cleanup_ctx <<\n");

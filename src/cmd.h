@@ -95,7 +95,7 @@ typedef struct cmd_ctx {
 
     volatile cmd_exec_stage_t stage;
     void* user_data;
-    bool forse_flash;
+    bool force_flash;
     TaskHandle_t task;
     TaskHandle_t parent_task; // TODO: optimise (ppid only?)
     long pid;

@@ -864,7 +864,7 @@ a:
         ctx->ret_code = -1;
         return false;
     }
-    bool try_to_use_flash = ctx->forse_flash;
+    bool try_to_use_flash = ctx->force_flash;
     if (!try_to_use_flash) {
         size_t free_sz = xPortGetFreeHeapSize();
         if (free_sz < (f->obj.objsize >> 1)) {

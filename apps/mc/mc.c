@@ -1518,7 +1518,7 @@ static bool cmd_enter(cmd_ctx_t* ctx) {
         /// TODO:__unreachable();
     }
     if ( cmd_enter_helper(ctx, s_cmd) ) {
-        ctx->forse_flash = ff; // Alt+Enter was pressed
+        ctx->force_flash = ff; // Alt+Enter was pressed
         return true;
     }
     string_resize(s_cmd, 0);

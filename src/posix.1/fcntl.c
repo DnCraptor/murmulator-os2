@@ -444,11 +444,11 @@ void __in_hfa() cleanup_pfiles(cmd_ctx_t* ctx) {
             if (fd->pipe_end == 0) pb->readers--;
             else                   pb->writers--;
             int total = pb->readers + pb->writers;
-            TaskHandle_t wakeup = pb->reader_task
-                                ? pb->reader_task
-                                : pb->writer_task;
+            TaskHandle_t rt = pb->reader_task;
+            TaskHandle_t wt = pb->writer_task;
             xSemaphoreGive(pb->mutex);
-            if (wakeup) xTaskNotifyGive(wakeup);
+            if (rt) xTaskNotifyGive(rt);
+            if (wt) xTaskNotifyGive(wt);
             if (total == 0) {
                 vSemaphoreDelete(pb->mutex);
                 vPortFree(pb);
@@ -710,9 +710,11 @@ int __in_hfa() __close(int fildes) {
         else                   pb->writers--;
         int total = pb->readers + pb->writers;
         // разбудить ожидающих, чтобы они увидели EOF/EPIPE
-        TaskHandle_t wakeup = pb->reader_task ? pb->reader_task : pb->writer_task;
+        TaskHandle_t rt = pb->reader_task;
+        TaskHandle_t wt = pb->writer_task;
         xSemaphoreGive(pb->mutex);
-        if (wakeup) xTaskNotifyGive(wakeup);
+        if (rt) xTaskNotifyGive(rt);
+        if (wt) xTaskNotifyGive(wt);
         if (total == 0) { // no more users for the buffer and mutex
             vSemaphoreDelete(pb->mutex);
             vPortFree(pb);
@@ -958,7 +960,7 @@ int __in_hfa() __lstat(const char *_path, struct stat *buf) {
                 }
                 buf->st_size = obuf.st_size;
                 buf->st_mtime = obuf.st_mtime;
-                buf->st_atime = obuf.st_ctime;
+                buf->st_atime = obuf.st_atime;
                 goto ex;
             }
         }
@@ -1701,6 +1703,7 @@ long __in_hfa() __readlinkat_internal(const char *restrict path, char *restrict 
     }
     long res = strlen(buf + 1);
     memmove(buf, buf + 1, res);
+    buf[res] = '\0';
     errno = 0;
     return res;
 }
