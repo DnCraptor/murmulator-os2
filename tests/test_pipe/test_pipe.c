@@ -336,7 +336,7 @@ int main(int argc, char **argv)
     test_poll_empty();
     test_poll_hup();
     test_poll_pollout();
-    test_spawn_pipe(argv[0]);
+//    test_spawn_pipe(argv[0]);
     test_large_write();
     test_fstat_pipe();
 

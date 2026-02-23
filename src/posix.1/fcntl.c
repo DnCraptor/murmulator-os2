@@ -259,9 +259,20 @@ static FRESULT __in_hfa() append_to_extfs(posix_link_t* lnk) {
     if (r != FR_OK) { /// TODO: error handling
         goto err;
     }
+
+// Гарантируем, что поля union совпадают по смещению и размеру.
+// append_to_extfs пишет desc.mode для всех типов, включая 'H',
+// где семантически это hlink.ohash — они должны быть идентичны.
+_Static_assert(offsetof(posix_link_t, desc.mode) == offsetof(posix_link_t, hlink.ohash),
+               "union layout changed: desc.mode и hlink.ohash должны совпадать");
+_Static_assert(sizeof(((posix_link_t*)0)->desc.mode) == sizeof(((posix_link_t*)0)->hlink.ohash),
+               "union layout changed: размеры desc.mode и hlink.ohash должны совпадать");
+
     uint16_t sz = (uint16_t)strlen(lnk->fname);
     f_write(pf, &sz, sizeof(sz), &bw);
     f_write(pf, lnk->fname, sz, &bw);
+    // desc.mode и hlink.ohash — одно поле union (см. static_assert выше),
+    // поэтому запись через desc.mode корректна для всех типов записей.
     f_write(pf, &lnk->desc.mode, sizeof(lnk->desc.mode), &bw);
     if (lnk->type == 'H') {
         sz = (uint16_t)strlen(lnk->hlink.ofname);
@@ -663,11 +674,23 @@ err:
         lnk = posix_add_link(hash, path, 'O', pf->mode, 0, false);
         if (!lnk) {
             xTaskResumeAll();
+            f_close(pf);          // закрываем файл который уже открыли
+            vPortFree(path);
             errno = ENOMEM;
             return -1;
         }
-        FRESULT fr = append_to_extfs(lnk); // TODO:
+        FRESULT fr = append_to_extfs(lnk);
         xTaskResumeAll();
+        if (fr != FR_OK) {
+            // lnk в памяти есть, но на диск не попал —
+            // до перезагрузки работать будет, после — нет.
+            // Решаем: либо считаем это некритичным (предупреждение),
+            // либо откатываем полностью.
+            f_close(pf);
+            vPortFree(path);
+            errno = EIO;
+            return -1;
+        }
     }
     errno = 0;
     return (int)n;
@@ -1655,7 +1678,7 @@ long __in_hfa() __readlinkat(int fd, const char *restrict _path, char *restrict 
 
 long __in_hfa() __readlinkat_internal(const char *restrict path, char *restrict buf, size_t bufsize) {
     FIL* pf = (FIL*)pvPortMalloc(sizeof(FIL));
-    if (!pf) { vPortFree(path); errno = ENOMEM; return -1; }
+    if (!pf) { errno = ENOMEM; return -1; }
     FRESULT fr = f_open(pf, path, FA_READ);
     if (fr != FR_OK) {
         vPortFree(pf);

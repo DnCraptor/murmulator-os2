@@ -152,6 +152,22 @@ again:
 
     // 7. После пробуждения — сигналы
     deliver_signals(ctx);
-
+    // не goto again — падаем в повторную проверку событий явно,
+    // чтобы не потерять таймаут-ветку
+    ready = 0;
+    for (nfds_t i = 0; i < nfds; ++i) {
+        if (fds[i].fd < 0) {
+            fds[i].revents = POLLNVAL;
+            ready++;
+            continue;
+        }
+        short re = poll_fd_events(fds[i].fd, fds[i].events);
+        if (re) {
+            fds[i].revents = re;
+            ready++;
+        }
+    }
+    if (ready > 0 || timeout == 0)
+        return ready;
     goto again;
 }

@@ -236,6 +236,15 @@ void deliver_signals(cmd_ctx_t *ctx)
             if (h == SIG_DFL) {
                 ctx->ret_code = sig;
                 ctx->stage = ZOMBIE;
+                // --- передаём детей init-процессу ---
+                for (size_t i = 1; i < pids->size; ++i) {
+                    cmd_ctx_t *c = pids->p[i];
+                    if (c && c->ppid == ctx->pid) {
+                        c->ppid = 1;
+                        if (pids->p[1])
+                            xTaskNotifyGive(((cmd_ctx_t*)pids->p[1])->task);
+                    }
+                }
                 if (ctx->parent_task)
                     xTaskNotifyGive(ctx->parent_task);
                 vTaskDelete(NULL);
@@ -361,6 +370,10 @@ static cmd_ctx_t* prep_ctx(
 ) {
     cmd_ctx_t* child = __new_ctx();
     if (!child) return NULL;
+    if (xPortGetFreeHeapSize() < 4096) { // assumption: 4K is enough for any context (TODO: rollback?)
+        errno = ENOMEM;
+        return NULL;
+    }
 
     child->sig_pending = 0;
     child->sig_blocked = 0;
