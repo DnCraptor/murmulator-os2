@@ -1,4 +1,13 @@
 #include <stdint.h>
+// Provide signal.h types manually — mc exports its own 'signal' symbol
+// for the ELF loader, which would conflict with POSIX signal() inline.
+typedef uint32_t sigset_t;
+typedef int sig_atomic_t;
+typedef void (*sighandler_t)(int);
+#define SIG_DFL ((sighandler_t)0)
+#define SIG_IGN ((sighandler_t)1)
+#define SIG_ERR ((sighandler_t)-1)
+#define _SIGNAL_H
 // posix
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -47,14 +56,18 @@ static void handle_down_pressed();
 static bool edit_name(const char* title, string_t* s_initial);
 
 static bool marked_to_exit = false;
+static volatile bool winch_flag = false;
 
 int __required_m_api_verion(void) {
     return M_API_VERSION;
 }
 
-// only SIGTERM is supported for now
-int signal(void) {
-    marked_to_exit = true;
+int signal(int sig) {
+    if (sig == 28 /* SIGWINCH */) {
+        winch_flag = true;
+    } else {
+        marked_to_exit = true;
+    }
     return 0;
 }
 
@@ -1107,6 +1120,23 @@ static void bottom_line() {
     draw_cmd_line();
 }
 
+static void recalc_layout() {
+    uint32_t new_w = get_console_width();
+    uint32_t new_h = get_console_height();
+    if (new_w == MAX_WIDTH && new_h == MAX_HEIGHT) return;
+    MAX_WIDTH = new_w;
+    MAX_HEIGHT = new_h;
+    F_BTN_Y_POS = TOTAL_SCREEN_LINES - 1;
+    CMD_Y_POS = F_BTN_Y_POS - 1;
+    PANEL_LAST_Y = CMD_Y_POS - 1;
+    LAST_FILE_LINE_ON_PANEL_Y = PANEL_LAST_Y - 1;
+    free(line);
+    line = calloc(MAX_WIDTH + 2, 1);
+    left_panel->width = MAX_WIDTH >> 1;
+    right_panel->left = MAX_WIDTH >> 1;
+    right_panel->width = MAX_WIDTH - right_panel->left;
+}
+
 static void redraw_window() {
     m_window();
     fill_panel(left_panel);
@@ -1915,6 +1945,11 @@ inline static void esc_pressed(void) {
 static inline void work_cycle(cmd_ctx_t* ctx) {
     uint8_t repeat_cnt = 0;
     for(;;) {
+        if (winch_flag) {
+            winch_flag = false;
+            recalc_layout();
+            redraw_window();
+        }
         blink_cursor();
         char c = getch_now();
         nespad_stat(&nespad_state, &nespad_state2);
@@ -2074,6 +2109,12 @@ int main(void) {
     scancode_handler = get_scancode_handler();
     set_scancode_handler(scancode_handler_impl);
     set_usb_detached_handler(usb_detached_handler);
+
+    // Register POSIX signal handler for SIGWINCH (terminal resize)
+    {
+        typedef sighandler_t (*posix_signal_fn_t)(int, sighandler_t);
+        ((posix_signal_fn_t)_sys_table_ptrs[400])(28, (sighandler_t)signal);
+    }
 
     start_manager(ctx);
 
