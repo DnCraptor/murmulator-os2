@@ -351,6 +351,10 @@ int MP3Decode(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, sh
 		/* fill main data buffer with enough new data for this frame */
 		if (mp3DecInfo->mainDataBytes >= mp3DecInfo->mainDataBegin) {
 			/* adequate "old" main data available (i.e. bit reservoir) */
+			if (mp3DecInfo->mainDataBegin + mp3DecInfo->nSlots > MAINBUF_SIZE) {
+				MP3ClearBadFrame(mp3DecInfo, outbuf);
+				return ERR_MP3_INVALID_FRAMEHEADER;
+			}
 			memmove(mp3DecInfo->mainBuf, mp3DecInfo->mainBuf + mp3DecInfo->mainDataBytes - mp3DecInfo->mainDataBegin, mp3DecInfo->mainDataBegin);
 			memcpy(mp3DecInfo->mainBuf + mp3DecInfo->mainDataBegin, *inbuf, mp3DecInfo->nSlots);
 
@@ -360,6 +364,10 @@ int MP3Decode(HMP3Decoder hMP3Decoder, unsigned char **inbuf, int *bytesLeft, sh
 			mainPtr = mp3DecInfo->mainBuf;
 		} else {
 			/* not enough data in bit reservoir from previous frames (perhaps starting in middle of file) */
+			if (mp3DecInfo->mainDataBytes + mp3DecInfo->nSlots > MAINBUF_SIZE) {
+				MP3ClearBadFrame(mp3DecInfo, outbuf);
+				return ERR_MP3_MAINDATA_UNDERFLOW;
+			}
 			memcpy(mp3DecInfo->mainBuf + mp3DecInfo->mainDataBytes, *inbuf, mp3DecInfo->nSlots);
 			mp3DecInfo->mainDataBytes += mp3DecInfo->nSlots;
 			*inbuf += mp3DecInfo->nSlots;
