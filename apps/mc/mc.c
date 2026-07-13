@@ -196,6 +196,16 @@ static file_panel_desc_t* left_panel;
 static file_panel_desc_t* right_panel;
 static file_panel_desc_t* psp;
 
+typedef enum panel_width_mode {
+    PANEL_WIDTH_QUARTER = 0,
+    PANEL_WIDTH_HALF,
+    PANEL_WIDTH_THREE_QUARTERS,
+    PANEL_WIDTH_FULL
+} panel_width_mode_t;
+
+static panel_width_mode_t panel_width_mode = PANEL_WIDTH_HALF;
+static volatile int8_t panel_width_direction = 0;
+
 static color_schema_t* pcs;
 
 typedef struct {
@@ -255,6 +265,7 @@ int _init(void) {
     shiftPressed = false;
     leftPressed = false;
     rightPressed = false;
+    panel_width_direction = 0;
     upPressed = false;
     downPressed = false;
     homePressed = false;
@@ -1144,6 +1155,73 @@ static void bottom_line() {
     draw_cmd_line();
 }
 
+static bool panel_is_visible(const file_panel_desc_t* p) {
+    return p && p->width > 0;
+}
+
+static void apply_panel_layout() {
+    int left_width;
+
+    if (psp == right_panel) {
+        int right_width;
+        if (panel_width_mode == PANEL_WIDTH_FULL) {
+            right_width = MAX_WIDTH;
+        } else if (panel_width_mode == PANEL_WIDTH_THREE_QUARTERS) {
+            right_width = (MAX_WIDTH * 3) >> 2;
+        } else if (panel_width_mode == PANEL_WIDTH_QUARTER) {
+            right_width = MAX_WIDTH >> 2;
+        } else {
+            right_width = MAX_WIDTH >> 1;
+        }
+        left_width = MAX_WIDTH - right_width;
+    } else {
+        if (panel_width_mode == PANEL_WIDTH_FULL) {
+            left_width = MAX_WIDTH;
+        } else if (panel_width_mode == PANEL_WIDTH_THREE_QUARTERS) {
+            left_width = MAX_WIDTH - (MAX_WIDTH >> 2);
+        } else if (panel_width_mode == PANEL_WIDTH_QUARTER) {
+            left_width = (MAX_WIDTH + 3) >> 2;
+        } else {
+            left_width = (MAX_WIDTH + 1) >> 1;
+        }
+    }
+
+    left_panel->left = 0;
+    left_panel->width = left_width;
+    right_panel->left = left_width;
+    right_panel->width = MAX_WIDTH - left_width;
+}
+
+static void redraw_panels() {
+    if (hidePannels) return;
+    m_window();
+    if (panel_is_visible(left_panel)) fill_panel(left_panel);
+    if (panel_is_visible(right_panel)) fill_panel(right_panel);
+}
+
+static void change_panel_width(int direction) {
+    bool expands_active_panel =
+        (psp == left_panel && direction > 0) ||
+        (psp == right_panel && direction < 0);
+
+    if (expands_active_panel) {
+        if (panel_width_mode == PANEL_WIDTH_FULL) {
+            panel_width_mode = PANEL_WIDTH_HALF;
+        } else {
+            panel_width_mode = (panel_width_mode_t)(panel_width_mode + 1);
+        }
+    } else {
+        if (panel_width_mode == PANEL_WIDTH_QUARTER) {
+            panel_width_mode = PANEL_WIDTH_HALF;
+        } else {
+            panel_width_mode = (panel_width_mode_t)(panel_width_mode - 1);
+        }
+    }
+
+    apply_panel_layout();
+    redraw_panels();
+}
+
 static void recalc_layout() {
     uint32_t new_w = get_console_width();
     uint32_t new_h = get_console_height();
@@ -1156,15 +1234,11 @@ static void recalc_layout() {
     LAST_FILE_LINE_ON_PANEL_Y = PANEL_LAST_Y - 1;
     free(line);
     line = calloc(MAX_WIDTH + 2, 1);
-    left_panel->width = MAX_WIDTH >> 1;
-    right_panel->left = MAX_WIDTH >> 1;
-    right_panel->width = MAX_WIDTH - right_panel->left;
+    apply_panel_layout();
 }
 
 static void redraw_window() {
-    m_window();
-    fill_panel(left_panel);
-    fill_panel(right_panel);
+    redraw_panels();
     bottom_line();
 }
 
@@ -1476,24 +1550,28 @@ static void fill_panel(file_panel_desc_t* p) {
 
 inline static void select_right_panel() {
     psp = right_panel;
-    fill_panel(left_panel);
-    fill_panel(right_panel);
+    apply_panel_layout();
+    redraw_panels();
 //    chdir(psp->s_path->p);
 }
 
 inline static void select_left_panel() {
     psp = left_panel;
-    fill_panel(left_panel);
-    fill_panel(right_panel);
+    apply_panel_layout();
+    redraw_panels();
 //    chdir(psp->s_path->p);
 }
 
 static void m_window() {
     if (hidePannels) return;
-    snprintf(line, (MAX_WIDTH >> 1) - 4, "SD:%s", left_panel->s_path->p);
-    draw_panel(pcs, 0, PANEL_TOP_Y, MAX_WIDTH >> 1, PANEL_LAST_Y + 1, line, 0);
-    snprintf(line, (MAX_WIDTH >> 1) - 4, "SD:%s", right_panel->s_path->p);
-    draw_panel(pcs, MAX_WIDTH >> 1, PANEL_TOP_Y, MAX_WIDTH - (MAX_WIDTH >> 1), PANEL_LAST_Y + 1, line, 0);
+    if (panel_is_visible(left_panel)) {
+        snprintf(line, left_panel->width > 4 ? left_panel->width - 4 : 1, "SD:%s", left_panel->s_path->p);
+        draw_panel(pcs, left_panel->left, PANEL_TOP_Y, left_panel->width, PANEL_LAST_Y + 1, line, 0);
+    }
+    if (panel_is_visible(right_panel)) {
+        snprintf(line, right_panel->width > 4 ? right_panel->width - 4 : 1, "SD:%s", right_panel->s_path->p);
+        draw_panel(pcs, right_panel->left, PANEL_TOP_Y, right_panel->width, PANEL_LAST_Y + 1, line, 0);
+    }
 }
 
 static void reset_long_name_animation(bool redraw) {
@@ -1572,16 +1650,23 @@ static bool scancode_handler_impl(const uint32_t ps2scancode) { // core ?
         endPressed = false;
         goto r;
     }
-    register uint8_t sc = (uint8_t)ps2scancode & 0xFF;
-    if (sc == 0x4B) {
+    if (ps2scancode == 0xE04B || (ps2scancode == 0x4B && !numlock)) {
         leftPressed = true;
-    } else if (sc == 0xCB) {
+        panel_width_direction = -1;
+        goto r;
+    } else if (ps2scancode == 0xE0CB || (ps2scancode == 0xCB && !numlock)) {
         leftPressed = false;
-    } else if (sc == 0x4D) {
+        goto r;
+    } else if (ps2scancode == 0xE04D || (ps2scancode == 0x4D && !numlock)) {
         rightPressed = true;
-    } else if (sc == 0xCD) {
+        panel_width_direction = 1;
+        goto r;
+    } else if (ps2scancode == 0xE0CD || (ps2scancode == 0xCD && !numlock)) {
         rightPressed = false;
-    } else if (sc == 0x2A) {
+        goto r;
+    }
+    register uint8_t sc = (uint8_t)ps2scancode & 0xFF;
+    if (sc == 0x2A) {
         shiftPressed = true;
     } else if (sc == 0xAA) {
         shiftPressed = false;
@@ -1951,9 +2036,7 @@ inline static void hide_pannels() {
         bottom_line();
     } else {
         save_console(get_cmd_ctx());
-        m_window();
-        fill_panel(left_panel);
-        fill_panel(right_panel);
+        redraw_panels();
     }
 }
 
@@ -2056,6 +2139,12 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
             else if (ctrlPressed && (c == 'o' || c == 'O' || c == 0x99 /*Щ*/ || c == 0xE9 /*щ*/)) hide_pannels();
             else if (c != CHAR_CODE_EOF) type_char(c);
         }
+        if (panel_width_direction) {
+            int direction = panel_width_direction;
+            panel_width_direction = 0;
+            reset_long_name_animation(true);
+            change_panel_width(direction);
+        }
 
         if (is_dendy_joystick) {
             if (is_dendy_joystick) nespad_read();
@@ -2082,7 +2171,9 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
                     ctrlPressed = nespad_state & DPAD_SELECT;
                     enter_pressed();
                 } else if ((nespad_state & DPAD_LEFT) || (nespad_state & DPAD_RIGHT)) {
-                    handle_tab_pressed();
+                    change_panel_width(
+                        (nespad_state & DPAD_RIGHT) ? 1 : -1
+                    );
                 }
             }
         }
@@ -2147,9 +2238,7 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
 }
 
 inline static void start_manager(cmd_ctx_t* ctx) {
-    m_window();
-    fill_panel(left_panel);
-    fill_panel(right_panel);
+    redraw_panels();
     bottom_line();
     work_cycle(ctx);
 }
@@ -2180,10 +2269,8 @@ int main(void) {
         left_panel->indexes[0].selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
         right_panel->indexes[0].selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
     }
-    // TODO: in case other mode, dynamic size, etc...
-    left_panel->width = MAX_WIDTH >> 1;
-    right_panel->left = MAX_WIDTH >> 1;
-    right_panel->width = MAX_WIDTH - right_panel->left;
+    panel_width_mode = PANEL_WIDTH_HALF;
+    apply_panel_layout();
     left_panel->selected_files_lst = new_list_v(fi_allocator, fi_deallocator, NULL);
     right_panel->selected_files_lst = new_list_v(fi_allocator, fi_deallocator, NULL);
 
