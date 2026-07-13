@@ -21,10 +21,22 @@ const char _mc_con[] = ".mc.con";
 
 static const char* title;
 
+#define VIEW_LINE_BUFFER_SIZE 256
+
+static FILE* view_file;
+static off_t file_size;
+static off_t top_offset;
+static off_t next_line_offset;
+static off_t next_page_offset;
+static size_t top_line;
+static size_t visible_lines;
+static bool reached_eof;
+
 static void m_window();
 static void redraw_window();
 static void bottom_line();
 static bool m_prompt(const char* txt);
+static inline void handle_down_pressed();
 
 static bool marked_to_exit = false;
 
@@ -101,6 +113,14 @@ int _init(void) {
     marked_to_exit = false;
     line_s = 0;
     line_e = 0;
+    view_file = NULL;
+    file_size = 0;
+    top_offset = 0;
+    next_line_offset = 0;
+    next_page_offset = 0;
+    top_line = 0;
+    visible_lines = 0;
+    reached_eof = false;
     scan_code_cleanup();
 }
 
@@ -248,41 +268,120 @@ static void redraw_window() {
     bottom_line();
 }
 
+static bool read_view_line(char* buff, size_t buff_size) {
+    size_t len = 0;
+    bool got_data = false;
+
+    for (;;) {
+        int c = fgetc(view_file);
+        if (c == EOF) {
+            break;
+        }
+        got_data = true;
+        if (c == '\n') {
+            break;
+        }
+        if (c == '\r') {
+            int next = fgetc(view_file);
+            if (next != '\n' && next != EOF) {
+                ungetc(next, view_file);
+            }
+            break;
+        }
+        if (len + 1 < buff_size) {
+            buff[len++] = (char)c;
+        }
+    }
+
+    buff[len] = 0;
+    return got_data;
+}
+
+static off_t find_previous_line(off_t offset) {
+    if (offset <= 0) {
+        return 0;
+    }
+
+    off_t pos = offset - 1;
+    if (fseeko(view_file, pos, SEEK_SET) != 0) {
+        return offset;
+    }
+
+    int c = fgetc(view_file);
+    if (c == '\n' && pos > 0) {
+        --pos;
+    }
+
+    while (pos > 0) {
+        if (fseeko(view_file, pos - 1, SEEK_SET) != 0) {
+            return offset;
+        }
+        c = fgetc(view_file);
+        if (c == '\n') {
+            return pos;
+        }
+        --pos;
+    }
+    return 0;
+}
+
 static void m_window() {
     if (hidePannels) return;
     draw_panel(pcs, 0, PANEL_TOP_Y, MAX_WIDTH, PANEL_LAST_Y + 1, title, 0);
-    FILE* f = fopen(title, "r");
-    if (!f) {
+
+    if (!view_file || fseeko(view_file, top_offset, SEEK_SET) != 0) {
         const line_t lns[2] = {
-            { -1, "Unable to open file:" },
+            { -1, "Unable to read file:" },
             { -1, title }
         };
         const lines_t lines = { sizeof(lns) / sizeof(lns[0]), 3, lns };
         draw_box(pcs, (MAX_WIDTH - 60) / 2, 7, 60, 10, "Error", &lines);
-        // TODO: wait for user action
         sleep_ms(1500);
         return;
     }
-    size_t width = MAX_WIDTH - 2;
-    size_t height = MAX_HEIGHT - 3;
-    char* buff = malloc(width);
+
+    char buff[VIEW_LINE_BUFFER_SIZE];
+    const size_t height = MAX_HEIGHT - 3;
+    const size_t draw_width = MAX_WIDTH > 2 ? MAX_WIDTH - 2 : 0;
     size_t y = 1;
-    size_t line = 0;
-    while (fgets(buff, width, f)) {
-        if (line >= line_s && y <= height) {
-            char* b = buff;
-            while(*b) {
-                if (*b == '\r' || *b == '\n') { *b = 0; break; }
-                b++;
-            }
-            draw_text(buff, 1, y, pcs->FOREGROUND_FIELD_COLOR, pcs->BACKGROUND_FIELD_COLOR);
-            ++y;
-            line_e = line;
+
+    visible_lines = 0;
+    reached_eof = false;
+    next_line_offset = top_offset;
+    next_page_offset = top_offset;
+
+    while (y <= height) {
+        off_t line_offset = ftello(view_file);
+        if (!read_view_line(buff, sizeof(buff))) {
+            reached_eof = true;
+            break;
         }
-        ++line;
+
+        if (visible_lines == 1) {
+            next_line_offset = line_offset;
+        }
+        if (draw_width < sizeof(buff)) {
+            buff[draw_width] = 0;
+        }
+        draw_text(buff, 1, y, pcs->FOREGROUND_FIELD_COLOR, pcs->BACKGROUND_FIELD_COLOR);
+        ++visible_lines;
+        ++y;
     }
-    size_t free_sz = xPortGetFreeHeapSize();
-    snprintf(buff, width, " Lines: %d-%d of %d", (line_s + 1), (line_e + 1), line);
+
+    next_page_offset = ftello(view_file);
+    if (visible_lines < 2) {
+        next_line_offset = next_page_offset;
+    }
+    if (next_page_offset >= file_size) {
+        reached_eof = true;
+    }
+
+    line_s = top_line;
+    line_e = visible_lines ? top_line + visible_lines - 1 : top_line;
+    snprintf(buff, sizeof(buff), " Line: %u  Offset: %u/%u",
+             (unsigned)(top_line + 1),
+             (unsigned)top_offset,
+             (unsigned)file_size);
     draw_text(
         buff,
         2,
@@ -290,8 +389,6 @@ static void m_window() {
         pcs->FOREGROUND_FIELD_COLOR,
         pcs->BACKGROUND_FIELD_COLOR
     );
-    free(buff);
-    fclose(f);
 }
 
 static scancode_handler_t scancode_handler;
@@ -346,39 +443,42 @@ static inline void redraw_current_panel() {
 }
 
 static void enter_pressed() {
-    if (hidePannels) return;
-    ++line_s;
-    m_window();
+    handle_down_pressed();
 }
 
 inline static void handle_pagedown_pressed() {
-    if (hidePannels) return;
-    line_s += MAX_HEIGHT - 4;
+    if (hidePannels || reached_eof || visible_lines == 0) return;
+    top_offset = next_page_offset;
+    top_line += visible_lines;
     m_window();
 }
 
 inline static void handle_down_pressed() {
-    if (hidePannels) return;
-    ++line_s;
+    if (hidePannels || visible_lines < 2) return;
+    top_offset = next_line_offset;
+    ++top_line;
     m_window();
 }
 
 inline static void handle_pageup_pressed() {
-    if (hidePannels) return;
-    if (line_s <= MAX_HEIGHT - 4) {
-        line_s = 0;
-    } else {
-        line_s -= MAX_HEIGHT - 4;
+    if (hidePannels || top_offset == 0) return;
+    size_t count = MAX_HEIGHT - 4;
+    while (count-- && top_offset > 0) {
+        top_offset = find_previous_line(top_offset);
+        if (top_line > 0) {
+            --top_line;
+        }
     }
     m_window();
 }
 
 inline static void handle_up_pressed() {
-    if (hidePannels) return;
-    if (line_s >= 1) {
-        --line_s;
-        m_window();
+    if (hidePannels || top_offset == 0) return;
+    top_offset = find_previous_line(top_offset);
+    if (top_line > 0) {
+        --top_line;
     }
+    m_window();
 }
 
 inline static void fn_1_12_btn_pressed(uint8_t fn_idx) {
@@ -472,11 +572,27 @@ inline static void start_viewer(cmd_ctx_t* ctx) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc > 2) {
-        fprintf(stderr, "Unexpected number of arguemts: %d\n", argc);
+    if (argc != 2) {
+        fprintf(stderr, "Usage: mcview <file>\n");
         return 1;
     }
     title = argv[1];
+    view_file = fopen(title, "rb");
+    if (!view_file) {
+        fprintf(stderr, "Unable to open file: %s\n", title);
+        return 1;
+    }
+    if (fseeko(view_file, 0, SEEK_END) != 0) {
+        fprintf(stderr, "Unable to seek file: %s\n", title);
+        fclose(view_file);
+        return 1;
+    }
+    file_size = ftello(view_file);
+    if (file_size < 0 || fseeko(view_file, 0, SEEK_SET) != 0) {
+        fprintf(stderr, "Unable to determine file size: %s\n", title);
+        fclose(view_file);
+        return 1;
+    }
     graphics_set_con_pos(-1, 0);
     MAX_WIDTH = get_console_width();
     MAX_HEIGHT = get_console_height();
@@ -487,6 +603,11 @@ int main(int argc, char* argv[]) {
     save_console(ctx);
 
     pcs = calloc(1, sizeof(color_schema_t));
+    if (!pcs) {
+        fprintf(stderr, "Not enough memory for viewer state\n");
+        fclose(view_file);
+        return 1;
+    }
     pcs->BACKGROUND_FIELD_COLOR = 1, // Blue
     pcs->FOREGROUND_FIELD_COLOR = 7, // White
     pcs->HIGHLIGHTED_FIELD_COLOR = 15, // LightWhite
@@ -506,6 +627,8 @@ int main(int argc, char* argv[]) {
     start_viewer(ctx);
 
     set_scancode_handler(scancode_handler);
+    fclose(view_file);
+    view_file = NULL;
     free(pcs);
     graphics_set_con_pos(0, PANEL_LAST_Y);
 
