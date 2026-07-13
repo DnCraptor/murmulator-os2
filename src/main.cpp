@@ -855,7 +855,7 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
 
 char* mount_os() {
     if (FR_OK != f_mount(&fs, SD, 1)) {
-        return "SD Card not inserted or SD Card error!\nPls. insert it and reboot...\n";
+        return "SD Card not inserted or SD Card error!\nInsert the card to continue...\n";
     }
     FILINFO fno;
     if ((FR_OK != f_stat(ccmd, &fno)) || (fno.fattrib & AM_DIR)) {
@@ -865,16 +865,46 @@ char* mount_os() {
 }
 
 void test_cycle(kbd_state_t* ks) {
+    uint32_t last_input = ks->input;
+    uint8_t last_nespad_state = nespad_state;
+    uint8_t last_nespad_state2 = nespad_state2;
+    input_bits_t last_gamepad1_bits = gamepad1_bits;
+    TickType_t next_sd_probe = xTaskGetTickCount() + pdMS_TO_TICKS(1000);
+
     while (true) {
         nespad_read();
         int y = graphics_con_y();
         goutf("Scancodes tester: %Xh   \n", ks->input);
         if (!nespad_state || nespad_state == 0xFF) nespad_state = *(uint8_t*)&gamepad1_bits;
         goutf("Joysticks' states: %02Xh %02Xh\n", nespad_state, nespad_state2);
+
+        TickType_t now = xTaskGetTickCount();
+        bool input_event = ks->input != last_input ||
+                           nespad_state != last_nespad_state ||
+                           nespad_state2 != last_nespad_state2 ||
+                           gamepad1_bits.a != last_gamepad1_bits.a ||
+                           gamepad1_bits.b != last_gamepad1_bits.b ||
+                           gamepad1_bits.select != last_gamepad1_bits.select ||
+                           gamepad1_bits.start != last_gamepad1_bits.start ||
+                           gamepad1_bits.up != last_gamepad1_bits.up ||
+                           gamepad1_bits.down != last_gamepad1_bits.down ||
+                           gamepad1_bits.left != last_gamepad1_bits.left ||
+                           gamepad1_bits.right != last_gamepad1_bits.right;
+        if (input_event || (int32_t)(now - next_sd_probe) >= 0) {
+            if (!mount_os()) {
+                return;
+            }
+            next_sd_probe = now + pdMS_TO_TICKS(1000);
+        }
+
+        last_input = ks->input;
+        last_nespad_state = nespad_state;
+        last_nespad_state2 = nespad_state2;
+        last_gamepad1_bits = gamepad1_bits;
+
         vTaskDelay(50);
         graphics_set_con_pos(0, y);
     }
-    __unreachable();
 }
 
 void __in_hfa() init(void) {
@@ -914,11 +944,11 @@ static void __in_hfa() vPostInit(void *pv) {
     kbd_state_t* ks = process_input_on_boot();
     // send kbd reset only after initial process passed
     keyboard_send(0xFF);
+    bool video_started = false;
     char* err = mount_os();
-    if (!err) {
-        check_firmware();
-    } else {
+    if (err) {
         startup_vga();
+        video_started = true;
         graphics_set_mode(graphics_get_default_mode());
         graphics_set_con_pos(0, 1);
         show_logo(true);
@@ -926,15 +956,17 @@ static void __in_hfa() vPostInit(void *pv) {
         graphics_set_con_color(12, 0);
         gouta(err);
         test_cycle(ks);
-        __unreachable();
     }
+    check_firmware();
 
     if ((nespad_state & DPAD_SELECT) || gamepad1_bits.select) {
         set_default_vars();
     } else {
         load_config_sys();
     }
-    startup_vga();
+    if (!video_started) {
+        startup_vga();
+    }
     graphics_set_mode(graphics_get_default_mode());
 ///    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);
     show_logo(true);
