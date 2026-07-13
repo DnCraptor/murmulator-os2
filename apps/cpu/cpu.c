@@ -13,7 +13,8 @@ int __required_m_api_verion(void) {
 int main() {
     cmd_ctx_t* ctx = get_cmd_ctx();
     if (ctx->argc == 1) {
-        overclocking();
+        fprintf(stdout, "CPU: %lu MHz\n",
+                (unsigned long)(get_overclocking_khz() / 1000));
     } else if (ctx->argc == 2) {
         int cpu = atoi(ctx->argv[1]);
         if (!cpu) {
@@ -22,6 +23,8 @@ int main() {
         if (cpu > 123 && cpu < 450) {
             set_overclocking(cpu * 1000);
             overclocking();
+            fprintf(stdout, "CPU: %lu MHz\n",
+                    (unsigned long)(get_overclocking_khz() / 1000));
         } else {
             fprintf(stderr, "Unable to change CPU freq. to %s\n", ctx->argv[1]);
             goto usage;

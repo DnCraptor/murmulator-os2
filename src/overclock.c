@@ -36,7 +36,9 @@ void overclocking_ex(uint32_t _vco, uint32_t _postdiv1, uint32_t _postdiv2) {
 }
 
 void overclocking() {
-    set_sys_clock_khz(overclocking_khz, true);
+    if (set_sys_clock_khz(overclocking_khz, true)) {
+        last_overclocking_khz = overclocking_khz;
+    }
 
     /** TODO:
    // vTaskSuspendAll();;
