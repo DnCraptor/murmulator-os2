@@ -68,6 +68,37 @@ static volatile bool rightPressed = false;
 static volatile bool upPressed = false;
 static volatile bool downPressed = false;
 
+typedef enum nav_event {
+    NAV_EVENT_NONE = 0,
+    NAV_EVENT_HOME,
+    NAV_EVENT_END,
+    NAV_EVENT_PAGE_UP,
+    NAV_EVENT_PAGE_DOWN
+} nav_event_t;
+
+#define NAV_EVENT_QUEUE_SIZE 8
+static volatile uint8_t nav_event_head;
+static volatile uint8_t nav_event_tail;
+static volatile nav_event_t nav_event_queue[NAV_EVENT_QUEUE_SIZE];
+
+static inline void nav_event_push(nav_event_t event) {
+    uint8_t next = (uint8_t)((nav_event_head + 1) % NAV_EVENT_QUEUE_SIZE);
+    if (next == nav_event_tail) {
+        return;
+    }
+    nav_event_queue[nav_event_head] = event;
+    nav_event_head = next;
+}
+
+static inline nav_event_t nav_event_pop(void) {
+    if (nav_event_tail == nav_event_head) {
+        return NAV_EVENT_NONE;
+    }
+    nav_event_t event = nav_event_queue[nav_event_tail];
+    nav_event_tail = (uint8_t)((nav_event_tail + 1) % NAV_EVENT_QUEUE_SIZE);
+    return event;
+}
+
 static size_t line_s = 0;
 static size_t line_e = 0;
 
@@ -109,6 +140,8 @@ int _init(void) {
     rightPressed = false;
     upPressed = false;
     downPressed = false;
+    nav_event_head = 0;
+    nav_event_tail = 0;
 
     marked_to_exit = false;
     line_s = 0;
@@ -408,6 +441,31 @@ static bool scancode_handler_impl(const uint32_t ps2scancode) { // core ?
     } else if (ps2scancode == 0xE0D0 || (ps2scancode == 0xD0 && !numlock)) {
         downPressed = false;
         goto r;
+    } else if (ps2scancode == 0xE047 || (ps2scancode == 0x47 && !numlock)) {
+        nav_event_push(NAV_EVENT_HOME);
+        lastCleanableScanCode = 0;
+        goto r;
+    } else if (ps2scancode == 0xE04F || (ps2scancode == 0x4F && !numlock)) {
+        nav_event_push(NAV_EVENT_END);
+        lastCleanableScanCode = 0;
+        goto r;
+    } else if (ps2scancode == 0xE049 || (ps2scancode == 0x49 && !numlock)) {
+        nav_event_push(NAV_EVENT_PAGE_UP);
+        lastCleanableScanCode = 0;
+        goto r;
+    } else if (ps2scancode == 0xE051 || (ps2scancode == 0x51 && !numlock)) {
+        nav_event_push(NAV_EVENT_PAGE_DOWN);
+        lastCleanableScanCode = 0;
+        goto r;
+    } else if (ps2scancode == 0xE0C7 || ps2scancode == 0xE0CF ||
+               ps2scancode == 0xE0C9 || ps2scancode == 0xE0D1 ||
+               (numlock &&
+                (ps2scancode == 0x47 || ps2scancode == 0xC7 ||
+                 ps2scancode == 0x4F || ps2scancode == 0xCF ||
+                 ps2scancode == 0x49 || ps2scancode == 0xC9 ||
+                 ps2scancode == 0x51 || ps2scancode == 0xD1))) {
+        lastCleanableScanCode = 0;
+        goto r;
     }
     uint8_t c = (uint8_t)ps2scancode & 0xFF;
     if (c == 0x4B) {
@@ -461,8 +519,8 @@ inline static void handle_down_pressed() {
 }
 
 inline static void handle_pageup_pressed() {
-    if (hidePannels || top_offset == 0) return;
-    size_t count = MAX_HEIGHT - 4;
+    if (hidePannels || top_offset == 0 || visible_lines == 0) return;
+    size_t count = visible_lines;
     while (count-- && top_offset > 0) {
         top_offset = find_previous_line(top_offset);
         if (top_line > 0) {
@@ -478,6 +536,52 @@ inline static void handle_up_pressed() {
     if (top_line > 0) {
         --top_line;
     }
+    m_window();
+}
+
+inline static void handle_home_pressed() {
+    if (hidePannels || top_offset == 0) return;
+    top_offset = 0;
+    top_line = 0;
+    m_window();
+}
+
+static size_t count_lines_before(off_t offset) {
+    if (offset <= 0 || fseeko(view_file, 0, SEEK_SET) != 0) {
+        return 0;
+    }
+
+    size_t lines = 0;
+    off_t pos = 0;
+    int c;
+    while (pos < offset && (c = fgetc(view_file)) != EOF) {
+        ++pos;
+        if (c == '\n') {
+            ++lines;
+        } else if (c == '\r') {
+            int next = fgetc(view_file);
+            if (next == '\n') {
+                ++pos;
+            } else if (next != EOF) {
+                ungetc(next, view_file);
+            }
+            ++lines;
+        }
+    }
+    return lines;
+}
+
+inline static void handle_end_pressed() {
+    if (hidePannels || file_size <= 0) return;
+
+    off_t offset = file_size;
+    size_t count = MAX_HEIGHT - 3;
+    while (count-- && offset > 0) {
+        offset = find_previous_line(offset);
+    }
+
+    top_offset = offset;
+    top_line = count_lines_before(top_offset);
     m_window();
 }
 
@@ -547,16 +651,24 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
         } else if (sc == 0x1D || sc == 0x9D || sc == 0x38 || sc == 0xB8) { // Ctrl / Alt
             bottom_line();
             scan_code_processed();
-        } else if (sc == 0xC9) {
-            if (lastSavedScanCode == 0x49) {
+        }
+
+        switch (nav_event_pop()) {
+            case NAV_EVENT_HOME:
+                handle_home_pressed();
+                break;
+            case NAV_EVENT_END:
+                handle_end_pressed();
+                break;
+            case NAV_EVENT_PAGE_UP:
                 handle_pageup_pressed();
-                scan_code_processed();
-            }
-        } else if (sc == 0xD1) {
-            if (lastSavedScanCode == 0x51) {
+                break;
+            case NAV_EVENT_PAGE_DOWN:
                 handle_pagedown_pressed();
-                scan_code_processed();
-            }
+                break;
+            case NAV_EVENT_NONE:
+            default:
+                break;
         }
         if(marked_to_exit) {
             restore_console(ctx);
