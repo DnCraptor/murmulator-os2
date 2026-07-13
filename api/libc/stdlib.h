@@ -70,6 +70,11 @@ long labs (long i) { return i < 0 ? -(unsigned long)i : i; }
 inline static 
 long long llabs (long long i)  { return i < 0 ? -(unsigned long long)i : i; }
 
+inline static int atoi (const char *s) {
+    typedef int (*fn_ptr_t)(const char *);
+    return ((fn_ptr_t)_sys_table_ptrs[100])(s);
+}
+
 /// TODO:
 #if 0
 #include <features.h>
