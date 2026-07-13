@@ -242,12 +242,12 @@ int __aeabi_idiv(int x, int y) {
 }
 
 unsigned __aeabi_uidiv(unsigned x, unsigned y) {
-    typedef int (*fn)(unsigned, unsigned);
+    typedef unsigned (*fn)(unsigned, unsigned);
     return ((fn)_sys_table_ptrs[228])(x, y);
 }
 
 unsigned __aeabi_uidivmod(unsigned x, unsigned y) {
-    typedef int (*fn)(unsigned, unsigned);
+    typedef unsigned (*fn)(unsigned, unsigned);
     return ((fn)_sys_table_ptrs[228])(x, y);
 }
 

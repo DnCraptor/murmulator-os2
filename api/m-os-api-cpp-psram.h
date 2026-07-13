@@ -127,7 +127,7 @@ public:
         char* c = (char*)&res;
         size_t b = base;
         for(size_t i = 0; i < sizeof(T); ++i) {
-            c[i] + read8psram(b + i);
+            c[i] = read8psram(b + i);
         }
         return res;
     }

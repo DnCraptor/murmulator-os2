@@ -79,7 +79,7 @@ int __aeabi_dcmpge(double x, double y) { //         result (1, 0) denotes (>=, ?
     return ((fn)_sys_table_ptrs[227])(x, y);
 }
 unsigned __aeabi_uidiv(unsigned x, unsigned y) {
-    typedef int (*fn)(unsigned, unsigned);
+    typedef unsigned (*fn)(unsigned, unsigned);
     return ((fn)_sys_table_ptrs[228])(x, y);
 }
 float __aeabi_ui2f(unsigned x) {
@@ -95,7 +95,7 @@ int __aeabi_fcmple(float x, float y) { //         result (1, 0) denotes (<=, ?>)
     return ((fn)_sys_table_ptrs[231])(x, y);
 }
 unsigned __aeabi_uidivmod(unsigned x, unsigned y) {
-    typedef int (*fn)(unsigned, unsigned);
+    typedef unsigned (*fn)(unsigned, unsigned);
     return ((fn)_sys_table_ptrs[228])(x, y);
 }
 double __aeabi_dmul(double x, double y) {
@@ -114,8 +114,8 @@ double __aeabi_i2d(int x) {
     typedef double (*fn)(int);
     return ((fn)_sys_table_ptrs[248])(x);
 }
-double __aeabi_dcmpeq(double x, double y) {
-    typedef double (*fn)(double, double);
+int __aeabi_dcmpeq(double x, double y) {
+    typedef int (*fn)(double, double);
     return ((fn)_sys_table_ptrs[249])(x, y);
 }
 double __aeabi_ui2d(unsigned x) {
