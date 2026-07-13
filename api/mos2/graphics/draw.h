@@ -41,8 +41,8 @@ void draw_window(const char* t, uint32_t x, uint32_t y, uint32_t width, uint32_t
 }
 
 inline static 
-void draw_label(color_schema_t* pcs, int left, int top, int width, char* txt, bool selected, bool highlighted) {
-    typedef void (*fn_ptr_t)(color_schema_t* pcs, int left, int top, int width, char* txt, bool selected, bool highlighted);
+void draw_label(color_schema_t* pcs, int left, int top, int width, const char* txt, bool selected, bool highlighted) {
+    typedef void (*fn_ptr_t)(color_schema_t* pcs, int left, int top, int width, const char* txt, bool selected, bool highlighted);
     ((fn_ptr_t)_sys_table_ptrs[239])(pcs, left, top, width, txt, selected, highlighted);
 }
 

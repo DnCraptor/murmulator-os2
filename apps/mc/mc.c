@@ -83,6 +83,20 @@ static volatile uint32_t lastCleanableScanCode;
 static volatile uint32_t lastSavedScanCode;
 static bool hidePannels = false;
 
+#define LONG_NAME_ANIMATION_DELAY_US 2000000u
+#define LONG_NAME_ANIMATION_STEP_US   150000u
+#define LONG_NAME_ANIMATION_HOLD_US  3000000u
+
+static uint32_t long_name_last_action_us;
+static uint32_t long_name_last_step_us;
+static uint32_t long_name_hold_started_us;
+static size_t long_name_scroll_offset;
+static size_t long_name_max_offset;
+static volatile bool long_name_reset_redraw_pending;
+
+static void reset_long_name_animation(bool redraw);
+static void update_long_name_animation(void);
+
 static int cmd_history_idx = -2;
 
 typedef enum sort_type {
@@ -229,6 +243,12 @@ static file_info_t* selected_file(file_panel_desc_t* p, bool with_refresh);
 int _init(void) {
     s_cmd = 0;
     hidePannels = false;
+    long_name_last_action_us = time_us_32();
+    long_name_last_step_us = long_name_last_action_us;
+    long_name_hold_started_us = 0;
+    long_name_scroll_offset = 0;
+    long_name_max_offset = 0;
+    long_name_reset_redraw_pending = false;
 
     ctrlPressed = false;
     altPressed = false;
@@ -488,6 +508,7 @@ static bool m_prompt(const char* txt) {
         bool tabPressed = false;
         char c = getch_now();
         if (c) {
+            reset_long_name_animation(true);
             if (c == CHAR_CODE_ENTER) {
                 scan_code_cleanup();
                 return yes;
@@ -509,6 +530,9 @@ static bool m_prompt(const char* txt) {
             }
             else {
                 nespad_state_delay = DPAD_STATE_DELAY;
+                if (nespad_state) {
+                    reset_long_name_animation(true);
+                }
                 if (nespad_state & DPAD_A) {
                     return yes;
                 }
@@ -1362,6 +1386,9 @@ static void fill_panel(file_panel_desc_t* p) {
     int start_file_offset = pp->start_file_offset;
     int selected_file_idx = pp->selected_file_idx;
     int width = p->width;
+    if (p == psp) {
+        long_name_max_offset = 0;
+    }
     if (start_file_offset == 0 && p->s_path->size > 1) {
         draw_label(pcs, p->left + 1, y, width - 2, "..", p == psp && selected_file_idx == y, true);
         y++;
@@ -1374,6 +1401,17 @@ static void fill_panel(file_panel_desc_t* p) {
             char* filename = fp->s_name->p;
             snprintf(line, MAX_WIDTH >> 1, "%s/%s", p->s_path->p, filename);
             bool selected = p == psp && selected_file_idx == y;
+            const char* displayed_name = filename;
+            if (selected && !hidePannels) {
+                size_t visible_width = width > 2 ? (size_t)(width - 2) : 0;
+                size_t filename_len = fp->s_name->size;
+                size_t max_offset = filename_len > visible_width ? filename_len - visible_width : 0;
+                long_name_max_offset = max_offset;
+                if (long_name_scroll_offset > max_offset) {
+                    long_name_scroll_offset = max_offset;
+                }
+                displayed_name = filename + long_name_scroll_offset;
+            }
             if ( mselsz && is_file_selected(p, fp) ) {
                 uint8_t fsc = pcs->FOREGROUND_SELECTED_COLOR;
                 uint8_t hfc = pcs->HIGHLIGHTED_FIELD_COLOR;
@@ -1381,12 +1419,12 @@ static void fill_panel(file_panel_desc_t* p) {
                 pcs->FOREGROUND_SELECTED_COLOR = 3;
                 pcs->FOREGROUND_FIELD_COLOR = 6;
                 pcs->HIGHLIGHTED_FIELD_COLOR = 14;
-                draw_label(pcs, p->left + 1, y, width - 2, filename, selected, fp->fattr & AM_DIR);
+                draw_label(pcs, p->left + 1, y, width - 2, displayed_name, selected, fp->fattr & AM_DIR);
                 pcs->FOREGROUND_FIELD_COLOR = ffc;
                 pcs->HIGHLIGHTED_FIELD_COLOR = hfc;
                 pcs->FOREGROUND_SELECTED_COLOR = fsc;
             } else {
-                draw_label(pcs, p->left + 1, y, width - 2, filename, selected, fp->fattr & AM_DIR);
+                draw_label(pcs, p->left + 1, y, width - 2, displayed_name, selected, fp->fattr & AM_DIR);
             }
             y++;
         }
@@ -1458,9 +1496,55 @@ static void m_window() {
     draw_panel(pcs, MAX_WIDTH >> 1, PANEL_TOP_Y, MAX_WIDTH - (MAX_WIDTH >> 1), PANEL_LAST_Y + 1, line, 0);
 }
 
+static void reset_long_name_animation(bool redraw) {
+    uint32_t now = time_us_32();
+    bool was_scrolled = long_name_scroll_offset != 0;
+    long_name_scroll_offset = 0;
+    long_name_last_action_us = now;
+    long_name_last_step_us = now;
+    long_name_hold_started_us = 0;
+    if (redraw && was_scrolled && !hidePannels && psp) {
+        fill_panel(psp);
+    }
+}
+
+static void update_long_name_animation(void) {
+    if (hidePannels || !psp || !long_name_max_offset) {
+        return;
+    }
+
+    uint32_t now = time_us_32();
+
+    if (long_name_scroll_offset >= long_name_max_offset) {
+        if (!long_name_hold_started_us) {
+            long_name_hold_started_us = now;
+        } else if ((uint32_t)(now - long_name_hold_started_us) >= LONG_NAME_ANIMATION_HOLD_US) {
+            reset_long_name_animation(true);
+        }
+        return;
+    }
+
+    if ((uint32_t)(now - long_name_last_action_us) < LONG_NAME_ANIMATION_DELAY_US) {
+        return;
+    }
+    if ((uint32_t)(now - long_name_last_step_us) < LONG_NAME_ANIMATION_STEP_US) {
+        return;
+    }
+
+    long_name_last_step_us = now;
+    long_name_scroll_offset++;
+    if (long_name_scroll_offset >= long_name_max_offset) {
+        long_name_scroll_offset = long_name_max_offset;
+        long_name_hold_started_us = now;
+    }
+    fill_panel(psp);
+}
+
 static scancode_handler_t scancode_handler;
 
 static bool scancode_handler_impl(const uint32_t ps2scancode) { // core ?
+    reset_long_name_animation(false);
+    long_name_reset_redraw_pending = true;
     lastCleanableScanCode = ps2scancode & 0xFF; // ensure
     bool numlock = get_leds_stat() & PS2_LED_NUM_LOCK;
     if (ps2scancode == 0xE048 || (ps2scancode == 0x48 && !numlock)) {
@@ -1860,6 +1944,7 @@ inline static void save_console(cmd_ctx_t* ctx) {
 }
 
 inline static void hide_pannels() {
+    reset_long_name_animation(false);
     hidePannels = !hidePannels;
     if (hidePannels) {
         restore_console(get_cmd_ctx());
@@ -1950,10 +2035,18 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
             recalc_layout();
             redraw_window();
         }
+        if (long_name_reset_redraw_pending) {
+            long_name_reset_redraw_pending = false;
+            if (!hidePannels) {
+                fill_panel(psp);
+            }
+        }
+        update_long_name_animation();
         blink_cursor();
         char c = getch_now();
         nespad_stat(&nespad_state, &nespad_state2);
         if (c) {
+            reset_long_name_animation(true);
             if (c == CHAR_CODE_BS) cmd_backspace();
             else if (c == CHAR_CODE_UP) handle_up_pressed();
             else if (c == CHAR_CODE_DOWN) handle_down_pressed();
@@ -1972,6 +2065,9 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
             }
             else {
                 nespad_state_delay = DPAD_STATE_DELAY;
+                if (nespad_state) {
+                    reset_long_name_animation(true);
+                }
                 if ( (nespad_state & DPAD_START) && (nespad_state & DPAD_SELECT) ) {
                     mark_to_exit(10);
                 } else if(nespad_state & DPAD_UP) {
