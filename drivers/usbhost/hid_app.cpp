@@ -23,9 +23,10 @@
  *
  */
 
-#include "bsp/board_api.h"
-#include "tusb.h"
+#include <host/usbh.h>
+#include "xinput_host.h"
 #include "hid.h"
+#include "tusb.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -43,6 +44,8 @@ static uint8_t const keycode2ascii[128][2] =  { HID_KEYCODE_TO_ASCII };
 static struct {
   uint8_t report_count;
   tuh_hid_report_info_t report_info[MAX_REPORT];
+  uint16_t vid;
+  uint16_t pid;
 } hid_info[CFG_TUH_HID];
 
 extern "C" void process_kbd_report(
@@ -52,6 +55,106 @@ extern "C" void process_kbd_report(
 
 static void process_mouse_report(hid_mouse_report_t const * report);
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
+
+static inline void set_gamepad_bits(bool up, bool down, bool left, bool right,
+                                    bool a, bool b, bool start, bool select)
+{
+  gamepad1_bits.up = up;
+  gamepad1_bits.down = down;
+  gamepad1_bits.left = left;
+  gamepad1_bits.right = right;
+  gamepad1_bits.a = a;
+  gamepad1_bits.b = b;
+  gamepad1_bits.start = start;
+  gamepad1_bits.select = select;
+}
+
+static inline void decode_hat(uint8_t hat, bool* up, bool* down, bool* left, bool* right)
+{
+  *up = hat == 7 || hat == 0 || hat == 1;
+  *right = hat == 1 || hat == 2 || hat == 3;
+  *down = hat == 3 || hat == 4 || hat == 5;
+  *left = hat == 5 || hat == 6 || hat == 7;
+  if (hat >= 8) *up = *down = *left = *right = false;
+}
+
+static bool process_known_gamepad(uint8_t instance, uint8_t const* report, uint16_t len)
+{
+  uint16_t const vid = hid_info[instance].vid;
+  uint16_t const pid = hid_info[instance].pid;
+  uint8_t const* p = report;
+  uint16_t n = len;
+
+  if (vid == 0x054c && (pid == 0x05c4 || pid == 0x09cc)) {
+    if (n && p[0] == 0x01) { ++p; --n; }
+    if (n < 7) return true;
+    bool hu, hd, hl, hr;
+    decode_hat(p[4] & 0x0f, &hu, &hd, &hl, &hr);
+    set_gamepad_bits(hu || p[1] < 0x40, hd || p[1] > 0xc0,
+                     hl || p[0] < 0x40, hr || p[0] > 0xc0,
+                     (p[4] & 0x40) != 0, (p[4] & 0x20) != 0,
+                     (p[5] & 0x20) != 0, (p[5] & 0x10) != 0);
+    return true;
+  }
+
+  if (vid == 0x054c && pid == 0x0ce6) {
+    if (n && p[0] == 0x01) { ++p; --n; }
+    if (n < 9) return true;
+    bool hu, hd, hl, hr;
+    decode_hat(p[7] & 0x0f, &hu, &hd, &hl, &hr);
+    set_gamepad_bits(hu || p[1] < 0x40, hd || p[1] > 0xc0,
+                     hl || p[0] < 0x40, hr || p[0] > 0xc0,
+                     (p[7] & 0x40) != 0, (p[7] & 0x20) != 0,
+                     (p[8] & 0x20) != 0, (p[8] & 0x10) != 0);
+    return true;
+  }
+
+  if (vid == 0x046d && pid == 0xc219) {
+    if (n && p[0] == 0x01) { ++p; --n; }
+    if (n < 7) return true;
+    bool up, down, left, right;
+    decode_hat(p[4] & 0x0f, &up, &down, &left, &right);
+    set_gamepad_bits(up || p[1] < 0x40, down || p[1] > 0xc0,
+                     left || p[0] < 0x40, right || p[0] > 0xc0,
+                     (p[4] & 0x40) != 0, (p[4] & 0x20) != 0,
+                     (p[5] & 0x20) != 0, (p[5] & 0x10) != 0);
+    return true;
+  }
+
+  if (vid == 0x2563 && pid == 0x0575) {
+    if (n < 7) return true;
+    bool up, down, left, right;
+    decode_hat(p[2] & 0x0f, &up, &down, &left, &right);
+    set_gamepad_bits(up || p[4] < 0x40, down || p[4] > 0xc0,
+                     left || p[3] < 0x40, right || p[3] > 0xc0,
+                     (p[0] & 0x02) != 0, (p[0] & 0x04) != 0,
+                     (p[1] & 0x02) != 0, (p[1] & 0x01) != 0);
+    return true;
+  }
+
+  if (vid == 0xfeed && pid == 0x2320) {
+    if (n && p[0] == 0x07) { ++p; --n; }
+    if (n < 7) return true;
+    bool up, down, left, right;
+    decode_hat(p[4] & 0x0f, &up, &down, &left, &right);
+    set_gamepad_bits(up || p[1] < 0x40, down || p[1] > 0xc0,
+                     left || p[0] < 0x40, right || p[0] > 0xc0,
+                     (p[5] & 0x02) != 0, (p[5] & 0x01) != 0,
+                     (p[6] & 0x08) != 0, (p[6] & 0x04) != 0);
+    return true;
+  }
+
+  if (vid == 0x0810 && pid == 0x0001) {
+    if (n && (p[0] == 0x01 || p[0] == 0x02)) { ++p; --n; }
+    if (n < 7) return true;
+    set_gamepad_bits(p[3] < 0x40, p[3] > 0xc0, p[2] < 0x40, p[2] > 0xc0,
+                     (p[4] & 0x20) != 0, (p[4] & 0x40) != 0,
+                     (p[5] & 0x20) != 0, (p[5] & 0x10) != 0);
+    return true;
+  }
+
+  return false;
+}
 
 //--------------------------------------------------------------------+
 // TinyUSB Callbacks
@@ -70,6 +173,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   const char* protocol_str[] = { "None", "Keyboard", "Mouse" };
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
+  tuh_vid_pid_get(dev_addr, &hid_info[instance].vid, &hid_info[instance].pid);
+
   TU_LOG2("HID Interface Protocol = %s\r\n", protocol_str[itf_protocol]);
 
   // By default host stack will use activate boot protocol on supported interface.
@@ -78,6 +183,12 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
   {
     hid_info[instance].report_count = tuh_hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
     TU_LOG2("HID has %u reports \r\n", hid_info[instance].report_count);
+  }
+
+  if (hid_info[instance].vid == 0x0810 && hid_info[instance].pid == 0x0001 &&
+      itf_protocol != HID_ITF_PROTOCOL_NONE)
+  {
+    tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
   }
 
   // request to receive report
@@ -92,6 +203,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
   TU_LOG2("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  hid_info[instance].vid = 0;
+  hid_info[instance].pid = 0;
 }
 
 static hid_keyboard_report_t prev_report = { 0 , 0 , {0}};
@@ -116,6 +229,15 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   f_write(&f, tmp, strlen(tmp), &bw); 
   f_close(&f);
 */
+  if (process_known_gamepad(instance, report, len))
+  {
+    if ( !tuh_hid_receive_report(dev_addr, instance) )
+    {
+      TU_LOG2("Error: cannot request to receive report\r\n");
+    }
+    return;
+  }
+
   switch (itf_protocol)
   {
     case HID_ITF_PROTOCOL_KEYBOARD:
