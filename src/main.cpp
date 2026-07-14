@@ -644,17 +644,23 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
 
 #if TFT
 static TaskHandle_t tft_refresh_task = NULL;
+static volatile bool flash_allowed = true;
 
 extern "C" void suspend_tft_refresh(void) {
     if (tft_refresh_task) {
+        while (!flash_allowed) {
+            taskYIELD();
+        }
         vTaskSuspend(tft_refresh_task);
     }
 }
 
-static void tft_refresh(void* pv) {
+static void __not_in_flash_func(tft_refresh)(void* pv) {
     while(1) {
         refresh_lcd();
+        flash_allowed = true;
         vTaskDelay(20);
+        flash_allowed = false;
     }
 }
 #endif
