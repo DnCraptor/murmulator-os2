@@ -16,6 +16,9 @@
 extern const char TEMP[];
 const char _flash_me[] = ".flash_me";
 extern uint32_t butter_psram_size;
+#if TFT
+extern void suspend_tft_refresh(void);
+#endif
 
 #define M_OS_APP_TABLE_BASE ((size_t)(XIP_BASE + (FIRMWARE_OFFSET << 10)))
 typedef int (*boota_ptr_t)( void *argv );
@@ -163,6 +166,9 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
     bool over_mode = strcmp(pathname + len - 4, ".UF2") == 0 ||
                  strcmp(pathname + len - 4, ".uf2") == 0;
 
+#if TFT
+    bool display_suspended = false;
+#endif
     uint32_t flash_target_offset = 0;
     uint32_t already_written = 0;
     while(true) {
@@ -186,6 +192,12 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
                 uint32_t nm = v[1023];
                 v[1023] = 0x3836d91a; // MAGIC 2
                 // save original block
+#if TFT
+                if (!display_suspended) {
+                    suspend_tft_refresh();
+                    display_suspended = true;
+                }
+#endif
                 flash_block(buffer, ZERO_BLOCK_OFFSET);
                 /// patch 0x10000004 by my entry point
                 v[1] = *(uint32_t*)(XIP_BASE + 4); // my Reset (any MSP, ISRx, ets. is ok for me)
@@ -201,11 +213,23 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
                 uint32_t nm = v[1023];
                 v[1023] = 0x3836d91b; // MAGIC 5
                 // save original block
+#if TFT
+                if (!display_suspended) {
+                    suspend_tft_refresh();
+                    display_suspended = true;
+                }
+#endif
                 flash_block(buffer, ZERO_BLOCK_OFFSET);
                 v[1023] = nm; // recover original value
             }
         }
         fgoutf(get_stdout(), "Erase and write to flash, offset: %ph (%d%%)\n", flash_target_offset, pcts);
+#if TFT
+        if (!display_suspended) {
+            suspend_tft_refresh();
+            display_suspended = true;
+        }
+#endif
         flash_block(buffer, flash_target_offset);
         flash_target_offset = next_flash_target_offset;
     }

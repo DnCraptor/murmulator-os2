@@ -643,6 +643,14 @@ static int __in_hfa() testPins(uint32_t pin0, uint32_t pin1) {
 }
 
 #if TFT
+static TaskHandle_t tft_refresh_task = NULL;
+
+extern "C" void suspend_tft_refresh(void) {
+    if (tft_refresh_task) {
+        vTaskSuspend(tft_refresh_task);
+    }
+}
+
 static void tft_refresh(void* pv) {
     while(1) {
         refresh_lcd();
@@ -689,7 +697,7 @@ static void __in_hfa() startup_vga(void) {
     vTaskDelay(300);
 #if TFT
     if (drv == TFT_DRV) {
-        xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, NULL);
+        xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, &tft_refresh_task);
     }
 #endif
     clrScr(0);
