@@ -755,34 +755,30 @@ inline static void start_editor(cmd_ctx_t* ctx) {
         vTaskDelay(1500);
         return;
     }
-    char* buff;
-    {
-        FILE* f = fopen(ctx->argv[1], "r");
-        if (!f) {
-            delete_list(lst);
-            return;
-        }
-        buff = malloc(f_sz);
-        size_t br = fread(buff, 1, f_sz, f);
-        fclose(f);
-        if (br != f_sz) {
-            free(buff);
-            delete_list(lst);
-            return;
-        }
+    FILE* f = fopen(ctx->argv[1], "r");
+    if (!f) {
+        delete_list(lst);
+        return;
     }
+
     string_t* s = new_string_v();
-    for (size_t i = 0; i < f_sz; ++i) {
-        char c = buff[i];
+    int c;
+    while ((c = fgetc(f)) != EOF) {
         if (c == '\r') continue;
         if (c == '\n') {
             list_push_back(lst, s);
             s = new_string_v();
         } else {
-            string_push_back_c(s, c);
+            string_push_back_c(s, (char)c);
         }
     }
-    free(buff);
+    if (ferror(f)) {
+        fclose(f);
+        delete_string(s);
+        delete_list(lst);
+        return;
+    }
+    fclose(f);
     // add last list entity
     if (string_size_bytes(s) > 0 || list_count(lst) == 0) {
         list_push_back(lst, s);
