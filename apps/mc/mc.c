@@ -57,6 +57,7 @@ static bool edit_name(const char* title, string_t* s_initial);
 
 static bool marked_to_exit = false;
 static volatile bool winch_flag = false;
+static volatile bool usb_detached_redraw_pending = false;
 
 int __required_m_api_verion(void) {
     return M_API_VERSION;
@@ -1080,17 +1081,22 @@ static fn_1_12_tbl_t fn_1_12_tbl_ctrl = {
 };
 
 static void usb_detached_handler() {
-    redraw_window();
+    // This callback runs in usb_task, not in the MC task. Drawing panels here
+    // races the MC UI and can access FatFs while USB shutdown is still being
+    // finalized. Defer all UI and filesystem work to the MC event loop.
+    usb_detached_redraw_pending = true;
 }
 
 static void turn_usb_off(uint8_t cmd) {
+    (void)cmd;
     if (tud_msc_ejected()) return;
     usb_driver(false);
-    redraw_window();
 }
 
 static void turn_usb_on(uint8_t nu) {
+    (void)nu;
     if (!tud_msc_ejected()) return;
+    usb_detached_redraw_pending = false;
     usb_driver(true);
 }
 
@@ -2113,6 +2119,10 @@ inline static void esc_pressed(void) {
 static inline void work_cycle(cmd_ctx_t* ctx) {
     uint8_t repeat_cnt = 0;
     for(;;) {
+        if (usb_detached_redraw_pending) {
+            usb_detached_redraw_pending = false;
+            redraw_window();
+        }
         if (winch_flag) {
             winch_flag = false;
             recalc_layout();
@@ -2291,6 +2301,7 @@ int main(void) {
     files_info_arr = new_array_v(fi_allocator, fi_deallocator, NULL);
     scancode_handler = get_scancode_handler();
     set_scancode_handler(scancode_handler_impl);
+    usb_detached_redraw_pending = false;
     set_usb_detached_handler(usb_detached_handler);
 
     // Register POSIX signal handler for SIGWINCH (terminal resize)

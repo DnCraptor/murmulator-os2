@@ -57,7 +57,15 @@ void cdc_task(void);
 static usb_detached_handler_t usb_detached_handler = NULL;
 
 bool set_usb_detached_handler(usb_detached_handler_t h) {
-    if (usb_detached_handler) return false;
+    // Clearing the handler must always be possible. Applications are loaded
+    // dynamically, so keeping a callback into an unloaded application would
+    // turn the next USB detach into a jump through a stale function pointer.
+    if (!h) {
+        usb_detached_handler = NULL;
+        return true;
+    }
+    if (usb_detached_handler)
+        return false;
     usb_detached_handler = h;
     return true;
 }
