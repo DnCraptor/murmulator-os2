@@ -216,6 +216,7 @@ extern "C" FATFS* get_mount_fs() { // only one FS is supported for now
 semaphore vga_start_semaphore;
 static uint8_t link6 = 0xFF;
 static int override_drv = -1;
+static bool boot_drv_override = false;
 static int drv = DEFAULT_VIDEO_DRIVER;
 extern "C" volatile bool reboot_is_requested;
 
@@ -354,13 +355,15 @@ static void load_config_sys() {
                 graphics_set_mode(mode);
             } else if (strcmp(t, "DRIVER") == 0) {
                 t = next_token(t);
-                if(strcmp(t, "HDMI") == 0) {
-                    override_drv = HDMI_DRV;
+                if (!boot_drv_override) {
+                    if(strcmp(t, "HDMI") == 0) {
+                        override_drv = HDMI_DRV;
+                    }
+                    else if(strcmp(t, "VGA") == 0) {
+                        override_drv = VGA_DRV;
+                    }
+                    // TODO:
                 }
-                else if(strcmp(t, "VGA") == 0) {
-                    override_drv = VGA_DRV;
-                }
-                // TODO:
             } else if (strcmp(t, "CPU") == 0) {
                 t = next_token(t);
                 int cpu = atoi(t);
@@ -799,6 +802,48 @@ void selectDRV2(void) {
     override_drv = VGA_DRV;
 }
 
+static bool select_boot_video_driver(unsigned slot) {
+    unsigned current = 0;
+
+#ifdef VGA
+    if (++current == slot) {
+        override_drv = VGA_DRV;
+        boot_drv_override = true;
+        return true;
+    }
+#endif
+#ifdef HDMI
+    if (++current == slot) {
+        override_drv = HDMI_DRV;
+        boot_drv_override = true;
+        return true;
+    }
+#endif
+#ifdef TFT
+    if (++current == slot) {
+        override_drv = TFT_DRV;
+        boot_drv_override = true;
+        return true;
+    }
+#endif
+#ifdef TV
+    if (++current == slot) {
+        override_drv = RGB_DRV;
+        boot_drv_override = true;
+        return true;
+    }
+#endif
+#ifdef SOFTTV
+    if (++current == slot) {
+        override_drv = SOFTTV_DRV;
+        boot_drv_override = true;
+        return true;
+    }
+#endif
+
+    return false;
+}
+
 struct input_bits_t {
     bool a: true;
     bool b: true;
@@ -825,6 +870,11 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
         if ( sc == 1 /* Esc */) {
             skip_firmware = true;
             break;
+        }
+        if (sc >= 0x02 && sc <= 0x04) { // top-row 1, 2, 3
+            if (select_boot_video_driver((unsigned)(sc - 0x01))) {
+                break;
+            }
         }
         if ( (nespad_state & DPAD_START) && (nespad_state & DPAD_SELECT) ||
              (gamepad1_bits.start && gamepad1_bits.select) ||

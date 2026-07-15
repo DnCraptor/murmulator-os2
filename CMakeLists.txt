@@ -28,10 +28,10 @@ option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
 #set(INC_BUILD ON)
 
-#set(HID ON)
+set(HID ON)
 
-set(MURM1x ON)
-#set(MURM20 ON)
+#set(MURM1x ON)
+set(MURM20 ON)
 #set(ZERO2 ON)
 #set(PICO_PC ON)
 #set(PICO_DV ON)
@@ -40,7 +40,7 @@ set(MURM1x ON)
 #set(VGA ON)
 set(VGAHDMI ON)
 set(TFT ON)
-#set(ILI9341 ON)
+set(ILI9341 ON)
 #set(SOFTTV ON)
 
 set(CPU_MHZ 252)
