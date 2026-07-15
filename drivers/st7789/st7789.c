@@ -373,9 +373,15 @@ uint32_t tft_console_height(void) {
     return graphics_buffer_height;
 }
 uint32_t tft_screen_width(void) {
+    if (graphics_mode == 0) {
+        return TEXTMODE_COLS;
+    }
     return graphics_buffer_width;
 }
 uint32_t tft_screen_height(void) {
+    if (graphics_mode == 0) {
+        return TEXTMODE_ROWS;
+    }
     return graphics_buffer_height;
 }
 uint8_t* get_tft_buffer(void) {

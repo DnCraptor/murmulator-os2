@@ -662,7 +662,7 @@ void __in_hfa() op_console(cmd_ctx_t* ctx, FRFpvUpU_ptr_t fn, BYTE mode) {
     if (FR_OK != f_open(pfh, mc_con_file, mode)) {
         goto r;
     }
-    size_t sz = get_buffer_size();
+    size_t sz = (get_screen_width() * get_screen_height() * get_screen_bitness()) >> 3;
     UINT rb;
     fn(pfh, get_buffer(), sz, &rb);
     f_close(pfh);
