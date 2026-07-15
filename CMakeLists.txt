@@ -28,7 +28,7 @@ option(HID "Enable HID devices (USB drive is unsupported in this mode)" OFF)
 
 #set(INC_BUILD ON)
 
-set(HID ON)
+#set(HID ON)
 
 #set(MURM1x ON)
 set(MURM20 ON)
