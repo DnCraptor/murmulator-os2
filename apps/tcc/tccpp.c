@@ -37,6 +37,7 @@ ST_DATA CString tokcstr; /* current parsed string, if any */
 /* display benchmark infos */
 ST_DATA int tok_ident;
 ST_DATA TokenSym **table_ident;
+static unsigned table_ident_capacity;
 
 /* ------------------------------------------------------------------------- */
 
@@ -231,8 +232,15 @@ tail_call:
             header->line_num = -header->line_num;
 #endif
         al->nb_allocs--;
-        if (!al->nb_allocs)
+        if (!al->nb_allocs) {
             al->p = al->buffer;
+        } else {
+            /* Reclaim the most recently allocated chunk immediately.
+               Older live chunks keep their addresses unchanged. */
+            tal_header_t *last = ((tal_header_t *)p) - 1;
+            if ((uint8_t *)p + last->size == al->p)
+                al->p = (uint8_t *)last;
+        }
     } else if (al->next) {
         al = al->next;
         goto tail_call;
@@ -251,8 +259,26 @@ static void *tal_realloc_impl(TinyAlloc **pal, void *p, unsigned size TAL_DEBUG_
 
 tail_call:
     is_own = (al->buffer <= (uint8_t *)p && (uint8_t *)p < al->buffer + al->size);
+    /* A non-tail allocation can satisfy a shrink (or same-size request)
+       without moving.  Keep its physical extent in the header so the
+       arena layout and later frees remain valid. */
+    if (is_own && size <= al->limit) {
+        header = ((tal_header_t *)p) - 1;
+        if (adj_size <= header->size)
+            return p;
+        if ((uint8_t *)p + header->size == al->p &&
+            (uint8_t *)p + adj_size <= al->buffer + al->size) {
+            al->p = (uint8_t *)p + adj_size;
+            header->size = adj_size;
+#ifdef TAL_INFO
+            if (al->peak_p < al->p)
+                al->peak_p = al->p;
+#endif
+            return p;
+        }
+    }
     if ((!p || is_own) && size <= al->limit) {
-        if (al->p - al->buffer + adj_size + sizeof(tal_header_t) < al->size) {
+        if (adj_size + sizeof(tal_header_t) <= al->size - (unsigned)(al->p - al->buffer)) {
             header = (tal_header_t *)al->p;
             header->size = adj_size;
 #ifdef TAL_DEBUG
@@ -265,7 +291,7 @@ tail_call:
             al->p += adj_size + sizeof(tal_header_t);
             if (is_own) {
                 header = (((tal_header_t *)p) - 1);
-                memcpy(ret, p, header->size);
+                memcpy(ret, p, header->size < size ? header->size : size);
 #ifdef TAL_DEBUG
                 header->line_num = -header->line_num;
 #endif
@@ -281,13 +307,20 @@ tail_call:
 #endif
             return ret;
         } else if (is_own) {
-            al->nb_allocs--;
             ret = tal_realloc(*pal, 0, size);
             header = (((tal_header_t *)p) - 1);
-            memcpy(ret, p, header->size);
+            memcpy(ret, p, header->size < size ? header->size : size);
+            al->nb_allocs--;
 #ifdef TAL_DEBUG
             header->line_num = -header->line_num;
 #endif
+            /* A moved tail chunk can be reclaimed even when other chunks
+               in this arena are still live.  Otherwise only an entirely
+               empty arena may be reset. */
+            if (!al->nb_allocs)
+                al->p = al->buffer;
+            else if ((uint8_t *)p + header->size == al->p)
+                al->p = (uint8_t *)header;
             return ret;
         }
         if (al->next) {
@@ -302,13 +335,17 @@ tail_call:
         goto tail_call;
     }
     if (is_own) {
-        al->nb_allocs--;
         ret = tcc_malloc(size);
         header = (((tal_header_t *)p) - 1);
-        memcpy(ret, p, header->size);
+        memcpy(ret, p, header->size < size ? header->size : size);
+        al->nb_allocs--;
 #ifdef TAL_DEBUG
         header->line_num = -header->line_num;
 #endif
+        if (!al->nb_allocs)
+            al->p = al->buffer;
+        else if ((uint8_t *)p + header->size == al->p)
+            al->p = (uint8_t *)header;
     } else if (al->next) {
         al = al->next;
         goto tail_call;
@@ -328,6 +365,8 @@ static void cstr_realloc(CString *cstr, int new_size)
 {
     int size;
 
+    if (new_size <= cstr->size_allocated)
+        return;
     size = cstr->size_allocated;
     if (size < 8)
         size = 8; /* no need to allocate a too small first string */
@@ -442,9 +481,19 @@ static TokenSym *tok_alloc_new(TokenSym **pts, const char *str, int len)
 
     /* expand token table if needed */
     i = tok_ident - TOK_IDENT;
-    if ((i % TOK_ALLOC_INCR) == 0) {
-        ptable = tcc_realloc(table_ident, (i + TOK_ALLOC_INCR) * sizeof(TokenSym *));
+    if ((unsigned)i == table_ident_capacity) {
+        /* Grow in bounded steps: fewer heap reallocations than fixed 64
+           entries, without the large slack of exponential growth. */
+        unsigned step = table_ident_capacity / 4;
+        unsigned capacity;
+        if (step < TOK_ALLOC_INCR)
+            step = TOK_ALLOC_INCR;
+        if (step > 256)
+            step = 256;
+        capacity = table_ident_capacity + step;
+        ptable = tcc_realloc(table_ident, capacity * sizeof(TokenSym *));
         table_ident = ptable;
+        table_ident_capacity = capacity;
     }
 
     ts = tal_realloc(toksym_alloc, 0, sizeof(TokenSym) + len);
@@ -3695,11 +3744,14 @@ ST_FUNC void tccpp_new(TCCState *s)
     memset(s->cached_includes_hash, 0, sizeof s->cached_includes_hash);
 
     cstr_new(&cstr_buf);
-    cstr_realloc(&cstr_buf, STRING_MAX_SIZE);
+    /* get_tok_str() writes short numeric/operator strings directly into
+       cstr_buf.data; keep a small initial buffer for those paths. */
+    cstr_realloc(&cstr_buf, 64);
+    /* Macro token storage is allocated only when a macro is parsed. */
     tok_str_new(&tokstr_buf);
-    tok_str_realloc(&tokstr_buf, TOKSTR_MAX_SIZE);
 
     tok_ident = TOK_IDENT;
+    table_ident_capacity = 0;
     p = tcc_keywords;
     while (*p) {
         r = p;
@@ -3735,6 +3787,7 @@ ST_FUNC void tccpp_delete(TCCState *s)
         tal_free(toksym_alloc, table_ident[i]);
     tcc_free(table_ident);
     table_ident = NULL;
+    table_ident_capacity = 0;
 
     /* free static buffers */
     cstr_free(&tokcstr);

@@ -283,11 +283,18 @@ ST_FUNC void section_realloc(Section *sec, unsigned long new_size)
     size = sec->data_allocated;
     if (size == 0)
         size = 1;
-    /* Bound spare capacity to 255 bytes, including during realloc. */
+    /* Small sections grow geometrically; large sections retain bounded
+       slack to avoid exhausting the limited SRAM heap. */
     while (size < new_size && size < 256)
         size = size * 2;
-    if (size < new_size)
-        size = tcc_alloc_capacity(new_size, 256);
+    if (size < new_size) {
+        unsigned long extra = new_size / 8;
+        if (extra < 32)
+            extra = 32;
+        if (extra > 256)
+            extra = 256;
+        size = new_size <= ~0UL - extra ? new_size + extra : new_size;
+    }
     data = tcc_realloc(sec->data, size);
     memset(data + sec->data_allocated, 0, size - sec->data_allocated);
     sec->data = data;
