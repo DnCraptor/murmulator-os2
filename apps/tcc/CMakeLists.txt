@@ -6,7 +6,7 @@ else()
 endif()
 set(PICO_BOARD pico CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.22)
-include(pico_sdk_import.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../../pico_sdk_import.cmake)
 project(tcc C CXX ASM)
 pico_sdk_init()
 set(CMAKE_C_STANDARD 11)
@@ -26,6 +26,7 @@ target_include_directories(tcc PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../api
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+target_compile_definitions(tcc PRIVATE NO_SEMAPHORE_H=1)
 target_link_libraries(tcc PRIVATE murmulator_runtime)
 target_compile_options(tcc PRIVATE -fno-jump-tables -Wno-error -Wno-unused-function)
 target_link_options(tcc PRIVATE -Xlinker --print-memory-usage -r)

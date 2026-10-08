@@ -30,6 +30,7 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
+#include <sys/types.h>
 #include <fcntl.h>
 #include <setjmp.h>
 #include <time.h>
