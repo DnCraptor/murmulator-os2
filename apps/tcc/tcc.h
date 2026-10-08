@@ -31,13 +31,9 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
-/* TODO(kernel): export ldexp through MOS libc API. */
-double ldexp(double x, int exp);
-/* App-local implementation; no MOS kernel export is required. */
-double strtod(const char *restrict s, char **restrict endptr);
 #include <sys/types.h>
 #include <fcntl.h>
-#include "mos_setjmp.h"
+#include <setjmp.h>
 #include <time.h>
 
 #ifndef _WIN32
@@ -46,9 +42,6 @@ double strtod(const char *restrict s, char **restrict endptr);
 # ifndef CONFIG_TCC_STATIC
 #  include <dlfcn.h>
 # endif
-/* XXX: need to define this to use them in non ISOC99 context */
-extern float strtof (const char *__nptr, char **__endptr);
-extern long double strtold (const char *__nptr, char **__endptr);
 #endif
 
 #ifdef _WIN32

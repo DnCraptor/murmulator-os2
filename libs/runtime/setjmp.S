@@ -2,10 +2,10 @@
 .thumb
 .text
 .align 2
-.global mos_setjmp
-.type mos_setjmp,%function
+.global setjmp
+.type setjmp,%function
 .thumb_func
-mos_setjmp:
+setjmp:
     str r4, [r0, #0]
     str r5, [r0, #4]
     str r6, [r0, #8]
@@ -24,11 +24,11 @@ mos_setjmp:
     str r2, [r0, #36]
     movs r0, #0
     bx lr
-.size mos_setjmp, .-mos_setjmp
-.global mos_longjmp
-.type mos_longjmp,%function
+.size setjmp, .-setjmp
+.global longjmp
+.type longjmp,%function
 .thumb_func
-mos_longjmp:
+longjmp:
     cmp r1, #0
     bne 1f
     movs r1, #1
@@ -51,4 +51,4 @@ mos_longjmp:
     mov lr, r2
     mov r0, r1
     bx lr
-.size mos_longjmp, .-mos_longjmp
+.size longjmp, .-longjmp

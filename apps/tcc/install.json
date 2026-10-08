@@ -6,42 +6,6 @@
       "target": "bin/tcc"
     },
     {
-      "source": "apps/compiled/lib/libmos.a",
-      "target": "lib/libmos.a"
-    },
-    {
-      "source": "api/libc/stdio.h",
-      "target": "include/stdio.h"
-    },
-    {
-      "source": "api/libc/stdlib.h",
-      "target": "include/stdlib.h"
-    },
-    {
-      "source": "api/libc/ctype.h",
-      "target": "include/ctype.h"
-    },
-    {
-      "source": "api/libc/libgen.h",
-      "target": "include/libgen.h"
-    },
-    {
-      "source": "api/posix/errno.h",
-      "target": "include/errno.h"
-    },
-    {
-      "source": "apps/tcc/include/stddef.h",
-      "target": "include/stddef.h"
-    },
-    {
-      "source": "apps/tcc/include/stdarg.h",
-      "target": "include/stdarg.h"
-    },
-    {
-      "source": "apps/tcc/include/stdbool.h",
-      "target": "include/stdbool.h"
-    },
-    {
       "source": "apps/tcc/examples/hello.c",
       "target": "src/hello.c"
     }

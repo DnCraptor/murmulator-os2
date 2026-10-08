@@ -1,8 +1,8 @@
-/* MOS TinyCC compatibility: binary floating-point scaling.
- * TODO(kernel): export ldexp/scalbn via MOS syscall table.
+/* MOS runtime binary floating-point scaling.
  * Based on the public-domain-style musl scalbn algorithm (musl MIT license).
  */
 #include <stdint.h>
+#include <math.h>
 
 double ldexp(double x, int n)
 {

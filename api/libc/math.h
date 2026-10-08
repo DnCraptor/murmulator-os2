@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+/* Supplied by libs/runtime (libmos.a). */
+double ldexp(double x, int exp);
+
 #ifndef M_OS_API_SYS_TABLE_BASE
 #define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))
 static const unsigned long * const _sys_table_ptrs = (const unsigned long * const)M_OS_API_SYS_TABLE_BASE;

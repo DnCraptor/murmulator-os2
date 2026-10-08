@@ -83,13 +83,14 @@ inline static void qsort(void *base, size_t nmemb, size_t size,
     ((fn_ptr_t)_sys_table_ptrs[169])(base, nmemb, size, compar);
 }
 
-#ifdef HAS_OWN_STRTOL
-/* App-local implementations until MOS exports these via syscall table. */
-long strtol(const char *restrict, char **restrict, int);
-unsigned long strtoul(const char *restrict, char **restrict, int);
-long long strtoll(const char *restrict, char **restrict, int);
-unsigned long long strtoull(const char *restrict, char **restrict, int);
-#endif /* HAS_OWN_STRTOL */
+/* Standard conversions supplied by libs/runtime (libmos.a). */
+long strtol(const char *__restrict, char **__restrict, int);
+unsigned long strtoul(const char *__restrict, char **__restrict, int);
+long long strtoll(const char *__restrict, char **__restrict, int);
+unsigned long long strtoull(const char *__restrict, char **__restrict, int);
+float strtof(const char *__restrict, char **__restrict);
+double strtod(const char *__restrict, char **__restrict);
+long double strtold(const char *__restrict, char **__restrict);
 
 /// TODO:
 #if 0

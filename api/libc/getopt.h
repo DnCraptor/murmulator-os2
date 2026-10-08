@@ -1,6 +1,9 @@
 #ifndef _GETOPT_H
 #define _GETOPT_H
 
+#include <stddef.h>
+#include <errno.h> /* MOS syscall table declaration */
+
 #ifdef __cplusplus
 extern "C" {
 #endif

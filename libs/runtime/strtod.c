@@ -1,11 +1,11 @@
-/* TinyCC MOS compatibility layer.
+/* MOS runtime floating-point conversions.
  * Reuse the existing MOS musl-derived scanf floating-point parser (API 336).
- * TODO(kernel): export strtod/strtof/strtold through MOS libc API.
  * NOTE: This is a bootstrap adapter, not a fully conforming strtod:
  * scanf and strtod differ on incomplete exponents and errno handling.
  */
 #include <stdio.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 double strtod(const char *restrict s, char **restrict endptr)
 {
@@ -21,7 +21,7 @@ double strtod(const char *restrict s, char **restrict endptr)
 }
 
 /* Bootstrap conversions.  ARM EABI GCC uses binary64 for long double.
- * TODO(kernel): provide fully conforming strtof/strtold through MOS libc.
+ * Full strtof/strtold conformance remains future runtime work.
  * strtof via double can double-round at exceptional halfway cases.
  */
 float strtof(const char *restrict s, char **restrict endptr)
@@ -32,6 +32,6 @@ float strtof(const char *restrict s, char **restrict endptr)
 long double strtold(const char *restrict s, char **restrict endptr)
 {
     _Static_assert(sizeof(long double) == sizeof(double),
-                   "MOS TinyCC strtold requires binary64 long double");
+                   "MOS runtime strtold requires binary64 long double");
     return (long double)strtod(s, endptr);
 }

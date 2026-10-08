@@ -1,6 +1,9 @@
 #ifndef _DIRENT_H_
 #define _DIRENT_H_
 
+#include <stddef.h>
+#include <errno.h> /* MOS syscall table declaration */
+
 #ifdef __cplusplus
 extern "C" {
 #endif

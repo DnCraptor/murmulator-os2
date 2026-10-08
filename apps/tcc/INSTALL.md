@@ -3,9 +3,10 @@
 `apps/compiled` receives only the TCC build's binaries:
 `bin/tcc` and `lib/libmos.a`. Building TCC does not copy headers, examples,
 newlib, Pico SDK, C++ files or library source trees into that directory.
-The runtime archive is built from the existing `libs/runtime` target.
+The runtime archive and its publication are owned by `libs/runtime`.
 
-`apps/tcc/install.json` is the explicit source-to-destination declaration.
+`api/install.json` declares SDK files; `apps/tcc/install.json` declares TCC
+and its example. `install_tcc.py` installs both explicit manifests.
 Source paths are relative to the repository root; destinations are relative
 to the MOS2 directory. No directory recursion or wildcard is used.
 MOS headers are read directly from `api`, not maintained as duplicate copies.
@@ -63,3 +64,44 @@ MOS calls `main` directly. The accompanying compiler fix sets the Thumb bit
 on generated function symbols. To explicitly link existing runtime helpers,
 use `-nostdlib -r ... -lmos` instead of `-c`, placing the library last.
 The archive supplies existing `libs/runtime` functions, not a complete libc.
+
+## Runtime setjmp/longjmp
+
+`libs/runtime/setjmp.S` is part of `murmulator_runtime`, so both the
+GCC-built TCC and `libmos.a` use the same implementation. The assembly is
+assembled on the development PC when the runtime archive is built; linking
+that archive on MOS2 does not require an assembler.
+
+The installer publishes `libs/runtime/setjmp.h` as
+`/mos2/include/setjmp.h`. It provides `jmp_buf`, `setjmp` and `longjmp`
+with standard linker symbols and no name-mapping macros. Its context contains
+r4-r11, SP and LR; this is the existing soft-float implementation, without
+VFP register preservation. The move does not change its ABI or instructions.
+
+Rebuild the default TCC target and run the installer to update both
+`bin/tcc` and `lib/libmos.a`, together with the header. MOS2 itself does not
+need rebuilding. Programs using these functions must link the archive after
+their objects, using `-nostdlib -r ... -lmos`.
+
+This runtime move alone does not enable TCC self-compilation. The current
+Thumb backend defaults to hard-float and emits VFP double operations, whereas
+the bootstrap runtime uses soft-float. A self-build also needs an explicit
+header set beyond the small example-program installation profile.
+
+## Shared standard functions
+
+The standard `strto*`, `ldexp`, `time`, `gettimeofday` and `localtime`
+implementations now belong to `libs/runtime` and are included in `libmos.a`.
+Their existing limitations are documented in `libs/runtime/README.md`.
+TCC no longer supplies private copies or defines `HAS_OWN_STRTOL`.
+The existing installation manifest already reads the updated `api/libc/stdlib.h`
+directly. Rebuild and repeat installation to update the archive and declarations.
+This move does not broaden the installed header profile for self-compilation.
+
+## SDK without rebuilding TCC
+
+See `libs/runtime/README.md` for the standalone `runtime_binaries` build.
+Run `python tools/install_sdk.py --dest I:/mos2` to update the library and
+headers alone. The legacy `install_tcc.py` command still installs the complete
+SDK plus compiler/example. Headers continue to come directly from the declared
+repository paths, not from `apps/compiled/include`.

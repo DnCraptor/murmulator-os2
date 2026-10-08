@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "source": "apps/compiled/lib/libmos.a",
+      "target": "lib/libmos.a"
+    },
+    {
+      "source": "api/libc/stdio.h",
+      "target": "include/stdio.h"
+    },
+    {
+      "source": "api/libc/stdlib.h",
+      "target": "include/stdlib.h"
+    },
+    {
+      "source": "api/libc/ctype.h",
+      "target": "include/ctype.h"
+    },
+    {
+      "source": "api/libc/libgen.h",
+      "target": "include/libgen.h"
+    },
+    {
+      "source": "api/posix/errno.h",
+      "target": "include/errno.h"
+    },
+    {
+      "source": "apps/tcc/include/stddef.h",
+      "target": "include/stddef.h"
+    },
+    {
+      "source": "apps/tcc/include/stdarg.h",
+      "target": "include/stdarg.h"
+    },
+    {
+      "source": "apps/tcc/include/stdbool.h",
+      "target": "include/stdbool.h"
+    },
+    {
+      "source": "libs/runtime/setjmp.h",
+      "target": "include/setjmp.h"
+    },
+    {
+      "source": "api/libc/string.h",
+      "target": "include/string.h"
+    },
+    {
+      "source": "api/libc/math.h",
+      "target": "include/math.h"
+    },
+    {
+      "source": "api/libc/getopt.h",
+      "target": "include/getopt.h"
+    },
+    {
+      "source": "api/posix/dirent.h",
+      "target": "include/dirent.h"
+    },
+    {
+      "source": "apps/tcc/include/float.h",
+      "target": "include/float.h"
+    },
+    {
+      "source": "apps/tcc/include/stdalign.h",
+      "target": "include/stdalign.h"
+    },
+    {
+      "source": "apps/tcc/include/stdnoreturn.h",
+      "target": "include/stdnoreturn.h"
+    },
+    {
+      "source": "apps/tcc/include/stdint.h",
+      "target": "include/stdint.h"
+    }
+  ]
+}

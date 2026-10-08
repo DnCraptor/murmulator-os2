@@ -1,7 +1,4 @@
-/* MOS TinyCC compatibility: integer strto* conversions.
- * TODO(kernel): export these standard functions through MOS syscall table;
- * then replace these app-local implementations with libc inline proxies.
- */
+/* MOS runtime integer conversions; linked from libmos.a. */
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
