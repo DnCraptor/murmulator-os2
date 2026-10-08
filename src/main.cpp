@@ -673,7 +673,12 @@ static void __in_hfa() startup_vga(void) {
     if (override_drv >= 0) {
         drv = override_drv;
     } else {
-        #ifdef HDMI_DRV
+        #if ZERO2
+            // Waveshare RP2350-PiZero has only a mini-HDMI output on GPIO32..39.
+            // Pin auto-detection may select VGA here, but the VGA driver cannot
+            // address GPIO32+ (no pio_set_gpio_base), so the screen stays black.
+            drv = HDMI_DRV;
+        #elif defined(HDMI_DRV)
         if (link6 == 0 || link6 == 0x1F) {
             drv = VGA_DRV;
         }
