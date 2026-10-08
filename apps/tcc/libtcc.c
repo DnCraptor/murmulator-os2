@@ -220,8 +220,10 @@ PUB_FUNC void tcc_free(void *ptr)
 PUB_FUNC void *tcc_malloc(unsigned long size)
 {
     void *ptr;
-    ptr = malloc(size);
-    if (!ptr && size)
+    /* MOS reports malloc(0) as an allocation failure. Keep zero-sized
+       TCC allocations valid and freeable without that diagnostic. */
+    ptr = malloc(size ? size : 1);
+    if (!ptr)
         _tcc_error("memory full (malloc)");
     return ptr;
 }
@@ -237,6 +239,11 @@ PUB_FUNC void *tcc_mallocz(unsigned long size)
 PUB_FUNC void *tcc_realloc(void *ptr, unsigned long size)
 {
     void *ptr1;
+    /* Use free so MOS also removes the pointer from its allocation list. */
+    if (!size) {
+        tcc_free(ptr);
+        return NULL;
+    }
     ptr1 = realloc(ptr, size);
     if (!ptr1 && size)
         _tcc_error("memory full (realloc)");

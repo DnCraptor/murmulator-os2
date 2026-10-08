@@ -3313,6 +3313,10 @@ static void type_to_str(char *buf, int buf_size,
  no_var: ;
 }
 
+/* Keep diagnostic buffers out of recursive parser frames. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
 static void type_incompatibility_error(CType* st, CType* dt, const char* fmt)
 {
     char buf1[256], buf2[256];
@@ -3321,12 +3325,27 @@ static void type_incompatibility_error(CType* st, CType* dt, const char* fmt)
     tcc_error(fmt, buf1, buf2);
 }
 
+/* Keep diagnostic buffers out of recursive parser frames. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
 static void type_incompatibility_warning(CType* st, CType* dt, const char* fmt)
 {
     char buf1[256], buf2[256];
     type_to_str(buf1, sizeof(buf1), st, NULL);
     type_to_str(buf2, sizeof(buf2), dt, NULL);
     tcc_warning(fmt, buf1, buf2);
+}
+
+/* unary() calls this only on errors; preserve its formatting limits. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static void NORETURN type_description_error(CType *type, const char *fmt, int limit)
+{
+    char buf[256];
+    type_to_str(buf, limit, type, NULL);
+    tcc_error(fmt, buf);
 }
 
 static void cast_error(CType *st, CType *dt)
@@ -5451,9 +5470,8 @@ ST_FUNC void unary(void)
 		break;
 	}
 	if (!str) {
-	    char buf[60];
-	    type_to_str(buf, sizeof buf, &controlling_type, NULL);
-	    tcc_error("type '%s' does not match any association", buf);
+	    type_description_error(&controlling_type,
+	        "type '%s' does not match any association", 60);
 	}
 	begin_macro(str, 1);
 	next();
@@ -5538,9 +5556,8 @@ special_math_val:
             gaddrof();
             /* expect pointer on structure */
             if ((vtop->type.t & VT_BTYPE) != VT_STRUCT) {
-                char got[256];
-                type_to_str(got, sizeof got, &vtop->type, NULL);
-                tcc_error("expected struct or union but not '%s'", got);
+                type_description_error(&vtop->type,
+                    "expected struct or union but not '%s'", 256);
             }
             if (tok == TOK_CDOUBLE)
                 expect("field name");

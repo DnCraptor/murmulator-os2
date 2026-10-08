@@ -498,10 +498,12 @@ static void gcall_or_jmp(int is_jmp)
     if (x)
     {
       DBG1(printf (GRN"gcall_or_jmp i %x x 0x%x\n"CLR, (int)vtop->c.i, x));
+      /* th_bl_t1 emits BL: its relocation is THM_CALL (THM_PC22),
+         not THM_JUMP24, which describes a B.W instruction. */
       if (vtop->r & VT_SYM)
-        greloc(cur_text_section, vtop->sym, ind, R_ARM_THM_JUMP24);
+        greloc(cur_text_section, vtop->sym, ind, R_ARM_THM_PC22);
       else
-        printf(RED"put_elf_reloc(symtab_section, cur_text_section, ind, R_ARM_THM_JUMP24, 0);\n"CLR);
+        printf(RED"put_elf_reloc(symtab_section, cur_text_section, ind, R_ARM_THM_PC22, 0);\n"CLR);
       th_bl_t1(x);
     }
     else
