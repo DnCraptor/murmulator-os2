@@ -260,8 +260,11 @@ int main(int argc0, char **argv0)
 
 redo:
     argc = argc0, argv = argv0;
+    MOS_TRACE("new begin\n");
     s = s1 = tcc_new();
+    MOS_TRACE("new done\n");
     opt = tcc_parse_args(s, &argc, &argv, 1);
+    MOS_TRACE("args done\n");
 
     if (n == 0) {
         if (opt == OPT_HELP)
@@ -340,8 +343,10 @@ redo:
                 printf("-> %s\n", f->name);
             if (!first_file)
                 first_file = f->name;
+            MOS_TRACE("add begin %s\n", f->name);
             if (tcc_add_file(s, f->name) < 0)
                 ret = 1;
+            MOS_TRACE("add done ret=%d\n", ret);
         }
         done = ret || ++n >= s->nb_files;
     } while (!done && (s->output_type != TCC_OUTPUT_OBJ || s->option_r));
@@ -358,6 +363,7 @@ redo:
         } else {
             if (!s->outfile)
                 s->outfile = default_outputfile(s, first_file);
+            MOS_TRACE("output begin %s\n", s->outfile);
             if (tcc_output_file(s, s->outfile))
                 ret = 1;
             else if (s->gen_deps)
@@ -367,7 +373,9 @@ redo:
 
     if (s->do_bench && done && !(t | ret))
         tcc_print_stats(s, getclock_ms() - start_time);
+    MOS_TRACE("delete begin ret=%d\n", ret);
     tcc_delete(s);
+    MOS_TRACE("delete done\n");
     if (!done)
         goto redo; /* compile more files with -c */
     if (t)

@@ -23,6 +23,7 @@
 
 #define _GNU_SOURCE
 #include "config.h"
+#include "mos_trace.h"
 
 #include <stdlib.h>
 #include <stdio.h>

@@ -130,8 +130,8 @@ ST_FUNC void expect(const char *msg)
 #define TAL_DEBUG_FILE_LEN 40
 #endif
 
-#define TOKSYM_TAL_SIZE     (768 * 1024) /* allocator for tiny TokenSym in table_ident */
-#define TOKSTR_TAL_SIZE     (768 * 1024) /* allocator for tiny TokenString instances */
+#define TOKSYM_TAL_SIZE     (8 * 1024) /* MOS: grow in small blocks, not desktop-sized arenas */
+#define TOKSTR_TAL_SIZE     (8 * 1024) /* additional blocks are allocated on demand */
 #define CSTR_TAL_SIZE       (256 * 1024) /* allocator for tiny CString instances */
 #define TOKSYM_TAL_LIMIT    256 /* prefer unique limits to distinguish allocators debug msgs */
 #define TOKSTR_TAL_LIMIT    128 /* 32 * sizeof(int) */
@@ -164,8 +164,11 @@ typedef struct tal_header_t {
 
 static TinyAlloc *tal_new(TinyAlloc **pal, unsigned limit, unsigned size)
 {
-    TinyAlloc *al = tcc_mallocz(sizeof(TinyAlloc));
+    TinyAlloc *al;
+    MOS_TRACE("pool begin size=%u\n", size);
+    al = tcc_mallocz(sizeof(TinyAlloc));
     al->p = al->buffer = tcc_malloc(size);
+    MOS_TRACE("pool done\n");
     al->limit = limit;
     al->size = size;
     if (pal) *pal = al;
@@ -291,7 +294,7 @@ tail_call:
         } else {
             TinyAlloc *bottom = al, *next = al->top ? al->top : al;
 
-            al = tal_new(pal, next->limit, next->size * 2);
+            al = tal_new(pal, next->limit, next->size);
             al->next = next;
             bottom->top = al;
         }
@@ -613,7 +616,9 @@ static int handle_eob(void)
 #else
             len = IO_BUF_SIZE;
 #endif
+            MOS_TRACE("read begin %s fd=%d\n", bf->filename, bf->fd);
             len = read(bf->fd, bf->buffer, len);
+            MOS_TRACE("read done bytes=%d\n", len);
             if (len < 0)
                 len = 0;
         } else {
@@ -1713,40 +1718,19 @@ pragma_err:
     return;
 }
 
-/* is_bof is true if first non space token at beginning of file */
-ST_FUNC void preprocess(int is_bof)
+/* Keep directive text/path buffers out of the #if expression call chain.
+ * GCC must not inline this helper: MOS applications have small task stacks.
+ * Buffers stay automatic so nested/computed directives remain independent.
+ * Return 1 when an include switched files (do not consume its first line). */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static int preprocess_with_buffer(TCCState *s1)
 {
-    TCCState *s1 = tcc_state;
-    int i, c, n, saved_parse_flags;
+    int i, c, n;
     char buf[1024], *q;
-    Sym *s;
 
-    saved_parse_flags = parse_flags;
-    parse_flags = PARSE_FLAG_PREPROCESS
-        | PARSE_FLAG_TOK_NUM
-        | PARSE_FLAG_TOK_STR
-        | PARSE_FLAG_LINEFEED
-        | (parse_flags & PARSE_FLAG_ASM_FILE)
-        ;
-
-    next_nomacro();
- redo:
-    switch(tok) {
-    case TOK_DEFINE:
-        pp_debug_tok = tok;
-        next_nomacro();
-        pp_debug_symv = tok;
-        parse_define();
-        break;
-    case TOK_UNDEF:
-        pp_debug_tok = tok;
-        next_nomacro();
-        pp_debug_symv = tok;
-        s = define_find(tok);
-        /* undefine symbol by putting an invalid name */
-        if (s)
-            define_undef(s);
-        break;
+    switch (tok) {
     case TOK_INCLUDE:
     case TOK_INCLUDE_NEXT:
         ch = file->buf_ptr[0];
@@ -1861,11 +1845,108 @@ ST_FUNC void preprocess(int is_bof)
             tcc_debug_bincl(tcc_state);
             tok_flags |= TOK_FLAG_BOF | TOK_FLAG_BOL;
             ch = file->buf_ptr[0];
-            goto the_end;
+            return 1;
         }
         tcc_error("include file '%s' not found", buf);
 include_done:
         --s1->include_stack_ptr;
+        break;
+    case TOK_PPNUM:
+        n = strtoul((char*)tokc.str.data, &q, 10);
+        goto _line_num;
+    case TOK_LINE:
+        next();
+        if (tok != TOK_CINT)
+    _line_err:
+            tcc_error("wrong #line format");
+        n = tokc.i;
+    _line_num:
+        next();
+        if (tok != TOK_LINEFEED) {
+            if (tok == TOK_STR) {
+                if (file->true_filename == file->filename)
+                    file->true_filename = tcc_strdup(file->filename);
+                /* prepend directory from real file */
+                pstrcpy(buf, sizeof buf, file->true_filename);
+                *tcc_basename(buf) = 0;
+                pstrcat(buf, sizeof buf, (char *)tokc.str.data);
+                tcc_debug_putfile(s1, buf);
+            } else if (parse_flags & PARSE_FLAG_ASM_FILE)
+                break;
+            else
+                goto _line_err;
+            --n;
+        }
+        if (file->fd > 0)
+            total_lines += file->line_num - n;
+        file->line_num = n;
+        break;
+    case TOK_ERROR:
+    case TOK_WARNING:
+        c = tok;
+        ch = file->buf_ptr[0];
+        skip_spaces();
+        q = buf;
+        while (ch != '\n' && ch != CH_EOF) {
+            if ((q - buf) < sizeof(buf) - 1)
+                *q++ = ch;
+            if (ch == '\\') {
+                if (handle_stray_noerror() == 0)
+                    --q;
+            } else
+                inp();
+        }
+        *q = '\0';
+        if (c == TOK_ERROR)
+            tcc_error("#error %s", buf);
+        else
+            tcc_warning("#warning %s", buf);
+        break;
+    }
+    return 0;
+}
+
+/* is_bof is true if first non space token at beginning of file */
+ST_FUNC void preprocess(int is_bof)
+{
+    TCCState *s1 = tcc_state;
+    int c, saved_parse_flags;
+    Sym *s;
+
+    saved_parse_flags = parse_flags;
+    parse_flags = PARSE_FLAG_PREPROCESS
+        | PARSE_FLAG_TOK_NUM
+        | PARSE_FLAG_TOK_STR
+        | PARSE_FLAG_LINEFEED
+        | (parse_flags & PARSE_FLAG_ASM_FILE)
+        ;
+
+    next_nomacro();
+ redo:
+    switch(tok) {
+    case TOK_DEFINE:
+        pp_debug_tok = tok;
+        next_nomacro();
+        pp_debug_symv = tok;
+        parse_define();
+        break;
+    case TOK_UNDEF:
+        pp_debug_tok = tok;
+        next_nomacro();
+        pp_debug_symv = tok;
+        s = define_find(tok);
+        /* undefine symbol by putting an invalid name */
+        if (s)
+            define_undef(s);
+        break;
+    case TOK_INCLUDE:
+    case TOK_INCLUDE_NEXT:
+    case TOK_PPNUM:
+    case TOK_LINE:
+    case TOK_ERROR:
+    case TOK_WARNING:
+        if (preprocess_with_buffer(s1))
+            goto the_end;
         break;
     case TOK_IFNDEF:
         c = 1;
@@ -1940,57 +2021,6 @@ include_done:
             tok_flags |= TOK_FLAG_ENDIF;
             goto the_end;
         }
-        break;
-    case TOK_PPNUM:
-        n = strtoul((char*)tokc.str.data, &q, 10);
-        goto _line_num;
-    case TOK_LINE:
-        next();
-        if (tok != TOK_CINT)
-    _line_err:
-            tcc_error("wrong #line format");
-        n = tokc.i;
-    _line_num:
-        next();
-        if (tok != TOK_LINEFEED) {
-            if (tok == TOK_STR) {
-                if (file->true_filename == file->filename)
-                    file->true_filename = tcc_strdup(file->filename);
-                /* prepend directory from real file */
-                pstrcpy(buf, sizeof buf, file->true_filename);
-                *tcc_basename(buf) = 0;
-                pstrcat(buf, sizeof buf, (char *)tokc.str.data);
-                tcc_debug_putfile(s1, buf);
-            } else if (parse_flags & PARSE_FLAG_ASM_FILE)
-                break;
-            else
-                goto _line_err;
-            --n;
-        }
-        if (file->fd > 0)
-            total_lines += file->line_num - n;
-        file->line_num = n;
-        break;
-    case TOK_ERROR:
-    case TOK_WARNING:
-        c = tok;
-        ch = file->buf_ptr[0];
-        skip_spaces();
-        q = buf;
-        while (ch != '\n' && ch != CH_EOF) {
-            if ((q - buf) < sizeof(buf) - 1)
-                *q++ = ch;
-            if (ch == '\\') {
-                if (handle_stray_noerror() == 0)
-                    --q;
-            } else
-                inp();
-        }
-        *q = '\0';
-        if (c == TOK_ERROR)
-            tcc_error("#error %s", buf);
-        else
-            tcc_warning("#warning %s", buf);
         break;
     case TOK_PRAGMA:
         pragma_parse(s1);

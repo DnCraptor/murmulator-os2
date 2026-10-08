@@ -500,6 +500,7 @@ static void strcat_printf(char *buf, int buf_size, const char *fmt, ...)
 
 PUB_FUNC void tcc_enter_state(TCCState *s1)
 {
+    MOS_TRACE("compile enter\n");
     WAIT_SEM();
     tcc_state = s1;
 }
@@ -657,10 +658,12 @@ ST_FUNC void tcc_close(void)
 static int _tcc_open(TCCState *s1, const char *filename)
 {
     int fd;
+    MOS_TRACE("open begin %s\n", filename);
     if (strcmp(filename, "-") == 0)
         fd = 0, filename = "<stdin>";
     else
         fd = open(filename, O_RDONLY | O_BINARY);
+    MOS_TRACE("open done fd=%d\n", fd);
     if ((s1->verbose == 2 && fd >= 0) || s1->verbose == 3)
         printf("%s %*s%s\n", fd < 0 ? "nf":"->",
                (int)(s1->include_stack_ptr - s1->include_stack), "", filename);
@@ -690,7 +693,9 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
     WAIT_SEM();
     tcc_state = s1;
 
+    MOS_TRACE("setjmp begin\n");
     if (setjmp(s1->error_jmp_buf) == 0) {
+        MOS_TRACE("setjmp done\n");
         int is_asm;
         s1->error_set_jmp_enabled = 1;
         s1->nb_errors = 0;
@@ -705,9 +710,13 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
         }
 
         is_asm = !!(filetype & (AFF_TYPE_ASM|AFF_TYPE_ASMPP));
+        MOS_TRACE("elf begin\n");
         tccelf_begin_file(s1);
+        MOS_TRACE("preprocess begin\n");
         preprocess_start(s1, is_asm);
+        MOS_TRACE("codegen init\n");
         tccgen_init(s1);
+        MOS_TRACE("parse begin\n");
         if (s1->output_type == TCC_OUTPUT_PREPROCESS) {
             tcc_preprocess(s1);
         } else if (is_asm) {
@@ -720,6 +729,7 @@ static int tcc_compile(TCCState *s1, int filetype, const char *str, int fd)
             tccgen_compile(s1);
         }
     }
+    MOS_TRACE("parse end\n");
     s1->error_set_jmp_enabled = 0;
     tccgen_finish(s1);
     preprocess_end(s1);
