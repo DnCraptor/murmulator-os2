@@ -2244,21 +2244,15 @@ static void tcc_output_elf(TCCState *s1, FILE *f, int phnum, ElfW(Phdr) *phdr,
 static int tcc_write_elf_file(TCCState *s1, const char *filename, int phnum,
                               ElfW(Phdr) *phdr, int file_offset, int *sec_order)
 {
-    int fd, mode, file_type;
     FILE *f;
 
-    file_type = s1->output_type;
-    if (file_type == TCC_OUTPUT_OBJ)
-        mode = 0666;
-    else
-        mode = 0777;
-    unlink(filename);
-    fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode);
-    if (fd < 0) {
+    /* MOS stdio provides fopen/fclose, but does not export fdopen.
+     * Generated objects do not require executable permissions. */
+    f = fopen(filename, "wb");
+    if (!f) {
         tcc_error_noabort("could not write '%s'", filename);
         return -1;
     }
-    f = fdopen(fd, "wb");
     if (s1->verbose)
         printf("<- %s\n", filename);
 

@@ -3310,9 +3310,14 @@ static int macro_subst_tok(
         time_t ti;
         struct tm *tm;
 
-        time(&ti);
-        tm = localtime(&ti);
-        if (tok == TOK___DATE__) {
+        int timestamp_status = mos_tcc_timestamp(&ti);
+        if (timestamp_status == -2)
+            tcc_error("invalid SOURCE_DATE_EPOCH");
+        tm = timestamp_status == 0 ? localtime(&ti) : NULL;
+        if (!tm) {
+            tcc_warning("calendar time unavailable; set SOURCE_DATE_EPOCH (UTC)");
+            strcpy(buf, tok == TOK___DATE__ ? "??? ?? ????" : "??:??:??");
+        } else if (tok == TOK___DATE__) {
             snprintf(buf, sizeof(buf), "%s %2d %d", 
                      ab_month_name[tm->tm_mon], tm->tm_mday, tm->tm_year + 1900);
         } else {

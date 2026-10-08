@@ -75,6 +75,22 @@ inline static int atoi (const char *s) {
     return ((fn_ptr_t)_sys_table_ptrs[100])(s);
 }
 
+/* MOS kernel API 169: qsort is available without rebuilding the kernel. */
+inline static void qsort(void *base, size_t nmemb, size_t size,
+                         int (*compar)(const void *, const void *)) {
+    typedef void (*fn_ptr_t)(void *, size_t, size_t,
+                             int (*)(const void *, const void *));
+    ((fn_ptr_t)_sys_table_ptrs[169])(base, nmemb, size, compar);
+}
+
+#ifdef HAS_OWN_STRTOL
+/* App-local implementations until MOS exports these via syscall table. */
+long strtol(const char *restrict, char **restrict, int);
+unsigned long strtoul(const char *restrict, char **restrict, int);
+long long strtoll(const char *restrict, char **restrict, int);
+unsigned long long strtoull(const char *restrict, char **restrict, int);
+#endif /* HAS_OWN_STRTOL */
+
 /// TODO:
 #if 0
 #include <features.h>

@@ -30,9 +30,13 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
+/* TODO(kernel): export ldexp through MOS libc API. */
+double ldexp(double x, int exp);
+/* App-local implementation; no MOS kernel export is required. */
+double strtod(const char *restrict s, char **restrict endptr);
 #include <sys/types.h>
 #include <fcntl.h>
-#include <setjmp.h>
+#include "mos_setjmp.h"
 #include <time.h>
 
 #ifndef _WIN32

@@ -17,7 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../libs/runtime" "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 # ONE_SOURCE: tcc.c includes libtcc.c and tcctools.c; libtcc.c includes backend.
-add_executable(tcc tcc.c)
+add_executable(tcc tcc.c mos_strto.c mos_ldexp.c mos_strtod.c mos_time.c)
 target_include_directories(tcc PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../api/libc
     ${CMAKE_CURRENT_SOURCE_DIR}/../../api/posix
@@ -29,11 +29,16 @@ target_include_directories(tcc PRIVATE
 target_compile_definitions(tcc PRIVATE NO_SEMAPHORE_H=1)
 target_link_libraries(tcc PRIVATE murmulator_runtime)
 target_compile_options(tcc PRIVATE -fno-jump-tables -Wno-error -Wno-unused-function)
+target_sources(tcc PRIVATE mos_setjmp.S)
 target_link_options(tcc PRIVATE -Xlinker --print-memory-usage -r)
 pico_set_program_name(tcc "Murmulator OS Applications: tcc")
 pico_set_program_version(tcc "bootstrap")
 pico_enable_stdio_uart(tcc 0)
 pico_enable_stdio_usb(tcc 0)
 add_custom_command(TARGET tcc POST_BUILD
+    COMMAND ${CMAKE_COMMAND} "-DNM=${CMAKE_NM}" "-DELF=$<TARGET_FILE:tcc>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/check_undefined.cmake"
     COMMAND ${CMAKE_COMMAND} -E rename $<TARGET_FILE:tcc> ${COMPILED_DIR}/tcc
+    VERBATIM
 )
+target_compile_definitions(tcc PRIVATE HAS_OWN_STRTOL=1)
