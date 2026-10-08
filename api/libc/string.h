@@ -98,7 +98,6 @@ char *strchr(const char *s, int c) {
         if (v == 0)  return 0;
         ++p;
     }
-    __builtin_unreachable();
 }
 
 inline static

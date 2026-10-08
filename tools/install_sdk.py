@@ -34,7 +34,8 @@ def within(root, name):
 def owned_name(name):
     relative_path(name)
     return (name in ('bin/tcc', 'lib/libmos.a', 'src/hello.c')
-            or name.startswith('include/'))
+            or name.startswith('include/')
+            or name.startswith('src/tcc/'))
 
 
 def install(root, dest, dry_run=False, with_tcc=False):

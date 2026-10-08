@@ -20,6 +20,7 @@
 
 #define USING_GLOBALS
 #include "tcc.h"
+#include "mos_time.h"
 
 /********************************************************/
 /* global variables */

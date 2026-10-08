@@ -1421,7 +1421,7 @@ ST_FUNC void vrotb(int n);
 #if PTR_SIZE == 4
 ST_FUNC void lexpand(void);
 #endif
-#ifdef TCC_TARGET_ARM
+#if defined(TCC_TARGET_ARM) || defined(TCC_TARGET_ARM_THUMB)
 ST_FUNC int get_reg_ex(int rc, int rc2);
 #endif
 ST_FUNC void vpushv(SValue *v);

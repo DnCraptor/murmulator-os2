@@ -2,7 +2,9 @@
 #ifndef TCC_MOS_CONFIG_H
 #define TCC_MOS_CONFIG_H
 #define TCC_VERSION "0.9.27-mos-bootstrap"
+#ifndef ONE_SOURCE
 #define ONE_SOURCE 1
+#endif
 #define TCC_TARGET_ARM_THUMB 1
 #define TCC_ARM_EABI 1
 #define TCC_ARM_VFP 1

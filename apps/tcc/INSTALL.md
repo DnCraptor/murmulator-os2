@@ -5,8 +5,9 @@
 newlib, Pico SDK, C++ files or library source trees into that directory.
 The runtime archive and its publication are owned by `libs/runtime`.
 
-`api/install.json` declares SDK files; `apps/tcc/install.json` declares TCC
-and its example. `install_tcc.py` installs both explicit manifests.
+`api/install.json` declares SDK files; `apps/tcc/install.json` declares TCC,
+its example and the exact source set used for self-compilation.
+`install_tcc.py` installs both explicit manifests.
 Source paths are relative to the repository root; destinations are relative
 to the MOS2 directory. No directory recursion or wildcard is used.
 MOS headers are read directly from `api`, not maintained as duplicate copies.
@@ -41,9 +42,9 @@ Save edited example programs under another filename.
 There is no guarantee that headers from one MOS2 revision match an older
 running kernel. The installer does not flash the kernel or detect its version.
 New API entries must be added to the manifest only after their dependencies
-and compatibility with TCC have been checked. This initial profile contains
-stdio, stdlib, ctype, libgen, errno and three compiler headers; it is not a
-claim that all MOS libc/POSIX interfaces are ready for TCC.
+and compatibility with TCC have been checked. The declared profile contains
+the C headers and the file/time POSIX headers required by the compiler; it is
+not a claim that every MOS libc/POSIX interface is ready for TCC.
 
 The rejected bulk-copy installer has no ownership record. This installer
 will not delete its untracked leftovers. In particular, it does not copy any
@@ -83,11 +84,6 @@ Rebuild the default TCC target and run the installer to update both
 need rebuilding. Programs using these functions must link the archive after
 their objects, using `-nostdlib -r ... -lmos`.
 
-This runtime move alone does not enable TCC self-compilation. The current
-Thumb backend defaults to hard-float and emits VFP double operations, whereas
-the bootstrap runtime uses soft-float. A self-build also needs an explicit
-header set beyond the small example-program installation profile.
-
 ## Shared standard functions
 
 The standard `strto*`, `ldexp`, `time`, `gettimeofday` and `localtime`
@@ -96,7 +92,32 @@ Their existing limitations are documented in `libs/runtime/README.md`.
 TCC no longer supplies private copies or defines `HAS_OWN_STRTOL`.
 The existing installation manifest already reads the updated `api/libc/stdlib.h`
 directly. Rebuild and repeat installation to update the archive and declarations.
-This move does not broaden the installed header profile for self-compilation.
+## Self-compilation on MOS2
+
+The installed source tree is `/mos2/src/tcc`. Build from that directory so
+the object names in the response files have a stable location:
+
+```
+cd /mos2/src/tcc
+/mos2/bin/tcc @selfhost-compile.rsp
+/mos2/bin/tcc @selfhost-link.rsp
+/mos2/bin/tcc-self
+```
+
+Compilation and linking are intentionally separate. The first invocation uses
+`ONE_SOURCE=0` and writes one object at a time, releasing parser state between
+translation units. The second invocation combines those objects with
+`/mos2/lib/libmos.a`. This lowers the compilation peak compared with feeding
+the complete amalgamated `tcc.c` to one compiler instance. The output has a
+different name so a failed self-build cannot overwrite the bootstrap compiler.
+
+The response files select `-mfloat-abi=softfp`, matching the core-register ABI
+of `libmos.a`. The Thumb backend still emits VFP instructions for floating-point
+operations; this is not an RP2040 code generator.
+
+The self-build source manifest is explicit. It contains the C implementation,
+private headers, response files and TCC license; it does not copy the rest of
+the repository or either SDK.
 
 ## SDK without rebuilding TCC
 

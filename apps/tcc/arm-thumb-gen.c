@@ -135,7 +135,7 @@ ST_DATA const int reg_classes[NB_REGS] = {
     /* r1 */ RC_INT | RC_R1,
     /* r2 */ RC_INT | RC_R2,
     /* r3 */ RC_INT | RC_R3,
-    /* r12 */ RC_INT | RC_R12,
+    /* r12 is reserved as the large-offset scratch register. */ 0,
     /* f0 */ RC_FLOAT | RC_F0,
     /* f1 */ RC_FLOAT | RC_F1,
     /* f2 */ RC_FLOAT | RC_F2,
@@ -1171,10 +1171,10 @@ ST_FUNC int gjmp(int t)
   DBG1(printf (GRN"gjmp t 0x%x\n"CLR, t));
   if (nocode_wanted)
     return t;
-  if (val < -1024 || val > 1023)
-    th_b_t4 (val << 1);
-  else
-    th_b_t2 (val << 1);
+  /* A forward jump initially points to the previous item in its patch chain,
+     not to its final destination.  Its apparent distance therefore cannot be
+     used to select the 16-bit encoding in this single-pass backend. */
+  th_b_t4 (val << 1);
   return r;
 }
 
@@ -1288,6 +1288,8 @@ void gen_opi_shift (int opc)
 
     if (opc == 0)
       th_lsl_reg (c, r, fr);
+    else if (opc == 1)
+      th_lsr_reg (c, r, fr);
     else if (opc == 2)
       th_asr_reg (c, r, fr);
     else

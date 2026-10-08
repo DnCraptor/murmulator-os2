@@ -72,6 +72,46 @@
     {
       "source": "apps/tcc/include/stdint.h",
       "target": "include/stdint.h"
+    },
+    {
+      "source": "api/libc/limits.h",
+      "target": "include/limits.h"
+    },
+    {
+      "source": "api/libc/inttypes.h",
+      "target": "include/inttypes.h"
+    },
+    {
+      "source": "api/libc/time.h",
+      "target": "include/time.h"
+    },
+    {
+      "source": "api/posix/sys/types.h",
+      "target": "include/sys/types.h"
+    },
+    {
+      "source": "api/posix/sys/time.h",
+      "target": "include/sys/time.h"
+    },
+    {
+      "source": "api/posix/sys/stat.h",
+      "target": "include/sys/stat.h"
+    },
+    {
+      "source": "api/posix/sys/fcntl.h",
+      "target": "include/sys/fcntl.h"
+    },
+    {
+      "source": "api/posix/fcntl.h",
+      "target": "include/fcntl.h"
+    },
+    {
+      "source": "api/posix/unistd.h",
+      "target": "include/unistd.h"
+    },
+    {
+      "source": "api/posix/sys/timeb.h",
+      "target": "include/sys/timeb.h"
     }
   ]
 }

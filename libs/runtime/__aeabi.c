@@ -361,6 +361,45 @@ void* memmove(void* dst, const void* src, size_t sz) {
     return ((fn)_sys_table_ptrs[232])(dst, src, sz);
 }
 
+/* The ARM EABI uses void-returning entry points for compiler-generated
+ * aggregate copies.  Keep the ABI argument order, especially for memset. */
+void __aeabi_memcpy(void *dst, const void *src, size_t sz) {
+    (void)memcpy(dst, src, sz);
+}
+void __aeabi_memcpy4(void *dst, const void *src, size_t sz) {
+    (void)memcpy(dst, src, sz);
+}
+void __aeabi_memcpy8(void *dst, const void *src, size_t sz) {
+    (void)memcpy(dst, src, sz);
+}
+void __aeabi_memmove(void *dst, const void *src, size_t sz) {
+    (void)memmove(dst, src, sz);
+}
+void __aeabi_memmove4(void *dst, const void *src, size_t sz) {
+    (void)memmove(dst, src, sz);
+}
+void __aeabi_memmove8(void *dst, const void *src, size_t sz) {
+    (void)memmove(dst, src, sz);
+}
+void __aeabi_memset(void *dst, size_t sz, int value) {
+    (void)memset(dst, value, sz);
+}
+void __aeabi_memset4(void *dst, size_t sz, int value) {
+    (void)memset(dst, value, sz);
+}
+void __aeabi_memset8(void *dst, size_t sz, int value) {
+    (void)memset(dst, value, sz);
+}
+void __aeabi_memclr(void *dst, size_t sz) {
+    (void)memset(dst, 0, sz);
+}
+void __aeabi_memclr4(void *dst, size_t sz) {
+    (void)memset(dst, 0, sz);
+}
+void __aeabi_memclr8(void *dst, size_t sz) {
+    (void)memset(dst, 0, sz);
+}
+
 char* strcat(char* t, const char * s) {
     typedef char* (*fn_ptr_t)(char*, const char*);
     return ((fn_ptr_t)_sys_table_ptrs[252])(t, s);

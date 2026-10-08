@@ -7,6 +7,7 @@ extern "C" {
 #endif
 
 #include <stdarg.h>
+#include <sys/types.h>
 
 #ifndef M_OS_API_SYS_TABLE_BASE
 #define M_OS_API_SYS_TABLE_BASE ((void*)(0x10000000ul + (16 << 20) - (4 << 10)))

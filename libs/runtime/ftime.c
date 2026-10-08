@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <sys/timeb.h>
 #include <time.h>
 #include <errno.h>

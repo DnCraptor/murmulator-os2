@@ -118,6 +118,11 @@ char* __libc() __realpathat(int dfd, const char *restrict filename, char *restri
 			if(!get_dir(dfd, output, PATH_MAX))  goto err;
 		}
 		j = strlen(output);
+        if (j && output[j - 1] != '/' && output[j - 1] != '\\') {
+            if (j >= PATH_MAX - 1) goto toolong;
+            output[j++] = '/';
+            output[j] = '\0';
+        }
 	}
 	l = strnlen(filename, PATH_MAX+1) + j;
 	if (!l) {

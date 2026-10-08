@@ -6,6 +6,8 @@ at `/mos2/lib/libmos.a`. No new kernel exports are needed.
 
 Standard functions include `setjmp`, `longjmp`, the integer and floating-point
 `strto*` conversions, `ldexp`, `time`, `gettimeofday`, `localtime`, and `ftime`.
+The archive also supplies the ARM EABI `memcpy`, `memmove`, `memset` and
+`memclr` entry points emitted for aggregate operations.
 Use the standard API headers; no `HAS_OWN_STRTOL` definition is required.
 For MOS TCC relocatable links use `-nostdlib -r` and place `-lmos` after inputs.
 

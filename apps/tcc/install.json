@@ -8,6 +8,106 @@
     {
       "source": "apps/tcc/examples/hello.c",
       "target": "src/hello.c"
+    },
+    {
+      "source": "apps/tcc/selfhost-compile.rsp",
+      "target": "src/tcc/selfhost-compile.rsp"
+    },
+    {
+      "source": "apps/tcc/selfhost-link.rsp",
+      "target": "src/tcc/selfhost-link.rsp"
+    },
+    {
+      "source": "apps/tcc/tcc.c",
+      "target": "src/tcc/tcc.c"
+    },
+    {
+      "source": "apps/tcc/tcc.h",
+      "target": "src/tcc/tcc.h"
+    },
+    {
+      "source": "apps/tcc/config.h",
+      "target": "src/tcc/config.h"
+    },
+    {
+      "source": "apps/tcc/mos_trace.h",
+      "target": "src/tcc/mos_trace.h"
+    },
+    {
+      "source": "apps/tcc/mos_time.c",
+      "target": "src/tcc/mos_time.c"
+    },
+    {
+      "source": "apps/tcc/mos_time.h",
+      "target": "src/tcc/mos_time.h"
+    },
+    {
+      "source": "apps/tcc/libtcc.c",
+      "target": "src/tcc/libtcc.c"
+    },
+    {
+      "source": "apps/tcc/libtcc.h",
+      "target": "src/tcc/libtcc.h"
+    },
+    {
+      "source": "apps/tcc/tcctools.c",
+      "target": "src/tcc/tcctools.c"
+    },
+    {
+      "source": "apps/tcc/tccpp.c",
+      "target": "src/tcc/tccpp.c"
+    },
+    {
+      "source": "apps/tcc/tccgen.c",
+      "target": "src/tcc/tccgen.c"
+    },
+    {
+      "source": "apps/tcc/tccelf.c",
+      "target": "src/tcc/tccelf.c"
+    },
+    {
+      "source": "apps/tcc/tccrun.c",
+      "target": "src/tcc/tccrun.c"
+    },
+    {
+      "source": "apps/tcc/tccasm.c",
+      "target": "src/tcc/tccasm.c"
+    },
+    {
+      "source": "apps/tcc/arm-thumb-gen.c",
+      "target": "src/tcc/arm-thumb-gen.c"
+    },
+    {
+      "source": "apps/tcc/arm-thumb-instructions.c",
+      "target": "src/tcc/arm-thumb-instructions.c"
+    },
+    {
+      "source": "apps/tcc/arm-link.c",
+      "target": "src/tcc/arm-link.c"
+    },
+    {
+      "source": "apps/tcc/arm-asm.c",
+      "target": "src/tcc/arm-asm.c"
+    },
+    {
+      "source": "apps/tcc/elf.h",
+      "target": "src/tcc/elf.h"
+    },
+    {
+      "source": "apps/tcc/stab.h",
+      "target": "src/tcc/stab.h"
+    },
+    {
+      "source": "apps/tcc/stab.def",
+      "target": "src/tcc/stab.def"
+    },
+    {
+      "source": "apps/tcc/tcctok.h",
+      "target": "src/tcc/tcctok.h"
+    },
+    {
+      "source": "apps/tcc/COPYING",
+      "target": "src/tcc/COPYING"
     }
   ]
 }

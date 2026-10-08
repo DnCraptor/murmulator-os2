@@ -746,7 +746,24 @@ static void th_lsr_imm (uint32_t rd, uint32_t rm, uint32_t imm5)
 	if (rm <= 7 && rd <= 7)
 		ot(0x0800 | (imm5 << 6) | (rm << 3) | rd);	// Encoding t1
 	else
-		tcc_error ("internal error: th_lsr_imm invalid parameters\n");
+	{
+		uint32_t imm3 = (imm5 >> 2) & 7;		// Encoding t2
+		ot(0xea4f);
+		ot((imm3 << 12) | (rd << 8) | ((imm5 & 3) << 6) | (1 << 4) | rm);
+	}
+}
+
+static void th_lsr_reg (uint32_t rd, uint32_t rn, uint32_t rm)
+{
+	if (rd == rn && rm <= 7 && rn <= 7)
+		ot(0x40c0 | (rm << 3) | rd);			// Encoding t1
+	else if (rd != 13 && rd != 15 && rn != 13 && rn != 15 && rm != 13 && rm != 15)
+	{
+		ot(0xfa20 | rn);
+		ot(0xf000 | (rd << 8) | rm);			// Encoding t2
+	}
+	else
+		tcc_error ("internal error: th_lsr_reg invalid parameters\n");
 }
 
 static void th_asr_reg (uint32_t rd, uint32_t rn, uint32_t rm)
@@ -1111,6 +1128,7 @@ static int th_ldrsh_imm (uint32_t rt, uint32_t rn, uint32_t imm12, uint32_t puw)
 		ot(0x0800 | (rt << 12) | (puw << 8) | imm12);
 		return 4;
 	}
+	return 0;
 }
 
 static int th_ldrsh_reg (uint32_t rt, uint32_t rn, uint32_t rm)
@@ -1239,8 +1257,10 @@ void load_full_const (int r, uint32_t imm, struct Sym *sym)
  */
 static int th_offset_to_reg (int off, int sign)
 {
-	// Get a new register
-	int rr = get_reg (RC_INT);
+	/* Register allocation can call this routine while spilling a register.
+	 * Asking the allocator for another register here recursively spills the
+	 * same value when every allocatable core register is live. */
+	int rr = TREG_R12;
 
 	// Try mov first
 	int ok = th_mov_imm (rr, off, 2);
