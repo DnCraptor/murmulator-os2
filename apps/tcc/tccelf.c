@@ -283,8 +283,11 @@ ST_FUNC void section_realloc(Section *sec, unsigned long new_size)
     size = sec->data_allocated;
     if (size == 0)
         size = 1;
-    while (size < new_size)
+    /* Bound spare capacity to 255 bytes, including during realloc. */
+    while (size < new_size && size < 256)
         size = size * 2;
+    if (size < new_size)
+        size = tcc_alloc_capacity(new_size, 256);
     data = tcc_realloc(sec->data, size);
     memset(data + sec->data_allocated, 0, size - sec->data_allocated);
     sec->data = data;
@@ -842,10 +845,8 @@ ST_FUNC struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
     if (index >= s1->nb_sym_attrs) {
         if (!alloc)
             return s1->sym_attrs;
-        /* find immediately bigger power of 2 and reallocate array */
-        n = 1;
-        while (index >= n)
-            n *= 2;
+        /* At most 15 unused attribute records. */
+        n = tcc_alloc_capacity((unsigned long)index + 1, 16);
         tab = tcc_realloc(s1->sym_attrs, n * sizeof(*s1->sym_attrs));
         s1->sym_attrs = tab;
         memset(s1->sym_attrs + s1->nb_sym_attrs, 0,
@@ -868,44 +869,49 @@ ST_FUNC struct sym_attr *get_sym_attr(TCCState *s1, int index, int alloc)
 static void sort_syms(TCCState *s1, Section *s)
 {
     int *old_to_new_syms;
-    ElfW(Sym) *new_syms;
-    int nb_syms, i;
-    ElfW(Sym) *p, *q;
+    int nb_syms, i, nlocal, local, global, j, k;
+    ElfW(Sym) *p, saved, displaced;
     ElfW_Rel *rel;
     Section *sr;
     int type, sym_index;
 
     nb_syms = s->data_offset / sizeof(ElfW(Sym));
-    new_syms = tcc_malloc(nb_syms * sizeof(ElfW(Sym)));
     old_to_new_syms = tcc_malloc(nb_syms * sizeof(int));
-
-    /* first pass for local symbols */
     p = (ElfW(Sym) *)s->data;
-    q = new_syms;
-    for(i = 0; i < nb_syms; i++) {
-        if (ELFW(ST_BIND)(p->st_info) == STB_LOCAL) {
-            old_to_new_syms[i] = q - new_syms;
-            *q++ = *p;
-        }
-        p++;
-    }
-    /* save the number of local symbols in section header */
-    if( s->sh_size )    /* this 'if' makes IDA happy */
-        s->sh_info = q - new_syms;
 
-    /* then second pass for non local symbols */
-    p = (ElfW(Sym) *)s->data;
-    for(i = 0; i < nb_syms; i++) {
-        if (ELFW(ST_BIND)(p->st_info) != STB_LOCAL) {
-            old_to_new_syms[i] = q - new_syms;
-            *q++ = *p;
-        }
-        p++;
-    }
+    /* Build the same stable local/non-local ordering without duplicating
+       the entire symbol table. */
+    nlocal = 0;
+    for (i = 0; i < nb_syms; i++)
+        if (ELFW(ST_BIND)(p[i].st_info) == STB_LOCAL)
+            ++nlocal;
+    local = 0;
+    global = nlocal;
+    for (i = 0; i < nb_syms; i++)
+        old_to_new_syms[i] =
+            ELFW(ST_BIND)(p[i].st_info) == STB_LOCAL ? local++ : global++;
 
-    /* we copy the new symbols to the old */
-    memcpy(s->data, new_syms, nb_syms * sizeof(ElfW(Sym)));
-    tcc_free(new_syms);
+    if (s->sh_size)
+        s->sh_info = nlocal;
+
+    /* Move each permutation cycle in place. Complemented map entries
+       mark visited positions; restore them before remapping relocations. */
+    for (i = 0; i < nb_syms; i++) {
+        if (old_to_new_syms[i] < 0)
+            continue;
+        saved = p[i];
+        j = i;
+        do {
+            k = old_to_new_syms[j];
+            old_to_new_syms[j] = ~k;
+            displaced = p[k];
+            p[k] = saved;
+            saved = displaced;
+            j = k;
+        } while (j != i);
+    }
+    for (i = 0; i < nb_syms; i++)
+        old_to_new_syms[i] = ~old_to_new_syms[i];
 
     /* now we modify all the relocations */
     for(i = 1; i < s1->nb_sections; i++) {
@@ -3003,7 +3009,7 @@ static void
 set_sym_version(TCCState *s1, int sym_index, int verndx)
 {
     if (sym_index >= nb_sym_to_version) {
-        int newelems = sym_index ? sym_index * 2 : 1;
+        int newelems = tcc_alloc_capacity((unsigned long)sym_index + 1, 64);
         sym_to_version = tcc_realloc(sym_to_version,
                                      newelems * sizeof(*sym_to_version));
         memset(sym_to_version + nb_sym_to_version, -1,

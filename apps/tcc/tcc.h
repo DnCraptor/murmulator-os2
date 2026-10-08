@@ -408,8 +408,8 @@
 #define TOKSTR_MAX_SIZE     256
 #define PACK_STACK_SIZE     8
 
-#define TOK_HASH_SIZE       16384 /* must be a power of two */
-#define TOK_ALLOC_INCR      512  /* must be a power of two */
+#define TOK_HASH_SIZE       2048 /* must be a power of two */
+#define TOK_ALLOC_INCR      64  /* must be a power of two */
 #define TOK_MAX_SIZE        4 /* token max size in int unit when stored in string */
 
 /* token symbol management */
@@ -588,7 +588,7 @@ typedef struct DLLReference {
 #define TYPE_ABSTRACT  1 /* type without variable */
 #define TYPE_DIRECT    2 /* type with variable */
 
-#define IO_BUF_SIZE 8192
+#define IO_BUF_SIZE 1024
 
 typedef struct BufferedFile {
     uint8_t *buf_ptr;
@@ -1187,6 +1187,8 @@ ST_FUNC char *pstrncpy(char *out, const char *in, size_t num);
 PUB_FUNC char *tcc_basename(const char *name);
 PUB_FUNC char *tcc_fileextension (const char *name);
 
+ST_FUNC unsigned long tcc_alloc_capacity(unsigned long needed, unsigned long step);
+
 #ifndef MEM_DEBUG
 PUB_FUNC void tcc_free(void *ptr);
 PUB_FUNC void *tcc_malloc(unsigned long size);
@@ -1371,7 +1373,7 @@ static inline int toup(int c) {
 
 /* ------------ tccgen.c ------------ */
 
-#define SYM_POOL_NB (8192 / sizeof(Sym))
+#define SYM_POOL_NB (4096 / sizeof(Sym))
 
 ST_DATA Sym *global_stack;
 ST_DATA Sym *local_stack;

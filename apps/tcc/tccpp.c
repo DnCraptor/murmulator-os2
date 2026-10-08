@@ -131,8 +131,8 @@ ST_FUNC void expect(const char *msg)
 #define TAL_DEBUG_FILE_LEN 40
 #endif
 
-#define TOKSYM_TAL_SIZE     (8 * 1024) /* MOS: grow in small blocks, not desktop-sized arenas */
-#define TOKSTR_TAL_SIZE     (8 * 1024) /* additional blocks are allocated on demand */
+#define TOKSYM_TAL_SIZE     (2 * 1024) /* bound unused space in identifier arenas */
+#define TOKSTR_TAL_SIZE     (2 * 1024) /* additional blocks are allocated on demand */
 #define CSTR_TAL_SIZE       (256 * 1024) /* allocator for tiny CString instances */
 #define TOKSYM_TAL_LIMIT    256 /* prefer unique limits to distinguish allocators debug msgs */
 #define TOKSTR_TAL_LIMIT    128 /* 32 * sizeof(int) */
@@ -331,8 +331,10 @@ static void cstr_realloc(CString *cstr, int new_size)
     size = cstr->size_allocated;
     if (size < 8)
         size = 8; /* no need to allocate a too small first string */
-    while (size < new_size)
+    while (size < new_size && size < 64)
         size = size * 2;
+    if (size < new_size)
+        size = tcc_alloc_capacity(new_size, 64);
     cstr->data = tcc_realloc(cstr->data, size);
     cstr->size_allocated = size;
 }
@@ -1103,8 +1105,10 @@ ST_FUNC int *tok_str_realloc(TokenString *s, int new_size)
     size = s->allocated_len;
     if (size < 16)
         size = 16;
-    while (size < new_size)
+    while (size < new_size && size < 64)
         size = size * 2;
+    if (size < new_size)
+        size = tcc_alloc_capacity(new_size, 64);
     if (size > s->allocated_len) {
         str = tal_realloc(tokstr_alloc, s->str, size * sizeof(int));
         s->allocated_len = size;

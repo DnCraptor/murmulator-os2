@@ -417,6 +417,15 @@ PUB_FUNC void tcc_memcheck(void)
 #define realloc(p, s) use_tcc_realloc(p, s)
 
 /********************************************************/
+/* Round allocation capacity without exponential spare space. */
+ST_FUNC unsigned long tcc_alloc_capacity(unsigned long needed, unsigned long step)
+{
+    unsigned long extra = (step - needed % step) % step;
+    if (needed > ~0UL - extra)
+        return needed;
+    return needed + extra;
+}
+
 /* dynarrays */
 
 ST_FUNC void dynarray_add(void *ptab, int *nb_ptr, void *data)
@@ -426,12 +435,12 @@ ST_FUNC void dynarray_add(void *ptab, int *nb_ptr, void *data)
 
     nb = *nb_ptr;
     pp = *(void ***)ptab;
-    /* every power of two we double array size */
-    if ((nb & (nb - 1)) == 0) {
+    /* Tiny arrays keep their old layout; larger arrays add 16 pointers. */
+    if (nb < 16 ? (nb & (nb - 1)) == 0 : nb % 16 == 0) {
         if (!nb)
             nb_alloc = 1;
         else
-            nb_alloc = nb * 2;
+            nb_alloc = nb < 16 ? nb * 2 : nb + 16;
         pp = tcc_realloc(pp, nb_alloc * sizeof(void *));
         *(void***)ptab = pp;
     }
