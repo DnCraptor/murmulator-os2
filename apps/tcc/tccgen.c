@@ -7716,7 +7716,12 @@ static void gen_function(Sym *sym)
 	gen_fill_nops(newoff - ind);
     }
     /* NOTE: we patch the symbol size later */
+#ifdef TCC_TARGET_ARM_THUMB
+    /* ARM ELF function symbols carry the instruction-set bit. */
+    put_extern_sym(sym, cur_text_section, ind | 1, 0);
+#else
     put_extern_sym(sym, cur_text_section, ind, 0);
+#endif
     if (sym->type.ref->f.func_ctor)
         add_array (tcc_state, ".init_array", sym->c);
     if (sym->type.ref->f.func_dtor)

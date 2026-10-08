@@ -35,10 +35,23 @@ pico_set_program_name(tcc "Murmulator OS Applications: tcc")
 pico_set_program_version(tcc "bootstrap")
 pico_enable_stdio_uart(tcc 0)
 pico_enable_stdio_usb(tcc 0)
-add_custom_command(TARGET tcc POST_BUILD
+# Only compiled binaries go into apps/compiled. Headers are installed from
+# their original source paths by tools/install_tcc.py and install.json.
+add_library(mos_sd_runtime STATIC)
+target_link_libraries(mos_sd_runtime PRIVATE murmulator_runtime)
+get_target_property(MOS_APP_INCLUDE_DIRS tcc INCLUDE_DIRECTORIES)
+target_include_directories(mos_sd_runtime PRIVATE ${MOS_APP_INCLUDE_DIRS})
+target_compile_options(mos_sd_runtime PRIVATE -fno-jump-tables)
+set_target_properties(mos_sd_runtime PROPERTIES OUTPUT_NAME mos)
+add_custom_target(tcc_binaries ALL
     COMMAND ${CMAKE_COMMAND} "-DNM=${CMAKE_NM}" "-DELF=$<TARGET_FILE:tcc>"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/check_undefined.cmake"
-    COMMAND ${CMAKE_COMMAND} -E rename $<TARGET_FILE:tcc> ${COMPILED_DIR}/tcc
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${COMPILED_DIR}/bin" "${COMPILED_DIR}/lib"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:tcc> "${COMPILED_DIR}/bin/tcc"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:mos_sd_runtime> "${COMPILED_DIR}/lib/libmos.a"
+    COMMAND ${CMAKE_COMMAND} -E rm -f "${COMPILED_DIR}/tcc"
+    DEPENDS tcc mos_sd_runtime
     VERBATIM
 )
+
 target_compile_definitions(tcc PRIVATE HAS_OWN_STRTOL=1)

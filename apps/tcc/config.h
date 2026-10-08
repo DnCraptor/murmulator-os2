@@ -8,7 +8,7 @@
 #define TCC_ARM_VFP 1
 #define TCC_ARM_HARDFLOAT 1
 #define CONFIG_TCC_STATIC 1
-#define CONFIG_TCCDIR "/tcc"
-#define CONFIG_TCC_SYSINCLUDEPATHS "/tcc/include"
-#define CONFIG_TCC_LIBPATHS "/tcc/lib"
+#define CONFIG_TCCDIR "/mos2/lib"
+#define CONFIG_TCC_SYSINCLUDEPATHS "/mos2/include"
+#define CONFIG_TCC_LIBPATHS "/mos2/lib"
 #endif
