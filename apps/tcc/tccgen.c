@@ -5003,6 +5003,148 @@ static void parse_builtin_params(int nc, const char *args)
         nocode_wanted--;
 }
 
+/* Keep call-only temporaries out of every recursive unary expression. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static void unary_func_call(void)
+{
+    int size, align, r, t;
+    Sym *s;
+    SValue ret;
+    Sym *sa;
+    int nb_args, ret_nregs, ret_align, regsize, variadic;
+
+    /* function call  */
+    if ((vtop->type.t & VT_BTYPE) != VT_FUNC) {
+        /* pointer test (no array accepted) */
+        if ((vtop->type.t & (VT_BTYPE | VT_ARRAY)) == VT_PTR) {
+            vtop->type = *pointed_type(&vtop->type);
+            if ((vtop->type.t & VT_BTYPE) != VT_FUNC)
+                goto error_func;
+        } else {
+        error_func:
+            expect("function pointer");
+        }
+    } else {
+        vtop->r &= ~VT_LVAL; /* no lvalue */
+    }
+    /* get return type */
+    s = vtop->type.ref;
+    next();
+    sa = s->next; /* first parameter */
+    nb_args = regsize = 0;
+    ret.r2 = VT_CONST;
+    /* compute first implicit argument if a structure is returned */
+    if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
+        variadic = (s->f.func_type == FUNC_ELLIPSIS);
+        ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
+                               &ret_align, &regsize);
+        if (ret_nregs <= 0) {
+            /* get some space for the returned structure */
+            size = type_size(&s->type, &align);
+    #ifdef TCC_TARGET_ARM64
+        /* On arm64, a small struct is return in registers.
+           It is much easier to write it to memory if we know
+           that we are allowed to write some extra bytes, so
+           round the allocated space up to a power of 2: */
+        if (size < 16)
+            while (size & (size - 1))
+                size = (size | (size - 1)) + 1;
+    #endif
+            loc = (loc - size) & -align;
+            ret.type = s->type;
+            ret.r = VT_LOCAL | VT_LVAL;
+            /* pass it as 'int' to avoid structure arg passing
+               problems */
+            vseti(VT_LOCAL, loc);
+            ret.c = vtop->c;
+            if (ret_nregs < 0)
+              vtop--;
+            else
+              nb_args++;
+        }
+    } else {
+        ret_nregs = 1;
+        ret.type = s->type;
+    }
+
+    if (ret_nregs > 0) {
+        /* return in register */
+        ret.c.i = 0;
+        PUT_R_RET(&ret, ret.type.t);
+    }
+    if (tok != ')') {
+        for(;;) {
+            expr_eq();
+            gfunc_param_typed(s, sa);
+            nb_args++;
+            if (sa)
+                sa = sa->next;
+            if (tok == ')')
+                break;
+            skip(',');
+        }
+    }
+    if (sa)
+        tcc_error("too few arguments to function");
+    skip(')');
+    gfunc_call(nb_args);
+
+    if (ret_nregs < 0) {
+        vsetc(&ret.type, ret.r, &ret.c);
+    #ifdef TCC_TARGET_RISCV64
+        arch_transfer_ret_regs(1);
+    #endif
+    } else {
+        /* return value */
+        for (r = ret.r + ret_nregs + !ret_nregs; r-- > ret.r;) {
+            vsetc(&ret.type, r, &ret.c);
+            vtop->r2 = ret.r2; /* Loop only happens when r2 is VT_CONST */
+        }
+
+        /* handle packed struct return */
+        if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
+            int addr, offset;
+
+            size = type_size(&s->type, &align);
+            /* We're writing whole regs often, make sure there's enough
+               space.  Assume register size is power of 2.  */
+            if (regsize > align)
+              align = regsize;
+            loc = (loc - size) & -align;
+            addr = loc;
+            offset = 0;
+            for (;;) {
+                vset(&ret.type, VT_LOCAL | VT_LVAL, addr + offset);
+                vswap();
+                vstore();
+                vtop--;
+                if (--ret_nregs == 0)
+                  break;
+                offset += regsize;
+            }
+            vset(&s->type, VT_LOCAL | VT_LVAL, addr);
+        }
+
+        /* Promote char/short return values. This is matters only
+           for calling function that were not compiled by TCC and
+           only on some architectures.  For those where it doesn't
+           matter we expect things to be already promoted to int,
+           but not larger.  */
+        t = s->type.t & VT_BTYPE;
+        if (t == VT_BYTE || t == VT_SHORT || t == VT_BOOL) {
+    #ifdef PROMOTE_RET
+            vtop->r |= BFVAL(VT_MUSTCAST, 1);
+    #else
+            vtop->type.t = VT_INT;
+    #endif
+        }
+    }
+    if (s->f.func_noreturn)
+        CODE_OFF();
+}
+
 ST_FUNC void unary(void)
 {
     int n, t, align, size, r, sizeof_caller;
@@ -5591,138 +5733,7 @@ special_math_val:
             indir();
             skip(']');
         } else if (tok == '(') {
-            SValue ret;
-            Sym *sa;
-            int nb_args, ret_nregs, ret_align, regsize, variadic;
-
-            /* function call  */
-            if ((vtop->type.t & VT_BTYPE) != VT_FUNC) {
-                /* pointer test (no array accepted) */
-                if ((vtop->type.t & (VT_BTYPE | VT_ARRAY)) == VT_PTR) {
-                    vtop->type = *pointed_type(&vtop->type);
-                    if ((vtop->type.t & VT_BTYPE) != VT_FUNC)
-                        goto error_func;
-                } else {
-                error_func:
-                    expect("function pointer");
-                }
-            } else {
-                vtop->r &= ~VT_LVAL; /* no lvalue */
-            }
-            /* get return type */
-            s = vtop->type.ref;
-            next();
-            sa = s->next; /* first parameter */
-            nb_args = regsize = 0;
-            ret.r2 = VT_CONST;
-            /* compute first implicit argument if a structure is returned */
-            if ((s->type.t & VT_BTYPE) == VT_STRUCT) {
-                variadic = (s->f.func_type == FUNC_ELLIPSIS);
-                ret_nregs = gfunc_sret(&s->type, variadic, &ret.type,
-                                       &ret_align, &regsize);
-                if (ret_nregs <= 0) {
-                    /* get some space for the returned structure */
-                    size = type_size(&s->type, &align);
-#ifdef TCC_TARGET_ARM64
-                /* On arm64, a small struct is return in registers.
-                   It is much easier to write it to memory if we know
-                   that we are allowed to write some extra bytes, so
-                   round the allocated space up to a power of 2: */
-                if (size < 16)
-                    while (size & (size - 1))
-                        size = (size | (size - 1)) + 1;
-#endif
-                    loc = (loc - size) & -align;
-                    ret.type = s->type;
-                    ret.r = VT_LOCAL | VT_LVAL;
-                    /* pass it as 'int' to avoid structure arg passing
-                       problems */
-                    vseti(VT_LOCAL, loc);
-                    ret.c = vtop->c;
-                    if (ret_nregs < 0)
-                      vtop--;
-                    else
-                      nb_args++;
-                }
-            } else {
-                ret_nregs = 1;
-                ret.type = s->type;
-            }
-
-            if (ret_nregs > 0) {
-                /* return in register */
-                ret.c.i = 0;
-                PUT_R_RET(&ret, ret.type.t);
-            }
-            if (tok != ')') {
-                for(;;) {
-                    expr_eq();
-                    gfunc_param_typed(s, sa);
-                    nb_args++;
-                    if (sa)
-                        sa = sa->next;
-                    if (tok == ')')
-                        break;
-                    skip(',');
-                }
-            }
-            if (sa)
-                tcc_error("too few arguments to function");
-            skip(')');
-            gfunc_call(nb_args);
-
-            if (ret_nregs < 0) {
-                vsetc(&ret.type, ret.r, &ret.c);
-#ifdef TCC_TARGET_RISCV64
-                arch_transfer_ret_regs(1);
-#endif
-            } else {
-                /* return value */
-                for (r = ret.r + ret_nregs + !ret_nregs; r-- > ret.r;) {
-                    vsetc(&ret.type, r, &ret.c);
-                    vtop->r2 = ret.r2; /* Loop only happens when r2 is VT_CONST */
-                }
-
-                /* handle packed struct return */
-                if (((s->type.t & VT_BTYPE) == VT_STRUCT) && ret_nregs) {
-                    int addr, offset;
-
-                    size = type_size(&s->type, &align);
-                    /* We're writing whole regs often, make sure there's enough
-                       space.  Assume register size is power of 2.  */
-                    if (regsize > align)
-                      align = regsize;
-                    loc = (loc - size) & -align;
-                    addr = loc;
-                    offset = 0;
-                    for (;;) {
-                        vset(&ret.type, VT_LOCAL | VT_LVAL, addr + offset);
-                        vswap();
-                        vstore();
-                        vtop--;
-                        if (--ret_nregs == 0)
-                          break;
-                        offset += regsize;
-                    }
-                    vset(&s->type, VT_LOCAL | VT_LVAL, addr);
-                }
-
-                /* Promote char/short return values. This is matters only
-                   for calling function that were not compiled by TCC and
-                   only on some architectures.  For those where it doesn't
-                   matter we expect things to be already promoted to int,
-                   but not larger.  */
-                t = s->type.t & VT_BTYPE;
-                if (t == VT_BYTE || t == VT_SHORT || t == VT_BOOL) {
-#ifdef PROMOTE_RET
-                    vtop->r |= BFVAL(VT_MUSTCAST, 1);
-#else
-                    vtop->type.t = VT_INT;
-#endif
-                }
-            }
-            if (s->f.func_noreturn)
-                CODE_OFF();
+            unary_func_call();
         } else {
             break;
         }
@@ -5945,15 +5956,19 @@ static int is_cond_bool(SValue *sv)
     return 0;
 }
 
-static void expr_cond(void)
+static void expr_cond(void);
+
+/* Reserve conditional-operator state only after encountering '?'. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static void expr_cond_op(void)
 {
     int tt, u, r1, r2, rc, t1, t2, bt1, bt2, islv, c, g;
     SValue sv;
     CType type, type1, type2;
     int ncw_prev;
 
-    expr_lor();
-    if (tok == '?') {
         next();
 	c = condition_3way();
         ncw_prev = nocode_wanted;
@@ -6186,7 +6201,13 @@ static void expr_cond(void)
             if (islv)
                 indir();
         }
-    }
+}
+
+static void expr_cond(void)
+{
+    expr_lor();
+    if (tok == '?')
+        expr_cond_op();
 }
 
 static void expr_eq(void)
