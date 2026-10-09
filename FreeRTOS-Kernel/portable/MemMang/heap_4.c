@@ -182,10 +182,20 @@ void * __in_hfa() pvPortRealloc(void *ptr, size_t new_size)
         return NULL;
     }
 
+    /* Both heaps use the same allocated-block header.  Its size includes
+     * the header and alignment padding, and its top bit marks ownership. */
+    BlockLink_t *old_block = (BlockLink_t *)((uint8_t *)ptr - xHeapStructSize);
+    size_t old_block_size = old_block->xBlockSize & ~heapBLOCK_ALLOCATED_BITMASK;
+    configASSERT(heapBLOCK_IS_ALLOCATED(old_block) != 0);
+    configASSERT(old_block_size >= xHeapStructSize);
+    if (!heapBLOCK_IS_ALLOCATED(old_block) || old_block_size < xHeapStructSize)
+        return NULL;
+    size_t old_capacity = old_block_size - xHeapStructSize;
+
     void *new_ptr = pvPortMalloc(new_size);
     if (new_ptr == NULL) return NULL;
 
-    memcpy(new_ptr, ptr, new_size); /// TODO: old_size? may be out of RAM space
+    memcpy(new_ptr, ptr, new_size < old_capacity ? new_size : old_capacity);
     vPortFree(ptr);
     return new_ptr;
 }
@@ -199,6 +209,7 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
     void * pvReturn = NULL;
     size_t xAdditionalRequiredSize;
     size_t xAllocatedBlockSize = 0;
+    const size_t xPayloadSize = xWantedSize;
 
     if( xWantedSize > 0 )
     {
@@ -355,7 +366,7 @@ void * __in_hfa() pvPortMalloc( size_t xWantedSize )
     }
     ( void ) xTaskResumeAll();
     if( pvReturn == NULL && butter_psram_size > 0 ) {
-        return pvPortMallocPsram(xWantedSize);
+        return pvPortMallocPsram(xPayloadSize);
     } else
     #if ( configUSE_MALLOC_FAILED_HOOK == 1 )
     {

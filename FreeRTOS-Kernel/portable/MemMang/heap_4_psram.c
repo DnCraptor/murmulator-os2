@@ -409,17 +409,27 @@ void __in_hfa() vPortFreePsram( void * pv )
 
 size_t __in_hfa() xPortGetFreeHeapSizePsram( void )
 {
-    // allocation, to ensure at least one
-    vPortFreePsram(pvPortMallocPsram(1));
-    return xFreeBytesRemaining;
+    size_t xResult;
+    vTaskSuspendAll();
+    {
+        prvHeapInitPsram();
+        xResult = xFreeBytesRemaining;
+    }
+    ( void ) xTaskResumeAll();
+    return xResult;
 }
 /*-----------------------------------------------------------*/
 
 size_t __in_hfa() xPortGetMinimumEverFreeHeapSizePsram( void )
 {
-    // allocation, to ensure at least one
-    vPortFreePsram(pvPortMallocPsram(1));
-    return xMinimumEverFreeBytesRemaining;
+    size_t xResult;
+    vTaskSuspendAll();
+    {
+        prvHeapInitPsram();
+        xResult = xMinimumEverFreeBytesRemaining;
+    }
+    ( void ) xTaskResumeAll();
+    return xResult;
 }
 /*-----------------------------------------------------------*/
 
@@ -428,6 +438,13 @@ void __in_hfa() prvHeapInitPsram( void ) /* PRIVILEGED_FUNCTION */
     BlockLink_t * pxFirstFreeBlock;
     portPOINTER_SIZE_TYPE uxStartAddress, uxEndAddress;
     size_t xTotalHeapSize = butter_psram_size;
+
+    /* Callers hold the scheduler lock.  Queries must not allocate, and a
+     * later SRAM initialization must not reset an already active PSRAM heap. */
+    if( pxEnd != NULL || xTotalHeapSize <= 2 * xHeapStructSize + portBYTE_ALIGNMENT_MASK )
+    {
+        return;
+    }
 
     /* Ensure the heap starts on a correctly aligned boundary. */
     uxStartAddress = ( portPOINTER_SIZE_TYPE ) ucHeap;
@@ -543,10 +560,10 @@ void __in_hfa() vPortGetHeapStatsPsram( HeapStats_t * pxHeapStats )
 {
     BlockLink_t * pxBlock;
     size_t xBlocks = 0, xMaxSize = 0, xMinSize = portMAX_DELAY; /* portMAX_DELAY used as a portable way of getting the maximum value. */
-    // allocation, to ensure at least one
-    vPortFreePsram(pvPortMallocPsram(1));
+    vTaskSuspendAll();
     {
-        pxBlock = heapPROTECT_BLOCK_POINTER( xStart.pxNextFreeBlock );
+        prvHeapInitPsram();
+        pxBlock = pxEnd != NULL ? heapPROTECT_BLOCK_POINTER( xStart.pxNextFreeBlock ) : NULL;
 
         /* pxBlock will be NULL if the heap has not been initialised.  The heap
          * is initialised automatically when the first allocation is made. */
@@ -587,6 +604,7 @@ void __in_hfa() vPortGetHeapStatsPsram( HeapStats_t * pxHeapStats )
         pxHeapStats->xMinimumEverFreeBytesRemaining = xMinimumEverFreeBytesRemaining;
     }
     taskEXIT_CRITICAL();
+    ( void ) xTaskResumeAll();
 }
 /*-----------------------------------------------------------*/
 

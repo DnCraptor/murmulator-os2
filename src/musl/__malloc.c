@@ -17,12 +17,29 @@ void* __new_ctx(void) {
 
 /// TODO: __delete_ctx
 
+/* Reserve tracking metadata separately: allocation failure must leave the
+ * list intact and, for realloc, must preserve the original allocation. */
+static void track_allocation(list_t* pa, node_t* node, void* data) {
+    node->prev = pa->last;
+    node->next = NULL;
+    node->data = data;
+    if (pa->last) pa->last->next = node;
+    else pa->first = node;
+    pa->last = node;
+    ++pa->size;
+}
+
 void* __malloc2(void* ctx, size_t sz) {
     if (!ctx || !((cmd_ctx_t*)ctx)->pallocs)
         return pvPortMalloc(sz);
     void* res = pvPortMalloc(sz);
     if (!res) return NULL;
-    list_push_back(((cmd_ctx_t*)ctx)->pallocs, res);
+    node_t* node = (node_t*)pvPortMalloc(sizeof(node_t));
+    if (!node) {
+        vPortFree(res);
+        return NULL;
+    }
+    track_allocation(((cmd_ctx_t*)ctx)->pallocs, node, res);
     return res;
 }
 
@@ -31,7 +48,12 @@ void* __calloc2(void* ctx, size_t n, size_t sz) {
         return pvPortCalloc(n, sz);
     void* res = pvPortCalloc(n, sz);
     if (!res) return NULL;
-    list_push_back(((cmd_ctx_t*)ctx)->pallocs, res);
+    node_t* node = (node_t*)pvPortMalloc(sizeof(node_t));
+    if (!node) {
+        vPortFree(res);
+        return NULL;
+    }
+    track_allocation(((cmd_ctx_t*)ctx)->pallocs, node, res);
     return res;
 }
 
@@ -40,13 +62,23 @@ void* __realloc2(void* ctx, void* p, size_t sz) {
         return pvPortRealloc(p, sz);
     list_t* pa = ((cmd_ctx_t*)ctx)->pallocs;
     node_t* n = list_lookup(pa, p);
-    void* res = pvPortRealloc(p, sz);
-    if (!res) return NULL;
-    if (!n) {
-        list_push_back(((cmd_ctx_t*)ctx)->pallocs, res);
-    } else {
-        n->data = res;
+    if (sz == 0) {
+        if (n) list_erase_node(pa, n);
+        else vPortFree(p);
+        return NULL;
     }
+    node_t* reserved = NULL;
+    if (!n) {
+        reserved = (node_t*)pvPortMalloc(sizeof(node_t));
+        if (!reserved) return NULL;
+    }
+    void* res = pvPortRealloc(p, sz);
+    if (!res) {
+        if (reserved) vPortFree(reserved);
+        return NULL;
+    }
+    if (n) n->data = res;
+    else track_allocation(pa, reserved, res);
     return res;
 }
 
