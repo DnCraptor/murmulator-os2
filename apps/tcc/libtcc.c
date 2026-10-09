@@ -521,9 +521,13 @@ PUB_FUNC void tcc_enter_state(TCCState *s1)
     tcc_state = s1;
 }
 
+/* Diagnostic formatting must not consume half the application stack. */
+static char error1_buf[2048];
+
 static void error1(int mode, const char *fmt, va_list ap)
 {
-    char buf[2048];
+    char *buf = error1_buf;
+    const size_t buf_size = sizeof(error1_buf);
     BufferedFile **pf, *f;
     TCCState *s1 = tcc_state;
 
@@ -553,23 +557,23 @@ static void error1(int mode, const char *fmt, va_list ap)
      ;
     if (f) {
         for(pf = s1->include_stack; pf < s1->include_stack_ptr; pf++)
-            strcat_printf(buf, sizeof(buf), "In file included from %s:%d:\n",
+            strcat_printf(buf, buf_size, "In file included from %s:%d:\n",
                 (*pf)->filename, (*pf)->line_num);
         if (s1->error_set_jmp_enabled) {
-            strcat_printf(buf, sizeof(buf), "%s:%d: ",
+            strcat_printf(buf, buf_size, "%s:%d: ",
                 f->filename, f->line_num - !!(tok_flags & TOK_FLAG_BOL));
         } else {
-            strcat_printf(buf, sizeof(buf), "%s: ",
+            strcat_printf(buf, buf_size, "%s: ",
                 f->filename);
         }
     } else {
-        strcat_printf(buf, sizeof(buf), "tcc: ");
+        strcat_printf(buf, buf_size, "tcc: ");
     }
     if (mode == ERROR_WARN)
-        strcat_printf(buf, sizeof(buf), "warning: ");
+        strcat_printf(buf, buf_size, "warning: ");
     else
-        strcat_printf(buf, sizeof(buf), "error: ");
-    strcat_vprintf(buf, sizeof(buf), fmt, ap);
+        strcat_printf(buf, buf_size, "error: ");
+    strcat_vprintf(buf, buf_size, fmt, ap);
     if (!s1 || !s1->error_func) {
         /* default case: stderr */
         if (s1 && s1->output_type == TCC_OUTPUT_PREPROCESS && s1->ppfp == stdout)

@@ -327,7 +327,7 @@ void pv (const char *lbl, int a, int b)
 ST_FUNC void tcc_debug_start(TCCState *s1)
 {
     if (s1->do_debug) {
-        char buf[512];
+        static char buf[512];
 
         /* file info: full path + filename */
         section_sym = put_elf_sym(symtab_section, 0, 0,
@@ -398,7 +398,7 @@ ST_FUNC void tcc_debug_line(TCCState *s1)
 /* put function symbol */
 ST_FUNC void tcc_debug_funcstart(TCCState *s1, Sym *sym)
 {
-    char buf[512];
+    static char buf[512];
     BufferedFile *f;
     if (!s1->do_debug || !(f = put_new_file(s1)))
         return;

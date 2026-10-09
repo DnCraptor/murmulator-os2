@@ -217,7 +217,8 @@ static void set_environment(TCCState *s)
 
 static char *default_outputfile(TCCState *s, const char *first_file)
 {
-    char buf[1024];
+    /* The output-name helper is not recursive. */
+    static char buf[1024];
     char *ext;
     const char *name = "a";
 

@@ -3400,20 +3400,21 @@ static int ld_add_file(TCCState *s1, const char filename[])
 
 static int ld_add_file_list(TCCState *s1, const char *cmd, int as_needed)
 {
-    char filename[1024], libname[1024];
+    /* This parser can recurse for AS_NEEDED: keep buffers per invocation. */
+    char *filename = tcc_malloc(1024), *libname = tcc_malloc(1024);
     int t, group, nblibs = 0, ret = 0;
     char **libs = NULL;
 
     group = !strcmp(cmd, "GROUP");
     if (!as_needed)
         s1->new_undef_sym = 0;
-    t = ld_next(s1, filename, sizeof(filename));
+    t = ld_next(s1, filename, 1024);
     if (t != '(') {
         tcc_error_noabort("( expected");
         ret = -1;
         goto lib_parse_error;
     }
-    t = ld_next(s1, filename, sizeof(filename));
+    t = ld_next(s1, filename, 1024);
     for(;;) {
         libname[0] = '\0';
         if (t == LD_TOK_EOF) {
@@ -3423,17 +3424,17 @@ static int ld_add_file_list(TCCState *s1, const char *cmd, int as_needed)
         } else if (t == ')') {
             break;
         } else if (t == '-') {
-            t = ld_next(s1, filename, sizeof(filename));
+            t = ld_next(s1, filename, 1024);
             if ((t != LD_TOK_NAME) || (filename[0] != 'l')) {
                 tcc_error_noabort("library name expected");
                 ret = -1;
                 goto lib_parse_error;
             }
-            pstrcpy(libname, sizeof libname, &filename[1]);
+            pstrcpy(libname, 1024, &filename[1]);
             if (s1->static_link) {
-                snprintf(filename, sizeof filename, "lib%s.a", libname);
+                snprintf(filename, 1024, "lib%s.a", libname);
             } else {
-                snprintf(filename, sizeof filename, "lib%s.so", libname);
+                snprintf(filename, 1024, "lib%s.so", libname);
             }
         } else if (t != LD_TOK_NAME) {
             tcc_error_noabort("filename expected");
@@ -3458,9 +3459,9 @@ static int ld_add_file_list(TCCState *s1, const char *cmd, int as_needed)
                 }
             }
         }
-        t = ld_next(s1, filename, sizeof(filename));
+        t = ld_next(s1, filename, 1024);
         if (t == ',') {
-            t = ld_next(s1, filename, sizeof(filename));
+            t = ld_next(s1, filename, 1024);
         }
     }
     if (group && !as_needed) {
@@ -3473,6 +3474,8 @@ static int ld_add_file_list(TCCState *s1, const char *cmd, int as_needed)
     }
 lib_parse_error:
     dynarray_reset(&libs, &nblibs);
+    tcc_free(libname);
+    tcc_free(filename);
     return ret;
 }
 
