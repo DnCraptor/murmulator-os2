@@ -1772,17 +1772,40 @@ pragma_err:
     return;
 }
 
-/* Keep directive text/path buffers out of the #if expression call chain.
- * GCC must not inline this helper: MOS applications have small task stacks.
- * Buffers stay automatic so nested/computed directives remain independent.
- * Return 1 when an include switched files (do not consume its first line). */
-#if defined(__GNUC__)
-__attribute__((noinline))
-#endif
-static int preprocess_with_buffer(TCCState *s1)
+/* Transient preprocessing buffers must not consume the MOS task stack.
+ * Keep a LIFO chain: errors longjmp past local cleanup, so tccpp_delete()
+ * releases any outstanding entries. Nested directives get separate storage. */
+typedef struct PPTemp {
+    struct PPTemp *prev;
+    unsigned char data[];
+} PPTemp;
+
+static PPTemp *pp_temps;
+
+static void *pp_temp_alloc(size_t size)
+{
+    PPTemp *p;
+    if (size > (size_t)-1 - sizeof(*p))
+        tcc_error("preprocessor buffer too large");
+    p = tcc_malloc(sizeof(*p) + size);
+    p->prev = pp_temps;
+    pp_temps = p;
+    return p->data;
+}
+
+static void pp_temp_free(void)
+{
+    PPTemp *p = pp_temps;
+    pp_temps = p->prev;
+    tcc_free(p);
+}
+
+#define PP_PATH_SIZE (sizeof(((BufferedFile *)0)->filename))
+
+static int preprocess_with_buffer_impl(TCCState *s1, char *buf, char *buf1)
 {
     int i, c, n;
-    char buf[1024], *q;
+    char *q;
 
     switch (tok) {
     case TOK_INCLUDE:
@@ -1799,7 +1822,7 @@ static int preprocess_with_buffer(TCCState *s1)
             inp();
             q = buf;
             while (ch != c && ch != '\n' && ch != CH_EOF) {
-                if ((q - buf) < sizeof(buf) - 1)
+                if ((q - buf) < PP_PATH_SIZE - 1)
                     *q++ = ch;
                 if (ch == '\\') {
                     if (handle_stray_noerror() == 0)
@@ -1826,7 +1849,7 @@ static int preprocess_with_buffer(TCCState *s1)
             next();
             buf[0] = '\0';
 	    while (tok != TOK_LINEFEED) {
-		pstrcat(buf, sizeof(buf), get_tok_str(tok, &tokc));
+		pstrcat(buf, PP_PATH_SIZE, get_tok_str(tok, &tokc));
 		next();
 	    }
 	    len = strlen(buf);
@@ -1846,7 +1869,6 @@ static int preprocess_with_buffer(TCCState *s1)
         i = tok == TOK_INCLUDE_NEXT ? file->include_next_index: 0;
         n = 2 + s1->nb_include_paths + s1->nb_sysinclude_paths;
         for (; i < n; ++i) {
-            char buf1[sizeof file->filename];
             CachedInclude *e;
             const char *path;
 
@@ -1868,11 +1890,11 @@ static int preprocess_with_buffer(TCCState *s1)
                 /* search in all the include paths */
                 int j = i - 2, k = j - s1->nb_include_paths;
                 path = k < 0 ? s1->include_paths[j] : s1->sysinclude_paths[k];
-                pstrcpy(buf1, sizeof(buf1), path);
-                pstrcat(buf1, sizeof(buf1), "/");
+                pstrcpy(buf1, PP_PATH_SIZE, path);
+                pstrcat(buf1, PP_PATH_SIZE, "/");
             }
 
-            pstrcat(buf1, sizeof(buf1), buf);
+            pstrcat(buf1, PP_PATH_SIZE, buf);
             e = search_cached_include(s1, buf1, 0);
             if (e && (define_find(e->ifndef_macro) || e->once == pp_once)) {
                 /* no need to parse the include because the 'ifndef macro'
@@ -1921,9 +1943,9 @@ include_done:
                 if (file->true_filename == file->filename)
                     file->true_filename = tcc_strdup(file->filename);
                 /* prepend directory from real file */
-                pstrcpy(buf, sizeof buf, file->true_filename);
+                pstrcpy(buf, PP_PATH_SIZE, file->true_filename);
                 *tcc_basename(buf) = 0;
-                pstrcat(buf, sizeof buf, (char *)tokc.str.data);
+                pstrcat(buf, PP_PATH_SIZE, (char *)tokc.str.data);
                 tcc_debug_putfile(s1, buf);
             } else if (parse_flags & PARSE_FLAG_ASM_FILE)
                 break;
@@ -1942,7 +1964,7 @@ include_done:
         skip_spaces();
         q = buf;
         while (ch != '\n' && ch != CH_EOF) {
-            if ((q - buf) < sizeof(buf) - 1)
+            if ((q - buf) < PP_PATH_SIZE - 1)
                 *q++ = ch;
             if (ch == '\\') {
                 if (handle_stray_noerror() == 0)
@@ -1958,6 +1980,16 @@ include_done:
         break;
     }
     return 0;
+}
+
+static int preprocess_with_buffer(TCCState *s1)
+{
+    char *buf = pp_temp_alloc(PP_PATH_SIZE);
+    char *buf1 = pp_temp_alloc(PP_PATH_SIZE);
+    int ret = preprocess_with_buffer_impl(s1, buf, buf1);
+    pp_temp_free();
+    pp_temp_free();
+    return ret;
 }
 
 /* is_bof is true if first non space token at beginning of file */
@@ -2275,22 +2307,22 @@ static void parse_escape_string(CString *outstr, const uint8_t *buf, int is_long
 
 static void parse_string(const char *s, int len)
 {
-    uint8_t buf[1000], *p = buf;
+    uint8_t local[64], *p = local;
     int is_long, sep;
 
     if ((is_long = *s == 'L'))
         ++s, --len;
     sep = *s++;
     len -= 2;
-    if (len >= sizeof buf)
-        p = tcc_malloc(len + 1);
+    if (len >= sizeof local)
+        p = pp_temp_alloc((size_t)len + 1);
     memcpy(p, s, len);
     p[len] = 0;
 
     cstr_reset(&tokcstr);
     parse_escape_string(&tokcstr, p, is_long);
-    if (p != buf)
-        tcc_free(p);
+    if (p != local)
+        pp_temp_free();
 
     if (sep == '\'') {
         int char_size, i, n, c;
@@ -3776,6 +3808,9 @@ ST_FUNC void tccpp_new(TCCState *s)
 ST_FUNC void tccpp_delete(TCCState *s)
 {
     int i, n;
+
+    while (pp_temps)
+        pp_temp_free();
 
     dynarray_reset(&s->cached_includes, &s->nb_cached_includes);
 
