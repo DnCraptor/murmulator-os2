@@ -246,9 +246,13 @@ unsigned __aeabi_uidiv(unsigned x, unsigned y) {
     return ((fn)_sys_table_ptrs[228])(x, y);
 }
 
-unsigned __aeabi_uidivmod(unsigned x, unsigned y) {
-    typedef unsigned (*fn)(unsigned, unsigned);
-    return ((fn)_sys_table_ptrs[228])(x, y);
+/* ARM EABI divmod returns quotient in r0 and remainder in r1.
+ * Slot 228 supplies only unsigned division.  A 64-bit integer return on
+ * this little-endian ARM target places its low/high words in r0/r1. */
+unsigned long long __aeabi_uidivmod(unsigned x, unsigned y) {
+    unsigned quotient = __aeabi_uidiv(x, y);
+    unsigned remainder = x - quotient * y;
+    return ((unsigned long long)remainder << 32) | quotient;
 }
 
 
