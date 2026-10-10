@@ -1,4 +1,5 @@
 #include "hardware/pio.h"
+#include "hardware/timer.h"
 
 #define nespad_wrap_target 0
 #define nespad_wrap 6
@@ -49,6 +50,7 @@ bool __in_hfa() nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,u
     pio_gpio_init(pio, latPin);
     gpio_set_pulls(dataPin, true, false); // Pull data high, 0xFF if unplugged
     gpio_set_pulls(dataPin+1, true, false); // Pull data high, 0xFF if unplugged for Joystick2
+    busy_wait_us(500); // let the pull-ups charge the lines, else the first sample has random "pressed" bits
 
     pio_sm_set_pindirs_with_mask(pio, sm,
                                  (1 << clkPin) | (1 << latPin), // Outputs

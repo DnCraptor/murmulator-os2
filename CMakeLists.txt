@@ -220,6 +220,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     PSRAM_FREQ_MHZ=${PSRAM_FREQ_MHZ}
     OVERCLOCKING=${CPU_MHZ}
     PICO_FLASH_SIZE_BYTES=16777216
+    # slow-starting crystals on some boards: the SDK default (6 ms) is not always enough,
+    # the PLL then may fail to lock and the board randomly does not start after reset
+    PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
 
     M_API_VERSION=28
     MIN_API_VERSION=14

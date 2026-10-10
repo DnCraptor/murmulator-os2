@@ -273,6 +273,7 @@ uint32_t ps2getcode() {
 
 void KeyboardHandler(void) {
     static uint8_t incoming = 0;
+    static uint8_t parity = 0;
     static uint64_t prev_us = 0;
     uint8_t n, val;
 
@@ -283,13 +284,20 @@ void KeyboardHandler(void) {
         incoming = 0;
     }
     prev_us = now_us;
+    if (bitcount == 0 && val) { // start bit must be 0, else we are out of sync (noise, reset in the middle of a frame)
+        kbloop = 1;
+        return;
+    }
     n = bitcount - 1;
     if (n <= 7) {
         incoming |= (val << n);
+    } else if (n == 8) {
+        parity = val;
     }
     bitcount++;
     if (bitcount == 11) {
-        if (ps2bufsize < KBD_BUFFER_SIZE) {
+        // stop bit is 1, parity is odd: drop broken frames instead of producing a random scancode
+        if (val && ((__builtin_popcount(incoming) + parity) & 1) && ps2bufsize < KBD_BUFFER_SIZE) {
             ps2buffer[ps2bufsize++] = incoming;
             ps2poll();
         }

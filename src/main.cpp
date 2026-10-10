@@ -71,28 +71,32 @@ inline static uint32_t __not_in_flash_func(_butter_psram_size)() {
     for(register int i = 0; i < MB1; ++i)
         PSRAM_DATA[i] = 1;
     register uint32_t res = PSRAM_DATA[MB16 - 1];
+    // no chip (floating bus) may read back the same garbage everywhere
+    if (res != 1 && res != 4 && res != 8 && res != 16)
+        return 0;
     for (register int i = MB16 - MB1; i < MB16; ++i) {
         if (res != PSRAM_DATA[i])
             return 0;
     }
+    if (PSRAM_DATA[0] != 1) // the chip must keep the first written megabyte too
+        return 0;
     return res << 20;
 }
+// one direct mode command to the PSRAM (CS1), quad=true sends it on all 4 lines (QPI)
+inline static void __not_in_flash_func(psram_direct_cmd)(uint8_t cmd, bool quad) {
+    qmi_hw->direct_csr |= QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
+    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | cmd | (quad ?
+        (QMI_DIRECT_TX_OE_BITS | QMI_DIRECT_TX_IWIDTH_VALUE_Q << QMI_DIRECT_TX_IWIDTH_LSB) : 0);
+    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
+        ;
+    qmi_hw->direct_csr &= ~QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
+    for (volatile int i = 0; i < 20; ++i) ; // CS# high time between commands (>= 50 ns after reset)
+}
+
 void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
-    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
-
-    // Enable direct mode, PSRAM CS, clkdiv of 10.
-    qmi_hw->direct_csr = 10 << QMI_DIRECT_CSR_CLKDIV_LSB | \
-                               QMI_DIRECT_CSR_EN_BITS | \
-                               QMI_DIRECT_CSR_AUTO_CS1N_BITS;
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
-        ;
-
-    // Enable QPI mode on the PSRAM
-    const uint CMD_QPI_EN = 0x35;
-    qmi_hw->direct_tx = QMI_DIRECT_TX_NOPUSH_BITS | CMD_QPI_EN;
-
-    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
-        ;
+    // Everything that lives in flash (clock_get_hz, 64-bit division) is done before the
+    // direct mode: memory-mapped (XIP) accesses generate bus errors while it is enabled,
+    // which used to hang the start randomly (depending on the XIP cache state and IRQs).
 
     // Set PSRAM timing for APS6404
     //
@@ -115,6 +119,21 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     const int clock_period_fs = 1000000000000000ll / clock_hz;
     const int max_select = (125 * 1000000) / clock_period_fs;  // 125 = 8000ns / 64
     const int min_deselect = (18 * 1000000 + (clock_period_fs - 1)) / clock_period_fs - (divisor + 1) / 2;
+
+    gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
+
+    uint32_t irq = save_and_disable_interrupts(); // no IRQ handlers from flash in direct mode
+    // Enable direct mode, clkdiv of 30 (slow and safe for any chip state)
+    qmi_hw->direct_csr = 30 << QMI_DIRECT_CSR_CLKDIV_LSB | QMI_DIRECT_CSR_EN_BITS;
+    while (qmi_hw->direct_csr & QMI_DIRECT_CSR_BUSY_BITS)
+        ;
+    // The reset button resets the MCU only, the PSRAM keeps its QPI mode from the previous run,
+    // and a SPI command would be misinterpreted then. So: exit QPI (sent as quad), reset the chip
+    // (SPI) to a known state, then enable QPI mode.
+    psram_direct_cmd(0xF5, true);  // exit QPI
+    psram_direct_cmd(0x66, false); // reset enable
+    psram_direct_cmd(0x99, false); // reset
+    psram_direct_cmd(0x35, false); // enter QPI
 
     qmi_hw->m[1].timing = 1 << QMI_M1_TIMING_COOLDOWN_LSB |
                           QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB |
@@ -147,6 +166,7 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
 
     // Disable direct mode
     qmi_hw->direct_csr = 0;
+    restore_interrupts(irq);
 
     // Enable writes to PSRAM
     hw_set_bits(&xip_ctrl_hw->ctrl, XIP_CTRL_WRITABLE_M1_BITS);
@@ -869,6 +889,10 @@ kbd_state_t* __in_hfa() process_input_on_boot() {
         *y++ = 0; *y++ = 0; *y++ = 0; *y++ = 0;
     }
     vTaskDelay(20);
+    // the first gamepad sample was taken by nespad_begin, drop it and use a fresh one
+    nespad_read();
+    vTaskDelay(2);
+    nespad_read();
     kbd_state_t* ks = get_kbd_state();
     for(int i = 0; i < 1000; ++i) {
         uint8_t sc = ks->input & 0xFF;
