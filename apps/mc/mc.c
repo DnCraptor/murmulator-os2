@@ -46,6 +46,8 @@ static void m_window();
 static void redraw_window();
 static void draw_cmd_line(void);
 static void bottom_line();
+static void restore_console(cmd_ctx_t* ctx);
+static void save_console(cmd_ctx_t* ctx);
 static void construct_full_name(string_t* dst, const char* folder, const char* file);
 static void construct_full_name_s(string_t* dst, const string_t* folder, const string_t* file);
 static bool m_prompt(const char* txt);
@@ -1330,39 +1332,65 @@ inline static void m_add_file(FILINFO* fi) {
     array_push_back(files_info_arr, new_file_info(fi));
 }
 
-// the command line occupies exactly one row (no wrap to the F-buttons line and no console scroll,
-// which otherwise gets into the saved console and multiplies on each Ctrl+O),
-// "[CD]> command" is clipped from the left to keep the end of the command and the cursor visible
+static int cmd_rows_drawn = 0; // rows of the console covered by the command line now
+
+// draw a part [from, to) of "[CD]> command", the [CD] prefix (cd_len chars) in its own color
+static void draw_cmd_span(char* buf, size_t cd_len, size_t from, size_t to, int x, int y) {
+    while (from < to) {
+        size_t end = (from < cd_len && cd_len < to) ? cd_len : to;
+        char c = buf[end];
+        buf[end] = 0;
+        draw_text(buf + from, x, y, from < cd_len ? 13 : 7, 0);
+        buf[end] = c;
+        x += end - from;
+        from = end;
+    }
+}
+
+// The command line is drawn over the screen (not printed into the console), so it never scrolls
+// the console and never becomes a part of the saved console (Ctrl+O switches to it).
+// With panels it is the single row above the F-buttons, clipped from the left (tail and cursor
+// are visible); without panels it grows upwards over the console to show the whole command,
+// rows released on shrinking are repainted from the saved console.
 static void draw_cmd_line(void) {
     const char* cd = get_ctx_var(get_cmd_ctx(), CD);
     if (!cd) cd = "NULL";
     const char* cmd = s_cmd->p ? s_cmd->p : "";
     size_t cd_len = strlen(cd) + 2; // "[" + cd + "]"
     size_t total = cd_len + 2 + strlen(cmd); // + "> " + cmd
-    size_t width = MAX_WIDTH > 1 ? MAX_WIDTH - 1 : 1; // last column is kept for the cursor
-    size_t skip = total > width ? total - width : 0;
+    size_t w = MAX_WIDTH > 1 ? MAX_WIDTH : 1;
+    size_t max_rows = hidePannels ? CMD_Y_POS + 1 : 1;
+    size_t rows = total / w + 1; // +1 position for the cursor after the last char
+    if (rows > max_rows) rows = max_rows;
+    if (hidePannels && (int)rows < cmd_rows_drawn) {
+        // give released rows back to the console
+        restore_console(get_cmd_ctx());
+        cmd_rows_drawn = 0;
+        bottom_line(); // F-buttons, then this function again
+        return;
+    }
+    size_t cap = rows * w - 1; // last position is kept for the cursor
+    size_t skip = total > cap ? total - cap : 0;
     char* buf = (char*)malloc(total + 1);
     if (!buf) return;
     snprintf(buf, total + 1, "[%s]> %s", cd, cmd);
-    char* visible = buf + skip;
-    size_t vis_len = total - skip;
-    for (size_t i = vis_len; i < MAX_WIDTH; ++i) {
-        draw_text(" ", i, CMD_Y_POS, pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
-    }
-    if (skip < cd_len) { // part of the [CD] prefix is visible
-        char c = buf[cd_len];
-        buf[cd_len] = 0;
-        draw_text(visible, 0, CMD_Y_POS, 13, 0);
-        buf[cd_len] = c;
-        draw_text(buf + cd_len, cd_len - skip, CMD_Y_POS, 7, 0);
-    } else {
-        draw_text(visible, 0, CMD_Y_POS, 7, 0);
+    int top = CMD_Y_POS - (int)rows + 1;
+    for (size_t r = 0; r < rows; ++r) {
+        size_t from = skip + r * w;
+        size_t to = from + w < total ? from + w : total;
+        size_t len = from < to ? to - from : 0;
+        if (len) draw_cmd_span(buf, cd_len, from, to, 0, top + r);
+        for (size_t i = len; i < w; ++i) {
+            draw_text(" ", i, top + r, pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
+        }
     }
     if (skip) {
-        draw_text("<", 0, CMD_Y_POS, 13, 0); // there is more on the left
+        draw_text("<", 0, top, 13, 0); // there is more on the left
     }
     free(buf);
-    graphics_set_con_pos(vis_len, CMD_Y_POS);
+    cmd_rows_drawn = rows;
+    size_t cur = total - skip;
+    graphics_set_con_pos(cur % w, top + cur / w);
     graphics_set_con_color(pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
 }
 
@@ -1797,8 +1825,11 @@ static inline void redraw_current_panel() {
 
 static bool cmd_enter(cmd_ctx_t* ctx) {
     bool ff = altPressed;
-    printf("%s\n", s_cmd->p);
     if (ff && ctrlPressed) { // W/A
+        // run it under mc: echo the command into the clean console, then keep its output
+        restore_console(ctx);
+        draw_cmd_line_full();
+        fprintf(stderr, "\n");
         char* argv[] = {
             s_cmd->p,
             0
@@ -1807,8 +1838,9 @@ static bool cmd_enter(cmd_ctx_t* ctx) {
         posix_spawn(&pid, s_cmd->p, 0, 0, argv, 0);
         int status;
         wait(&status); // waitpid
+        save_console(ctx);
         string_resize(s_cmd, 0);
-        draw_cmd_line();
+        redraw_window();
         return false;
         //int d = execve(s_cmd->p, argv, 0);
         //printf("execve should not return [%d]\n", d);
@@ -2106,8 +2138,8 @@ inline static void type_char(char c) {
 
 inline static void handle_tab_pressed() {
     if (hidePannels) {
-        // cmd_tab echoes the completion to the console, keep it inside the command line row
-        graphics_set_con_pos(0, CMD_Y_POS);
+        // cmd_tab echoes the completion to the console, keep it inside the command line area
+        graphics_set_con_pos(0, CMD_Y_POS - cmd_rows_drawn + 1);
         cmd_tab(get_cmd_ctx(), s_cmd);
         bottom_line(); // repaint F-buttons (in case of a long completion) and the command line
         return;
@@ -2121,6 +2153,7 @@ inline static void handle_tab_pressed() {
 
 inline static void restore_console(cmd_ctx_t* ctx) {
     op_console(ctx, f_read, FA_READ);
+    cmd_rows_drawn = 0;
 }
 
 inline static void save_console(cmd_ctx_t* ctx) {
@@ -2134,7 +2167,8 @@ inline static void hide_pannels() {
         restore_console(get_cmd_ctx());
         bottom_line();
     } else {
-        save_console(get_cmd_ctx());
+        // the console was not changed while panels were hidden: the command line is drawn
+        // over it, so do not save it again (otherwise the command line gets into it)
         redraw_panels();
     }
 }
