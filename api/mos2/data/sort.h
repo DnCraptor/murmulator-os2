@@ -17,11 +17,14 @@ static const unsigned long * const _sys_table_ptrs = (const unsigned long * cons
 typedef int (*__compar_fn_t) (const void *, const void *);
 #endif
 
+#ifndef M_API_QSORT_DEFINED // stdlib.h may already provide qsort
+#define M_API_QSORT_DEFINED 1
 inline static
 void qsort(void *__base, size_t __nmemb, size_t __size, __compar_fn_t _compar) {
     typedef void (*fn_ptr_t)(void *__base, size_t __nmemb, size_t __size, __compar_fn_t _compar);
     ((fn_ptr_t)_sys_table_ptrs[169])(__base, __nmemb, __size, _compar);
 }
+#endif
 
 
 #ifdef __cplusplus

@@ -77,6 +77,7 @@ inline static int atoi (const char *s) {
 }
 
 /* MOS kernel API 169: qsort is available without rebuilding the kernel. */
+#define M_API_QSORT_DEFINED 1
 inline static void qsort(void *base, size_t nmemb, size_t size,
                          int (*compar)(const void *, const void *)) {
     typedef void (*fn_ptr_t)(void *, size_t, size_t,
