@@ -6599,21 +6599,31 @@ again:
     t = tok, next();
 
     if (t == TOK_IF) {
-        skip('(');
-        gexpr();
-        skip(')');
-        a = gvtst(1, 0);
-        block(0);
-        if (tok == TOK_ELSE) {
-            d = gjmp(0);
+        /* An else-if chain is sequential, but recursively parsing each
+           else retains a block frame for every preceding condition.
+           Keep their end jumps in one chain instead.  Nested statements
+           still use block(), preserving dangling-else association. */
+        d = 0;
+        for (;;) {
+            skip('(');
+            gexpr();
+            skip(')');
+            a = gvtst(1, 0);
+            block(0);
+            if (tok != TOK_ELSE) {
+                gsym(a);
+                break;
+            }
+            d = gjmp(d);
             gsym(a);
             next();
-            block(0);
-            gsym(d); /* patch else jmp */
-        } else {
-            gsym(a);
+            if (tok != TOK_IF) {
+                block(0);
+                break;
+            }
+            next();
         }
-
+        gsym(d);
     } else if (t == TOK_WHILE) {
         d = gind();
         skip('(');
