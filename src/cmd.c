@@ -416,17 +416,25 @@ int __in_hfa() history_steps(cmd_ctx_t* ctx, int cmd_history_idx, string_t* s_cm
     FIL* pfh = (FIL*)pvPortMalloc(sizeof(FIL));
     int idx = 0;
     UINT br;
-    f_open(pfh, cmd_history_file, FA_READ);
+    string_resize(s_cmd, 0);
+    if (f_open(pfh, cmd_history_file, FA_READ) != FR_OK) {
+        vPortFree(pfh);
+        vPortFree(cmd_history_file);
+        return idx;
+    }
     char* b = (char*)pvPortMalloc(512);
-    while(f_read(pfh, b, 512, &br) == FR_OK && br) {
+    bool found = false;
+    while(!found && f_read(pfh, b, 512, &br) == FR_OK && br) {
         for(size_t i = 0; i < br; ++i) {
             char t = b[i];
             if(t == '\n') { // next line
-                if(cmd_history_idx == idx)
+                if(cmd_history_idx == idx) {
+                    found = true; // stop reading, otherwise next block tail will be appended
                     break;
+                }
                 string_resize(s_cmd, 0);
                 idx++;
-            } else {
+            } else if (t != '\r') {
                 string_push_back_c(s_cmd, t);
             }
         }
