@@ -1248,6 +1248,61 @@ static void redraw_window() {
     bottom_line();
 }
 
+static bool is_dir(const char* path) {
+    struct stat st;
+    return path && path[0] && stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+// normalize path to absolute form and cut it up to the nearest existing folder
+static void nearest_existing_dir(string_t* s_path) {
+    for (size_t i = 0; i < s_path->size; ++i) {
+        if (s_path->p[i] == '\\') s_path->p[i] = '/';
+    }
+    if (!s_path->size || s_path->p[0] != '/') {
+        string_t* t = new_string_cc("/");
+        string_push_back_cs(t, s_path);
+        string_replace_ss(s_path, t);
+        delete_string(t);
+    }
+    while (s_path->size > 1 && s_path->p[s_path->size - 1] == '/') {
+        string_resize(s_path, s_path->size - 1);
+    }
+    while (s_path->size > 1 && !is_dir(s_path->p)) {
+        int i = s_path->size - 1;
+        while (i > 0 && s_path->p[i] != '/') --i;
+        string_resize(s_path, i ? i : 1);
+    }
+}
+
+static int path_level(const string_t* s_path) {
+    int level = 0;
+    for (size_t i = 1; i < s_path->size; ++i) {
+        if (s_path->p[i] == '/' || s_path->p[i] == '\\') level++;
+    }
+    if (s_path->size > 1) level++;
+    return level > 15 ? 15 : level;
+}
+
+// set panel to the path (or to the nearest existing parent of it), reset its positions
+static void panel_set_path(file_panel_desc_t* p, const char* path) {
+    string_replace_cs(p->s_path, path);
+    nearest_existing_dir(p->s_path);
+    p->level = path_level(p->s_path);
+    for (int i = 0; i < 16; ++i) {
+        p->indexes[i].selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
+        p->indexes[i].start_file_offset = 0;
+    }
+}
+
+// panel path was restored from the saved state, so keep positions if the folder still exists
+static void panel_validate_path(file_panel_desc_t* p) {
+    if (p->level < 0 || p->level > 15) p->level = 0;
+    if (is_dir(p->s_path->p)) return;
+    string_t* s = new_string_cs(p->s_path);
+    panel_set_path(p, s->p);
+    delete_string(s);
+}
+
 inline static DIR* m_opendir(
 	const char* path	/* Pointer to the directory path */
 ) {
@@ -1259,13 +1314,14 @@ inline static DIR* m_opendir(
         const lines_t lines = { sizeof(lns) / sizeof(lns[0]), 4, lns };
         draw_box(pcs, (MAX_WIDTH - 60) / 2, 7, 60, 10, "Warning", &lines);
         vTaskDelay(1500);
-        left_panel->indexes[0].selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
-        right_panel->indexes[0].selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
-        string_replace_cs(left_panel->s_path, "/");
-        string_replace_cs(right_panel->s_path, "/");
-        left_panel->level = 0;
-        right_panel->level = 0;
-        redraw_window();
+        file_panel_desc_t* p = (path == right_panel->s_path->p) ? right_panel : left_panel;
+        string_t* s = new_string_cc(path);
+        panel_set_path(p, s->p);
+        bool changed = strcmp(s->p, p->s_path->p) != 0;
+        delete_string(s);
+        if (changed) {
+            redraw_window(); // refill panels from the corrected path
+        }
     }
     return res;
 }
@@ -1795,7 +1851,7 @@ skip:
             char c = psp->s_path->p[i];
             if (c == '\\' || c == '/') {
                 string_resize(psp->s_path, i);
-                psp->level--;
+                if (psp->level > 0) psp->level--;
                 redraw_current_panel();
                 return;
             }
@@ -1804,7 +1860,7 @@ skip:
 #if EXT_DRIVES_MOUNT
         psp->in_dos = false;
 #endif
-        psp->level--;
+        psp->level = 0;
         redraw_current_panel();
         return;
     }
@@ -2046,11 +2102,23 @@ inline static void hide_pannels() {
     }
 }
 
-inline static void save_rc() {
-    cmd_ctx_t* ctx = get_cmd_ctx();
+// TEMP may be relative (e.g. TEMP=tmp), but posix fopen resolves relative names against CD,
+// so after any "cd" the state file would be lost; kernel f_open uses the same name from the root
+inline static char* mc_rc_file_name(cmd_ctx_t* ctx) {
     char* tmp = get_ctx_var(ctx, TEMP);
     if (!tmp) tmp = "";
-    char* mc_rc_file = concat(tmp, _mc_res);
+    while (*tmp == '/' || *tmp == '\\') ++tmp;
+    if (!*tmp) return concat("", _mc_res);
+    char* t = concat("", tmp);
+    if (!t) return 0;
+    char* res = concat(t, _mc_res);
+    free(t);
+    return res;
+}
+
+inline static void save_rc() {
+    cmd_ctx_t* ctx = get_cmd_ctx();
+    char* mc_rc_file = mc_rc_file_name(ctx);
     if (!mc_rc_file) return;
     FILE* pfh = fopen(mc_rc_file, "wb");
     if (!pfh) {
@@ -2075,9 +2143,7 @@ inline static void save_rc() {
 
 inline static bool initi_from_rc(cmd_ctx_t* ctx) {
     bool res = false;
-    char* tmp = get_ctx_var(ctx, TEMP);
-    if (!tmp) tmp = "";
-    char* mc_rc_file = concat(tmp, _mc_res);
+    char* mc_rc_file = mc_rc_file_name(ctx);
     if (!mc_rc_file) return false;
     FILE* pfh = fopen(mc_rc_file, "rb");
     if (!pfh) {
@@ -2278,6 +2344,19 @@ int main(void) {
     if (!initi_from_rc(ctx)) {
         left_panel->indexes[0].selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
         right_panel->indexes[0].selected_file_idx = FIRST_FILE_LINE_ON_PANEL_Y;
+    }
+    panel_validate_path(left_panel);
+    panel_validate_path(right_panel);
+    {   // current directory may be changed while mc was not in memory (cd command, etc.)
+        const char* cd = get_ctx_var(ctx, CD);
+        if (cd && cd[0]) {
+            string_t* s_cd = new_string_cc(cd);
+            nearest_existing_dir(s_cd);
+            if (strcmp(s_cd->p, psp->s_path->p) != 0) {
+                panel_set_path(psp, s_cd->p);
+            }
+            delete_string(s_cd);
+        }
     }
     panel_width_mode = PANEL_WIDTH_HALF;
     apply_panel_layout();
