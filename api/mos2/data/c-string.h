@@ -129,7 +129,8 @@ static void string_resize(string_t* s, size_t sz) {
 void* memset(void* p, int v, size_t sz);
 
 static void string_insert_c(string_t* s, char c, size_t idx) {
-    string_reseve(s, idx + 1);
+    // room for the string (or padding up to idx), inserted char and terminating zero
+    string_reseve(s, (idx > s->size ? idx : s->size) + 2);
     if (idx >= s->size) {
         size_t sps = idx - s->size;
         memset(s->p + s->size, ' ', sps);
