@@ -43,6 +43,25 @@ extern "C" {
 #include "nespad.h"
 
 extern "C" uint32_t flash_size;;
+
+/* Boot stage tracker: the reset button resets the MCU but keeps SRAM, so the stage the previous
+   start reached survives in a no-init word and is reported on the next successful start. */
+#define BOOT_STAGE_SIGN 0xB0070000u
+enum boot_stage_t {
+    BS_BEFORE_MAIN = 1, BS_VREG, BS_CLOCK, BS_PSRAM_QMI, BS_KEYBOARD, BS_NESPAD, BS_PSRAM_SPI,
+    BS_SCHEDULER, BS_POST_INIT, BS_INPUT, BS_KBD_RESET, BS_MOUNT, BS_FIRMWARE, BS_CONFIG,
+    BS_VIDEO_PINS, BS_VIDEO_CORE1, BS_VIDEO_READY, BS_DONE
+};
+static const char* const boot_stage_names[] = {
+    "?", "before main", "vreg", "clock/flash timings", "QSPI PSRAM init", "keyboard init",
+    "gamepad init", "SPI PSRAM init", "scheduler start", "post init", "boot keys", "keyboard reset",
+    "SD mount", "firmware check", "config.sys", "video pins test", "video core1 start", "video ready",
+    "done"
+};
+// next to the boot magics at the end of RAM (0x2007FFF8/FC), the area known to survive a reset
+#define boot_stage (*(volatile uint32_t*)(0x20000000 + (512 << 10) - 12))
+static uint32_t prev_boot_stage = 0; // stage the previous start stopped at (0 - unknown / power on)
+#define BOOT_STAGE(s) (boot_stage = BOOT_STAGE_SIGN | (s))
 int flash_mhz = FLASH_FREQ_MHZ;
 int psram_mhz = PSRAM_FREQ_MHZ;
 uint new_flash_timings = 0;
@@ -688,8 +707,19 @@ static void __not_in_flash_func(tft_refresh)(void* pv) {
 }
 #endif
 
+// testPins leaves pull-ups/downs on the tested pins (gpio_deinit does not reset pulls), which
+// disturbs the HDMI differential pairs: return them to a clean hi-Z state before the driver starts
+static void __in_hfa() release_tested_pin(uint32_t pin) {
+    gpio_init(pin);
+    gpio_set_dir(pin, GPIO_IN);
+    gpio_disable_pulls(pin);
+}
+
 static void __in_hfa() startup_vga(void) {
+    BOOT_STAGE(BS_VIDEO_PINS);
     link6 = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
+    release_tested_pin(VGA_BASE_PIN);
+    release_tested_pin(VGA_BASE_PIN + 1);
     if (override_drv >= 0) {
         drv = override_drv;
     } else {
@@ -705,6 +735,8 @@ static void __in_hfa() startup_vga(void) {
         #ifdef TFT_DRV
         else {
             uint8_t link9 = testPins(VGA_BASE_PIN + 3, VGA_BASE_PIN + 4);
+            release_tested_pin(VGA_BASE_PIN + 3);
+            release_tested_pin(VGA_BASE_PIN + 4);
             bool pio9PD = !!(link9 & 0b010000);
             bool pio9PU = !!(link9 & 0b001000);
             if (!pio9PD && !pio9PU) {
@@ -726,9 +758,11 @@ static void __in_hfa() startup_vga(void) {
     }
 #endif
     sem_init(&vga_start_semaphore, 0, 1);
+    BOOT_STAGE(BS_VIDEO_CORE1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
     vTaskDelay(300);
+    BOOT_STAGE(BS_VIDEO_READY);
 #if TFT
     if (drv == TFT_DRV) {
         xTaskCreate(tft_refresh, "tft", 1024/*x4=4096*/, NULL, configMAX_PRIORITIES - 1, &tft_refresh_task);
@@ -1004,10 +1038,12 @@ void __in_hfa() init(void) {
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
+    BOOT_STAGE(BS_VREG);
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
     flash_timings();
     sleep_ms(100);
+    BOOT_STAGE(BS_CLOCK);
     uint32_t overclocking = get_overclocking_khz();
     if (! set_sys_clock_khz(overclocking, 0) ) {
         overclocking = 252000;
@@ -1021,23 +1057,43 @@ void __in_hfa() init(void) {
 #else
     BUTTER_PSRAM_GPIO = rp2350a ? 19 : 47;
 #endif
+    BOOT_STAGE(BS_PSRAM_QMI);
     psram_init(BUTTER_PSRAM_GPIO);
+    BOOT_STAGE(BS_KEYBOARD);
     keyboard_init();
+    BOOT_STAGE(BS_NESPAD);
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
     if (!butter_psram_size || BUTTER_PSRAM_GPIO == 47) {
+        BOOT_STAGE(BS_PSRAM_SPI);
         init_psram();
     }
+}
+
+// the previous start was interrupted (reset button) before it finished: tell where it stopped
+static void __in_hfa() report_prev_boot(void) {
+    uint32_t prev = prev_boot_stage;
+    BOOT_STAGE(BS_DONE);
+    if (!prev || prev == BS_DONE) return;
+    graphics_set_con_color(12, 0);
+    goutf("Previous start stopped at stage %d: %s\n", prev,
+          prev < sizeof(boot_stage_names) / sizeof(boot_stage_names[0]) ? boot_stage_names[prev] : "?");
+    graphics_set_con_color(7, 0);
+    prev_boot_stage = 0;
 }
 
 static void __in_hfa() vPostInit(void *pv) {
 #if HID
     xTaskCreate(vHID, "HID", 256/*x4=1024*/, NULL, configMAX_PRIORITIES - 1, NULL);
 #endif
+    BOOT_STAGE(BS_POST_INIT);
     gpio_put(PICO_DEFAULT_LED_PIN, true);
+    BOOT_STAGE(BS_INPUT);
     kbd_state_t* ks = process_input_on_boot();
     // send kbd reset only after initial process passed
+    BOOT_STAGE(BS_KBD_RESET);
     keyboard_send(0xFF);
     bool video_started = false;
+    BOOT_STAGE(BS_MOUNT);
     char* err = mount_os();
     if (err) {
         startup_vga();
@@ -1046,12 +1102,15 @@ static void __in_hfa() vPostInit(void *pv) {
         graphics_set_con_pos(0, 1);
         show_logo(true);
         info(false);
+        report_prev_boot();
         graphics_set_con_color(12, 0);
         gouta(err);
         test_cycle(ks);
     }
+    BOOT_STAGE(BS_FIRMWARE);
     check_firmware();
 
+    BOOT_STAGE(BS_CONFIG);
     if ((nespad_state & DPAD_SELECT) || gamepad1_bits.select) {
         set_default_vars();
     } else {
@@ -1068,6 +1127,7 @@ static void __in_hfa() vPostInit(void *pv) {
     gpio_put(PICO_DEFAULT_LED_PIN, false);
 
     info(true);
+    report_prev_boot();
 
     setApplicationMallocFailedHookPtr(mallocFailedHandler);
     setApplicationStackOverflowHookPtr(overflowHook);
@@ -1106,10 +1166,14 @@ static void before_main(void) {
         }
         __unreachable();
     }
+    // not a jump to another firmware: this is our start, remember where the previous one stopped
+    prev_boot_stage = ((boot_stage & 0xFFFF0000u) == BOOT_STAGE_SIGN) ? (boot_stage & 0xFFFF) : 0;
+    BOOT_STAGE(BS_BEFORE_MAIN);
 }
 
 int main() {
     init();
+    BOOT_STAGE(BS_SCHEDULER);
     xTaskCreate(vPostInit, "cmd", default_stack, NULL, configMAX_PRIORITIES - 1, NULL);
 	vTaskStartScheduler(); // it should never return
     draw_text("vTaskStartScheduler failed", 0, 4, 13, 1);
