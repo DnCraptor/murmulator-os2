@@ -1330,9 +1330,10 @@ inline static void m_add_file(FILINFO* fi) {
     array_push_back(files_info_arr, new_file_info(fi));
 }
 
-// panels mode: the command line occupies exactly one row (no wrap to the F-buttons line),
+// the command line occupies exactly one row (no wrap to the F-buttons line and no console scroll,
+// which otherwise gets into the saved console and multiplies on each Ctrl+O),
 // "[CD]> command" is clipped from the left to keep the end of the command and the cursor visible
-static void draw_cmd_line_clipped(void) {
+static void draw_cmd_line(void) {
     const char* cd = get_ctx_var(get_cmd_ctx(), CD);
     if (!cd) cd = "NULL";
     const char* cmd = s_cmd->p ? s_cmd->p : "";
@@ -1365,11 +1366,8 @@ static void draw_cmd_line_clipped(void) {
     graphics_set_con_color(pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
 }
 
-static void draw_cmd_line(void) {
-    if (!hidePannels) {
-        draw_cmd_line_clipped();
-        return;
-    }
+// full (wrapped) command line, used to echo the command into the console on exit
+static void draw_cmd_line_full(void) {
     for (size_t i = 0; i < MAX_WIDTH; ++i) {
         draw_text(" ", i, CMD_Y_POS, pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
     }
@@ -1981,10 +1979,7 @@ inline static void handle_pagedown_pressed() {
 }
 
 inline static void cancel_entered() {
-    while(s_cmd->size) {
-        string_resize(s_cmd, s_cmd->size - 1);
-        gbackspace();
-    }
+    string_resize(s_cmd, 0);
 }
 
 inline static void cmd_up(cmd_ctx_t* ctx) {
@@ -1997,7 +1992,7 @@ inline static void cmd_up(cmd_ctx_t* ctx) {
         int idx = history_steps(ctx, cmd_history_idx, s_cmd);
         if (cmd_history_idx < 0) cmd_history_idx = idx;
     }
-    fprintf(stderr, "%s", s_cmd->p);
+    draw_cmd_line();
 }
 
 inline static void cmd_down(cmd_ctx_t* ctx) {
@@ -2005,7 +2000,7 @@ inline static void cmd_down(cmd_ctx_t* ctx) {
     if (cmd_history_idx == -2) cmd_history_idx = -1;
     cmd_history_idx++;
     history_steps(ctx, cmd_history_idx, s_cmd);
-    fprintf(stderr, "%s", s_cmd->p);
+    draw_cmd_line();
 }
 
 static void handle_down_pressed() {
@@ -2101,11 +2096,7 @@ inline static void cmd_backspace() {
         return;
     }
     string_resize(s_cmd, s_cmd->size - 1);
-    if (hidePannels) {
-        gbackspace();
-    } else {
-        draw_cmd_line();
-    }
+    draw_cmd_line();
 }
 
 inline static void type_char(char c) {
@@ -2115,7 +2106,10 @@ inline static void type_char(char c) {
 
 inline static void handle_tab_pressed() {
     if (hidePannels) {
+        // cmd_tab echoes the completion to the console, keep it inside the command line row
+        graphics_set_con_pos(0, CMD_Y_POS);
         cmd_tab(get_cmd_ctx(), s_cmd);
+        bottom_line(); // repaint F-buttons (in case of a long completion) and the command line
         return;
     }
     if (psp == left_panel) {
@@ -2222,12 +2216,8 @@ r2:
 
 inline static void esc_pressed(void) {
     blimp(15, 1);
-    if (hidePannels) {
-        cancel_entered();
-    } else {
-        string_resize(s_cmd, 0);
-        draw_cmd_line();
-    }
+    string_resize(s_cmd, 0);
+    draw_cmd_line();
 }
 
 static inline void work_cycle(cmd_ctx_t* ctx) {
@@ -2354,7 +2344,7 @@ static inline void work_cycle(cmd_ctx_t* ctx) {
             save_rc();
             restore_console(ctx);
             show_logo(false);
-            draw_cmd_line();
+            draw_cmd_line_full();
             fprintf(stderr, "\n");
             return;
         }
