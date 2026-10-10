@@ -1330,7 +1330,46 @@ inline static void m_add_file(FILINFO* fi) {
     array_push_back(files_info_arr, new_file_info(fi));
 }
 
+// panels mode: the command line occupies exactly one row (no wrap to the F-buttons line),
+// "[CD]> command" is clipped from the left to keep the end of the command and the cursor visible
+static void draw_cmd_line_clipped(void) {
+    const char* cd = get_ctx_var(get_cmd_ctx(), CD);
+    if (!cd) cd = "NULL";
+    const char* cmd = s_cmd->p ? s_cmd->p : "";
+    size_t cd_len = strlen(cd) + 2; // "[" + cd + "]"
+    size_t total = cd_len + 2 + strlen(cmd); // + "> " + cmd
+    size_t width = MAX_WIDTH > 1 ? MAX_WIDTH - 1 : 1; // last column is kept for the cursor
+    size_t skip = total > width ? total - width : 0;
+    char* buf = (char*)malloc(total + 1);
+    if (!buf) return;
+    snprintf(buf, total + 1, "[%s]> %s", cd, cmd);
+    char* visible = buf + skip;
+    size_t vis_len = total - skip;
+    for (size_t i = vis_len; i < MAX_WIDTH; ++i) {
+        draw_text(" ", i, CMD_Y_POS, pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
+    }
+    if (skip < cd_len) { // part of the [CD] prefix is visible
+        char c = buf[cd_len];
+        buf[cd_len] = 0;
+        draw_text(visible, 0, CMD_Y_POS, 13, 0);
+        buf[cd_len] = c;
+        draw_text(buf + cd_len, cd_len - skip, CMD_Y_POS, 7, 0);
+    } else {
+        draw_text(visible, 0, CMD_Y_POS, 7, 0);
+    }
+    if (skip) {
+        draw_text("<", 0, CMD_Y_POS, 13, 0); // there is more on the left
+    }
+    free(buf);
+    graphics_set_con_pos(vis_len, CMD_Y_POS);
+    graphics_set_con_color(pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
+}
+
 static void draw_cmd_line(void) {
+    if (!hidePannels) {
+        draw_cmd_line_clipped();
+        return;
+    }
     for (size_t i = 0; i < MAX_WIDTH; ++i) {
         draw_text(" ", i, CMD_Y_POS, pcs->FOREGROUND_CMD_COLOR, pcs->BACKGROUND_CMD_COLOR);
     }
@@ -2062,7 +2101,11 @@ inline static void cmd_backspace() {
         return;
     }
     string_resize(s_cmd, s_cmd->size - 1);
-    gbackspace();
+    if (hidePannels) {
+        gbackspace();
+    } else {
+        draw_cmd_line();
+    }
 }
 
 inline static void type_char(char c) {
@@ -2179,7 +2222,12 @@ r2:
 
 inline static void esc_pressed(void) {
     blimp(15, 1);
-    string_resize(s_cmd, 0);
+    if (hidePannels) {
+        cancel_entered();
+    } else {
+        string_resize(s_cmd, 0);
+        draw_cmd_line();
+    }
 }
 
 static inline void work_cycle(cmd_ctx_t* ctx) {
