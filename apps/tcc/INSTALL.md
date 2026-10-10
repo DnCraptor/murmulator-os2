@@ -111,6 +111,13 @@ translation units. The second invocation combines those objects with
 the complete amalgamated `tcc.c` to one compiler instance. The output has a
 different name so a failed self-build cannot overwrite the bootstrap compiler.
 
+The code generator is split into `tccgen.c` (core, value stack, casts),
+`tcctype.c` (types and declarators), `tccexpr.c` (expressions) and
+`tccstmt.c` (statements, initializers, declarations) with the private header
+`tccgen.h`, so no single translation unit of the self-build is as large as the
+former 8000-line `tccgen.c`. With `ONE_SOURCE=1` (the CMake build) `libtcc.c`
+includes them in this order and the result is the same as the single file.
+
 The response files select `-mfloat-abi=softfp`, matching the core-register ABI
 of `libmos.a`. The Thumb backend still emits VFP instructions for floating-point
 operations; this is not an RP2040 code generator.

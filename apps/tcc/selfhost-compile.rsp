@@ -10,6 +10,9 @@ tcc.c
 libtcc.c
 tccpp.c
 tccgen.c
+tcctype.c
+tccexpr.c
+tccstmt.c
 tccelf.c
 tccrun.c
 tccasm.c

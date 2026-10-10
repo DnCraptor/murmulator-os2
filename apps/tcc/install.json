@@ -62,6 +62,22 @@
       "target": "src/tcc/tccgen.c"
     },
     {
+      "source": "apps/tcc/tccgen.h",
+      "target": "src/tcc/tccgen.h"
+    },
+    {
+      "source": "apps/tcc/tcctype.c",
+      "target": "src/tcc/tcctype.c"
+    },
+    {
+      "source": "apps/tcc/tccexpr.c",
+      "target": "src/tcc/tccexpr.c"
+    },
+    {
+      "source": "apps/tcc/tccstmt.c",
+      "target": "src/tcc/tccstmt.c"
+    },
+    {
       "source": "apps/tcc/tccelf.c",
       "target": "src/tcc/tccelf.c"
     },

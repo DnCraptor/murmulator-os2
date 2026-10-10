@@ -21,6 +21,9 @@
 #if !defined ONE_SOURCE || ONE_SOURCE
 #include "tccpp.c"
 #include "tccgen.c"
+#include "tcctype.c"
+#include "tccexpr.c"
+#include "tccstmt.c"
 #include "tccelf.c"
 #include "tccrun.c"
 #ifdef TCC_TARGET_I386
