@@ -3657,6 +3657,16 @@ ST_FUNC void next(void)
         next_nomacro_spc();
     else
         next_nomacro();
+#ifdef MOS_TCC_TRACE_ENABLED
+    /* hang localization: each new line of the compiled file itself (not of its headers) */
+    if (file && !file->prev && !macro_ptr) {
+        static int mos_trace_line = -1;
+        if (file->line_num != mos_trace_line) {
+            mos_trace_line = file->line_num;
+            MOS_TRACE("line %d\n", mos_trace_line);
+        }
+    }
+#endif
 
     if (macro_ptr) {
         if (tok == TOK_NOSUBST || tok == TOK_PLCHLDR) {

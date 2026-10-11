@@ -140,7 +140,7 @@ double __aeabi_dneg(double x); // negation
 // === DOUBLE-PRECISION COMPARISONS
 // ============================================================================
 int __aeabi_dcmpeq(double x, double y) { // ==
-    typedef double (*fn)(double, double);
+    typedef int (*fn)(double, double); // returns int: as double r0:r1 was converted again (== was wrong)
     return ((fn)_sys_table_ptrs[249])(x, y);
 }
 

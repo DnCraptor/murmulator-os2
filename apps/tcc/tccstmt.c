@@ -1530,13 +1530,16 @@ static void gen_function(Sym *sym)
     local_scope = 0;
     rsym = 0;
     clear_temp_local_var_list();
+    MOS_TRACE("func %s begin\n", funcname);
     block(0);
+    MOS_TRACE("func %s body done, code %d bytes\n", funcname, ind - func_ind);
     gsym(rsym);
     nocode_wanted = 0;
     /* reset local stack */
     pop_local_syms(&local_stack, NULL, 0,
                    sym->type.ref->f.func_type == FUNC_ELLIPSIS);
     gfunc_epilog();
+    MOS_TRACE("func %s epilog done\n", funcname);
     cur_text_section->data_offset = ind;
     local_scope = 0;
     label_pop(&global_label_stack, NULL, 0);
@@ -1553,6 +1556,7 @@ static void gen_function(Sym *sym)
     ind = 0; /* for safety */
     nocode_wanted = 0x80000000;
     check_vstack();
+    MOS_TRACE("func end\n");
     /* do this after funcend debug info */
     next();
 }

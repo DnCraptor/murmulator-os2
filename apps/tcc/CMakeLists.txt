@@ -27,6 +27,12 @@ target_include_directories(tcc PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_compile_definitions(tcc PRIVATE NO_SEMAPHORE_H=1)
+# Hang localization: cmake -DMOS_TCC_TRACE=ON prints compile stages, the source lines of the
+# compiled file and function boundaries directly to the console (see mos_trace.h)
+option(MOS_TCC_TRACE "tcc: trace compile stages to the console" OFF)
+if (MOS_TCC_TRACE)
+    target_compile_definitions(tcc PRIVATE MOS_TCC_TRACE_ENABLED=1)
+endif()
 target_link_libraries(tcc PRIVATE murmulator_runtime)
 target_compile_options(tcc PRIVATE -fno-jump-tables -Wno-error -Wno-unused-function)
 target_link_options(tcc PRIVATE -Xlinker --print-memory-usage -r)

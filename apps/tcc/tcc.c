@@ -369,6 +369,7 @@ redo:
                 ret = 1;
             else if (s->gen_deps)
                 gen_makedeps(s, s->outfile, s->deps_outfile);
+            MOS_TRACE("output done ret=%d\n", ret);
         }
     }
 
