@@ -17,7 +17,10 @@ void set_vreg_mv(int mv);       // 0 - automatic; applied by overclocking()
 int parse_vreg_mv(const char* t); // "1.60", "1600", "AUTO", old vreg_voltage index
 
 #include <stddef.h>
-// flash operations that keep the overclock flash timing (use instead of the SDK ones)
+// flash operations that keep the overclock flash timing and run at <= 252 MHz (use instead of
+// the SDK ones); begin/end lower clk_sys once around a series of operations
+void mos_flash_slow_begin(void);
+void mos_flash_slow_end(void);
 void mos_flash_range_erase(uint32_t flash_offs, size_t count);
 void mos_flash_range_program(uint32_t flash_offs, const uint8_t *data, size_t count);
 void mos_flash_do_cmd(const uint8_t *txbuf, uint8_t *rxbuf, size_t count);
