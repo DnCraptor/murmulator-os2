@@ -24,7 +24,7 @@ elfinfo [file] - provide .elf file info<br/>
 psram - provide some psram info. Use Ctrl+C to interrupt.<br/>
 swap - provide some swap info. Use Ctrl+C to interrupt.<br/>
 sram - reference speed of swap base SRAM. Use Ctrl+C to interrupt.<br/>
-cpu - show current CPU freq. and dividers, `cpu [NNN]` - change freq. to NNN MHz (it may hang on such action)<br/>
+cpu - show current CPU freq. and core voltage, `cpu NNN [V]` - change freq. to NNN MHz (and the core voltage, e.g. 1.60), `cpu -v V` - change the core voltage only (V: 1.60, 1600 or auto). Video keeps its dividers until restart, so prefer CPU= / VREG= in config.sys<br/>
 mem - show current memory state<br/>
 set - show or set environment variables<br/>
 mode [#] - set video-mode, for now it is supported:<br/>
@@ -90,4 +90,5 @@ CPU - to overclock or downclock the system on start. It may be useful to set som
 Example:<br/>
 CPU=352<br/>
 It forces to change CPU frequency to 352 MHz to avoid overload<br/>
-N.B. Default volage for RP2350 in MOS is 1.6V (not yet to be reconfigured)<br/>
+VREG - core voltage: 1.60 (V), 1600 (mV) or AUTO (default; by CPU freq.: < 378 MHz - 1.50V, up to 504 MHz - 1.60V, above - 1.65V), range 0.85..1.70V<br/>
+Example: CPU=504 VREG=1.60<br/>

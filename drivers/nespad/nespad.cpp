@@ -73,6 +73,12 @@ bool __in_hfa() nespad_begin(uint32_t cpu_khz, uint8_t clkPin, uint8_t dataPin,u
   return false;
 }
 
+// keep the 1 MHz PIO clock after a system clock change
+extern "C" void nespad_reclock(uint32_t cpu_khz) {
+    if (sm < 0 || sm > 3) return;
+    pio_sm_set_clkdiv_int_frac(pio, sm, cpu_khz / 1000, 0);
+}
+
 void __in_hfa() nespad_end(uint8_t clkPin, uint8_t dataPin, uint8_t latPin) {
     pio_sm_set_enabled(pio, sm, false);
     pio_sm_unclaim(pio, sm);

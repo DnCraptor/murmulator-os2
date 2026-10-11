@@ -224,7 +224,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     # the PLL then may fail to lock and the board randomly does not start after reset
     PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
 
-    M_API_VERSION=28
+    M_API_VERSION=29
     MIN_API_VERSION=14
 
     # do not touch last 512 bytes in RAM on launch app, say, no more RAM

@@ -67,8 +67,6 @@ int psram_mhz = PSRAM_FREQ_MHZ;
 uint new_flash_timings = 0;
 uint new_psram_timings = 0;
 extern "C" uint default_stack = 1024; // in 32-bit words
-static int vreg = VREG_VOLTAGE_1_60;
-static int new_vreg = VREG_VOLTAGE_1_60;
 
 #include <hardware/structs/qmi.h>
 #include <hardware/structs/xip.h>
@@ -194,10 +192,11 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     butter_psram_size = _butter_psram_size();
 }
 
-void __not_in_flash() flash_timings() {
+// QMI timings for the given system clock (overclocking() sets them for the target one)
+extern "C" void __not_in_flash() flash_timings_for(uint32_t khz) {
     if (!new_flash_timings) {
         const int max_flash_freq = flash_mhz * MHZ;
-        const int clock_hz = get_overclocking_khz() * 1000;
+        const int clock_hz = khz * 1000;
         int divisor = (clock_hz + max_flash_freq - 1) / max_flash_freq;
         if (divisor == 1 && clock_hz > 100000000) {
             divisor = 2;
@@ -214,10 +213,10 @@ void __not_in_flash() flash_timings() {
     }
 }
 
-void __not_in_flash() psram_timings() {
+extern "C" void __not_in_flash() psram_timings_for(uint32_t khz) {
     if (!new_psram_timings) {
         const int max_psram_freq = psram_mhz * MHZ;
-        const int clock_hz = get_overclocking_khz() * 1000;
+        const int clock_hz = khz * 1000;
         int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
         if (divisor == 1 && clock_hz > 100000000) {
             divisor = 2;
@@ -232,6 +231,15 @@ void __not_in_flash() psram_timings() {
     } else {
         qmi_hw->m[1].timing = new_psram_timings;
     }
+}
+
+// for the current system clock
+void __not_in_flash() flash_timings() {
+    flash_timings_for(get_overclocking_khz());
+}
+
+void __not_in_flash() psram_timings() {
+    psram_timings_for(get_overclocking_khz());
 }
 
 void __no_inline_not_in_flash_func(psram_deinit)(uint cs_pin) {
@@ -407,15 +415,12 @@ static void load_config_sys() {
                 t = next_token(t);
                 int cpu = atoi(t);
                 if (cpu > 123 && cpu < 1000) {
-                    set_last_overclocking(cpu * 1000);
+                    set_overclocking(cpu * 1000); // target, applied with the voltage at the end
                 }
             } else if (strcmp(t, "VREG") == 0) {
+                // core voltage: "1.60" (V), "1600" (mV), "AUTO" or an old style vreg_voltage index
                 t = next_token(t);
-                new_vreg = atoi(t);
-                if (new_vreg != vreg && new_vreg >= VREG_VOLTAGE_0_55 && new_vreg <= VREG_VOLTAGE_3_30) {
-                    vreg = new_vreg;
-                    vreg_set_voltage((enum vreg_voltage)vreg);
-                }
+                set_vreg_mv(parse_vreg_mv(t));
             } else if (!new_flash_timings && strcmp(t, "FLASH") == 0) {
                 t = next_token(t);
                 int new_flash_mhz = atoi(t);
@@ -475,9 +480,7 @@ static void load_config_sys() {
         init_vram(t2);
         vPortFree(t2);
     }
-    uint32_t overclocking = get_overclocking_khz();
-    set_sys_clock_khz(overclocking, true);
-    set_last_overclocking(overclocking);
+    overclocking(); // CPU= / VREG= with flash/PSRAM timings in the safe order
 }
 
 const char mRP2350[] = "Murmulator (RP2350";
@@ -1039,16 +1042,13 @@ void __in_hfa() init(void) {
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
     BOOT_STAGE(BS_VREG);
-    vreg_disable_voltage_limit();
-    vreg_set_voltage(VREG_VOLTAGE_1_60);
-    flash_timings();
-    sleep_ms(100);
+    // core voltage by frequency, flash timings and the clock in the safe order
+    overclocking();
     BOOT_STAGE(BS_CLOCK);
-    uint32_t overclocking = get_overclocking_khz();
-    if (! set_sys_clock_khz(overclocking, 0) ) {
-        overclocking = 252000;
+    if (get_overclocking_khz() != OVERCLOCKING * 1000) { // not achievable: keep a known good one
+        set_overclocking(252000);
+        overclocking();
     }
-    set_last_overclocking(overclocking);
     rp2350a = (*((io_ro_32*)(SYSINFO_BASE + SYSINFO_PACKAGE_SEL_OFFSET)) & 1);
 #ifdef MURM2
     BUTTER_PSRAM_GPIO = rp2350a ?  8 : 47;

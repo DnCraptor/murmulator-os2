@@ -26,6 +26,20 @@ inline static void set_overclocking(uint32_t khz) {
     ((clock_u32_fn_t)_sys_table_ptrs[104])(khz);
 }
 
+// core voltage, mV (API v29)
+inline static int get_vreg_mv(void) { // current
+    return ((int (*)(void))_sys_table_ptrs[405])();
+}
+inline static void set_vreg_mv(int mv) { // 0 - automatic (by frequency); applied by overclocking()
+    ((void (*)(int))_sys_table_ptrs[406])(mv);
+}
+inline static int get_vreg_override_mv(void) { // 0 - automatic
+    return ((int (*)(void))_sys_table_ptrs[407])();
+}
+inline static int parse_vreg_mv(const char* t) { // "1.60", "1600", "AUTO" -> mV (0 - automatic)
+    return ((int (*)(const char*))_sys_table_ptrs[408])(t);
+}
+
 inline static void set_sys_clock_pll(uint32_t vco_freq,
                                      uint32_t post_div1,
                                      uint32_t post_div2) {

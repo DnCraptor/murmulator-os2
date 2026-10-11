@@ -523,6 +523,11 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     __getcwd, // 403
     // API v28 2.3.1
     __pipe2, // 404
+    // API v29
+    get_vreg_mv, // 405
+    set_vreg_mv, // 406
+    get_vreg_override_mv, // 407
+    parse_vreg_mv, // 408
     // TODO:
     0
 };

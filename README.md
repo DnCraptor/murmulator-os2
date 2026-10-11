@@ -48,7 +48,7 @@ elfinfo [file] - provide .elf file info<br/>
 psram - provide some psram info. Use Ctrl+C to interrupt.<br/>
 swap - provide some swap info. Use Ctrl+C to interrupt.<br/>
 sram - reference speed of swap base SRAM. Use Ctrl+C to interrupt.<br/>
-cpu - show current CPU freq. and dividers, `cpu [NNN]` - change freq. to NNN MHz (it may hang on such action)<br/>
+cpu - show current CPU freq. and core voltage, `cpu NNN [V]` - change freq. to NNN MHz (and the core voltage, e.g. 1.60), `cpu -v V` - change the core voltage only (V: 1.60, 1600 or auto). Video keeps its dividers until restart, so prefer CPU= / VREG= in config.sys<br/>
 mem - show current memory state<br/>
 set - show or set environment variables<br/>
 mode [#] - set video-mode, for now it is supported:<br/>
@@ -112,7 +112,7 @@ Press and hold any other key on the Murmulator reset or power-on, to boot (skip 
 # config.sys
 Use it to override for "M-OS system variables" or:<br/>
 CPU - (MHz) to overclock or downclock the system on start. It may be useful to set some less freq. in case your board unable to support default<br/>
-VREG - (enum) to overvoltage: 20 - 1.6V; 21 - 1.65V...<br/>
+VREG - core voltage: 1.60 (V), 1600 (mV) or AUTO (default; by CPU freq.: < 378 MHz - 1.50V, up to 504 MHz - 1.60V, above - 1.65V). Range 0.85..1.70V. The old enum form is still accepted (19 - 1.60V, 20 - 1.65V, 21 - 1.70V)<br/>
 FLASH - (MHz) to overclock flash memory chip (default - 88)<br/>
 FLASH_T - (hex uint32_t) to overclock flash memory chip (alernative way)<br/>
 PSRAM - (MHz) to overclock QSPI PSRAM chip (default - 88)<br/>
@@ -120,8 +120,8 @@ PSRAM_T - (hex uint32_t) to overclock QSPI PSRAM chip (alternative way)<br/>
 STACK - defualt stack size (4 KB is used by default)<br/>
 <br/>
 Example:<br/>
-CPU=352<br/>
-VREG=21<br/>
+CPU=504<br/>
+VREG=1.60<br/>
 FLASH=100<br/>
 PSRAM=166<br/>
 <br/>
