@@ -168,27 +168,59 @@ void overclocking() {
     }
 }
 
-/* Flash erase/program/command at any clk_sys. The SDK leaves XIP through the bootrom and re-enters
-   it with the boot-time XIP setup, which also restores the boot-time QMI M0 (flash) timing: its
-   clock divider was chosen for the boot clock and reads flash far too fast at an overclocked
-   clk_sys (e.g. 504 MHz), so the next instruction fetch from flash fails. Our timing is put back
-   right after the call, still from RAM. */
+/* Flash erase/program/command at any clk_sys.
+   1. The bootrom does the erase/program with a serial clock derived from clk_sys: at an overclocked
+      clk_sys (e.g. 504 MHz) it is out of the flash spec and the written data may be corrupt. So, as
+      in pico-wonderswan, clk_sys is lowered to 252 MHz for the operation (with the drivers
+      reclocked) and restored afterwards; mos_flash_slow_begin/end batch many sectors.
+   2. The SDK re-enters XIP with the boot-time XIP setup, which also restores the boot-time QMI M0
+      (flash) timing, too fast for an overclocked clk_sys: our timing is put back right after the
+      call, still from RAM. */
+#define FLASH_OP_MAX_KHZ 252000
+static int flash_slow_depth = 0;
+static uint32_t flash_slow_saved_khz = 0;
+
+void mos_flash_slow_begin(void) {
+    if (flash_slow_depth++) return;
+    uint32_t khz = clock_get_hz(clk_sys) / 1000;
+    if (khz > FLASH_OP_MAX_KHZ && set_sys_clock_khz(FLASH_OP_MAX_KHZ, false)) {
+        // lowering: the flash/PSRAM timings for the higher clock are only slower here
+        flash_slow_saved_khz = khz;
+        reclock_peripherals(FLASH_OP_MAX_KHZ); // keep the picture, OS tick etc. meanwhile
+    }
+}
+
+void mos_flash_slow_end(void) {
+    if (flash_slow_depth <= 0 || --flash_slow_depth) return;
+    if (flash_slow_saved_khz) {
+        set_sys_clock_khz(flash_slow_saved_khz, false); // back up: the timings are for this clock
+        reclock_peripherals(flash_slow_saved_khz);
+        flash_slow_saved_khz = 0;
+    }
+}
+
 void __no_inline_not_in_flash_func(mos_flash_range_erase)(uint32_t flash_offs, size_t count) {
+    mos_flash_slow_begin();
     uint32_t timing = qmi_hw->m[0].timing;
     flash_range_erase(flash_offs, count);
     qmi_hw->m[0].timing = timing;
+    mos_flash_slow_end();
 }
 
 void __no_inline_not_in_flash_func(mos_flash_range_program)(uint32_t flash_offs, const uint8_t *data, size_t count) {
+    mos_flash_slow_begin();
     uint32_t timing = qmi_hw->m[0].timing;
     flash_range_program(flash_offs, data, count);
     qmi_hw->m[0].timing = timing;
+    mos_flash_slow_end();
 }
 
 void __no_inline_not_in_flash_func(mos_flash_do_cmd)(const uint8_t *txbuf, uint8_t *rxbuf, size_t count) {
+    mos_flash_slow_begin();
     uint32_t timing = qmi_hw->m[0].timing;
     flash_do_cmd(txbuf, rxbuf, count);
     qmi_hw->m[0].timing = timing;
+    mos_flash_slow_end();
 }
 
 /* Before a watchdog reset / reboot to BOOTSEL: back to the default clock and core voltage, so the

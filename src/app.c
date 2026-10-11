@@ -131,8 +131,10 @@ void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offse
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     multicore_lockout_start_blocking();
     const uint32_t ints = save_and_disable_interrupts();
+    mos_flash_slow_begin();
     mos_flash_range_erase(flash_target_offset, FLASH_SECTOR_SIZE);
     mos_flash_range_program(flash_target_offset, buffer, FLASH_SECTOR_SIZE);
+    mos_flash_slow_end();
     restore_interrupts(ints);
     multicore_lockout_end_blocking();
     gpio_put(PICO_DEFAULT_LED_PIN, false);
@@ -172,6 +174,7 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
 #endif
     uint32_t flash_target_offset = 0;
     uint32_t already_written = 0;
+    mos_flash_slow_begin(); // the whole UF2 is written at <= 252 MHz (see overclock.c)
     while(true) {
         size_t sz = 0;
         uint32_t next_flash_target_offset = read_flash_block(pf, buffer, flash_target_offset, uf2, &sz);
@@ -243,6 +246,7 @@ bool __not_in_flash_func(load_firmware_sram)(char* pathname) {
     reboot_is_requested = true;
     while(true) ;
 err:
+    mos_flash_slow_end();
     vPortFree(alloc);
     f_close(pf);
     vPortFree(pf);
