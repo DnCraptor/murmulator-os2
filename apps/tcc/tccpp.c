@@ -643,7 +643,26 @@ ST_FUNC const char *get_tok_str(int v, CValue *cv)
             return table_ident[v - TOK_IDENT]->str;
         } else if (v >= SYM_FIRST_ANOM) {
             /* special name for anonymous symbol */
-            sprintf(p, "L.%u", v - SYM_FIRST_ANOM);
+            /* Symbol names are also needed in deeply nested declarations.
+               Avoid the libc formatter and its large stack frame here. */
+            unsigned int n = v - SYM_FIRST_ANOM;
+            char *first, *last;
+            char c;
+
+            *p++ = 'L';
+            *p++ = '.';
+            first = p;
+            do {
+                *p++ = '0' + n % 10;
+                n /= 10;
+            } while (n);
+            *p = '\0';
+            last = p - 1;
+            while (first < last) {
+                c = *first;
+                *first++ = *last;
+                *last-- = c;
+            }
         } else {
             /* should never happen */
             return NULL;
