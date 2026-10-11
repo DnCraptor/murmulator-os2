@@ -29,7 +29,7 @@ target_include_directories(tcc PRIVATE
 target_compile_definitions(tcc PRIVATE NO_SEMAPHORE_H=1)
 # Hang localization: cmake -DMOS_TCC_TRACE=ON prints compile stages, the source lines of the
 # compiled file and function boundaries directly to the console (see mos_trace.h)
-option(MOS_TCC_TRACE "tcc: trace compile stages to the console" ON)
+option(MOS_TCC_TRACE "tcc: trace compile stages to the console" OFF)
 if (MOS_TCC_TRACE)
     target_compile_definitions(tcc PRIVATE MOS_TCC_TRACE_ENABLED=1)
 endif()

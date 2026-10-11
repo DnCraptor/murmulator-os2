@@ -402,7 +402,7 @@ void load(int r, SValue *sv)
     else
     {
       DBG1(printf (GRN"mov r %i v %i\n"CLR, r, v));
-      th_mov_reg (r, v);
+      th_mov_reg (intr(r), intr(v));
       return;
     }
   }
@@ -511,13 +511,16 @@ static void gcall_or_jmp(int is_jmp)
   }
   else
   {
-    int r = gv(RC_INT);
+    /* r0-r3 already hold call arguments.  r12 is reserved from the
+       allocator, so load the target there without spilling arguments. */
+    int r = TREG_R12;
+    load(r, vtop);
 
     /* Indirect call (basically function calls and such) */
     DBG1(printf (GRN"gcall_or_jmp indirect call\n"CLR));
 
     // TODO: Find the proper place to do this. LSB Must be 1 because thumb.
-    th_orr_imm (r, r, 1);
+    th_orr_imm (intr(r), intr(r), 1);
 
     if (!is_jmp)
       th_blx_reg (intr(r));

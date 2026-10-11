@@ -1260,7 +1260,7 @@ static int th_offset_to_reg (int off, int sign)
 	/* Register allocation can call this routine while spilling a register.
 	 * Asking the allocator for another register here recursively spills the
 	 * same value when every allocatable core register is live. */
-	int rr = TREG_R12;
+	int rr = intr(TREG_R12);
 
 	// Try mov first
 	int ok = th_mov_imm (rr, off, 2);
@@ -1374,7 +1374,7 @@ void load_vt_const (int r, SValue *sv)
  */
 void load_vt_local (int r, SValue *sv)
 {
-	//r = intr(r);
+	r = intr(r);
 
 	// If its a symbol or cant fit in the usual sub_imm instruction
 	if (sv->r & VT_SYM || (-sv->c.i) >= 0x0fff)
