@@ -112,7 +112,8 @@ the complete amalgamated `tcc.c` to one compiler instance. The output has a
 different name so a failed self-build cannot overwrite the bootstrap compiler.
 
 The code generator is split into `tccgen.c` (core, value stack, casts),
-`tcctype.c` (types and declarators), `tccexpr.c` (expressions) and
+`tcctype.c` (types and declarators), `tccstruct.c` (enum/struct/union
+declarations, `struct_decl`), `tccexpr.c` (expressions) and
 `tccstmt.c` (statements, initializers, declarations) with the private header
 `tccgen.h`, so no single translation unit of the self-build is as large as the
 former 8000-line `tccgen.c`. With `ONE_SOURCE=1` (the CMake build) `libtcc.c`

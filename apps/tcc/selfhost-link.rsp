@@ -8,6 +8,7 @@ libtcc.o
 tccpp.o
 tccgen.o
 tcctype.o
+tccstruct.o
 tccexpr.o
 tccstmt.o
 tccelf.o

@@ -70,6 +70,10 @@
       "target": "src/tcc/tcctype.c"
     },
     {
+      "source": "apps/tcc/tccstruct.c",
+      "target": "src/tcc/tccstruct.c"
+    },
+    {
       "source": "apps/tcc/tccexpr.c",
       "target": "src/tcc/tccexpr.c"
     },

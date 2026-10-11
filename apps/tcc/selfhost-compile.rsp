@@ -11,6 +11,7 @@ libtcc.c
 tccpp.c
 tccgen.c
 tcctype.c
+tccstruct.c
 tccexpr.c
 tccstmt.c
 tccelf.c

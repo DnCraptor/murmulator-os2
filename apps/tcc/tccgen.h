@@ -12,6 +12,7 @@
 /* Internal declarations of the code generator, which is split into
      tccgen.c   - core: symbols, value stack, code generation, casts
      tcctype.c  - types: sizes, compatibility, attributes, struct layout, declarators
+     tccstruct.c - enum/struct/union declarations (struct_decl)
      tccexpr.c  - expressions
      tccstmt.c  - statements, initializers, declarations
    With ONE_SOURCE all of them are included into one translation unit (libtcc.c)
@@ -150,6 +151,8 @@ ST_INLN CType *pointed_type(CType *type);
 ST_FUNC void pop_local_syms(Sym **ptop, Sym *b, int keep, int ellipsis);
 ST_FUNC void skip_or_save_block(TokenString **str);
 ST_FUNC void store_packed_bf(int bit_pos, int bit_size);
+ST_FUNC void struct_decl(CType *type, int u);
+ST_FUNC void struct_layout(CType *type, AttributeDef *ad);
 ST_FUNC CType *type_decl(CType *type, AttributeDef *ad, int *v, int td);
 ST_FUNC void NORETURN type_description_error(CType *type, const char *fmt, int limit);
 ST_FUNC void type_incompatibility_error(CType* st, CType* dt, const char* fmt);

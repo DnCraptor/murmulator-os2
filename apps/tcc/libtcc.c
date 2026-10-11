@@ -22,6 +22,7 @@
 #include "tccpp.c"
 #include "tccgen.c"
 #include "tcctype.c"
+#include "tccstruct.c"
 #include "tccexpr.c"
 #include "tccstmt.c"
 #include "tccelf.c"
