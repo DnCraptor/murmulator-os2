@@ -99,6 +99,34 @@ inline static uint32_t __not_in_flash_func(_butter_psram_size)() {
         return 0;
     return res << 20;
 }
+// full QMI M1 (PSRAM) timing for the system clock: all fields depend on it (CLKDIV, RXDELAY and
+// MAX_SELECT / MIN_DESELECT counted in system clocks), so it is recomputed on each clock change
+static uint32_t __not_in_flash_func(psram_m1_timing)(int clock_hz) {
+    // Using an rxdelay equal to the divisor isn't enough when running the APS6404 close to 133MHz.
+    // So: don't allow running at divisor 1 above 100MHz (because delay of 2 would be too late),
+    // and add an extra 1 to the rxdelay if the divided clock is > 100MHz (i.e. sys clock > 200MHz).
+    const int max_psram_freq = psram_mhz * 1000000;
+    int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
+    if (divisor == 1 && clock_hz > 100000000) {
+        divisor = 2;
+    }
+    int rxdelay = divisor;
+    if (clock_hz / divisor > 100000000) {
+        rxdelay += 1;
+    }
+    // - Max select must be <= 8us.  The value is given in multiples of 64 system clocks.
+    // - Min deselect must be >= 18ns.  The value is given in system clock cycles - ceil(divisor / 2).
+    const int clock_period_fs = 1000000000000000ll / clock_hz;
+    const int max_select = (125 * 1000000) / clock_period_fs;  // 125 = 8000ns / 64
+    const int min_deselect = (18 * 1000000 + (clock_period_fs - 1)) / clock_period_fs - (divisor + 1) / 2;
+    return 1 << QMI_M1_TIMING_COOLDOWN_LSB |
+           QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB |
+           max_select << QMI_M1_TIMING_MAX_SELECT_LSB |
+           min_deselect << QMI_M1_TIMING_MIN_DESELECT_LSB |
+           rxdelay << QMI_M1_TIMING_RXDELAY_LSB |
+           divisor << QMI_M1_TIMING_CLKDIV_LSB;
+}
+
 // one direct mode command to the PSRAM (CS1), quad=true sends it on all 4 lines (QPI)
 inline static void __not_in_flash_func(psram_direct_cmd)(uint8_t cmd, bool quad) {
     qmi_hw->direct_csr |= QMI_DIRECT_CSR_ASSERT_CS1N_BITS;
@@ -115,27 +143,7 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     // direct mode: memory-mapped (XIP) accesses generate bus errors while it is enabled,
     // which used to hang the start randomly (depending on the XIP cache state and IRQs).
 
-    // Set PSRAM timing for APS6404
-    //
-    // Using an rxdelay equal to the divisor isn't enough when running the APS6404 close to 133MHz.
-    // So: don't allow running at divisor 1 above 100MHz (because delay of 2 would be too late),
-    // and add an extra 1 to the rxdelay if the divided clock is > 100MHz (i.e. sys clock > 200MHz).
-    const int max_psram_freq = psram_mhz * 1000000;
-    const int clock_hz = clock_get_hz(clk_sys);
-    int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
-    if (divisor == 1 && clock_hz > 100000000) {
-        divisor = 2;
-    }
-    int rxdelay = divisor;
-    if (clock_hz / divisor > 100000000) {
-        rxdelay += 1;
-    }
-
-    // - Max select must be <= 8us.  The value is given in multiples of 64 system clocks.
-    // - Min deselect must be >= 18ns.  The value is given in system clock cycles - ceil(divisor / 2).
-    const int clock_period_fs = 1000000000000000ll / clock_hz;
-    const int max_select = (125 * 1000000) / clock_period_fs;  // 125 = 8000ns / 64
-    const int min_deselect = (18 * 1000000 + (clock_period_fs - 1)) / clock_period_fs - (divisor + 1) / 2;
+    const uint32_t m1_timing = psram_m1_timing(clock_get_hz(clk_sys));
 
     gpio_set_function(cs_pin, GPIO_FUNC_XIP_CS1);
 
@@ -152,12 +160,7 @@ void __no_inline_not_in_flash_func(psram_init)(uint cs_pin) {
     psram_direct_cmd(0x99, false); // reset
     psram_direct_cmd(0x35, false); // enter QPI
 
-    qmi_hw->m[1].timing = 1 << QMI_M1_TIMING_COOLDOWN_LSB |
-                          QMI_M1_TIMING_PAGEBREAK_VALUE_1024 << QMI_M1_TIMING_PAGEBREAK_LSB |
-                          max_select << QMI_M1_TIMING_MAX_SELECT_LSB |
-                          min_deselect << QMI_M1_TIMING_MIN_DESELECT_LSB |
-                          rxdelay << QMI_M1_TIMING_RXDELAY_LSB |
-                          divisor << QMI_M1_TIMING_CLKDIV_LSB;
+    qmi_hw->m[1].timing = m1_timing;
 
     // Set PSRAM commands and formats
     qmi_hw->m[1].rfmt =
@@ -214,22 +217,10 @@ extern "C" void __not_in_flash() flash_timings_for(uint32_t khz) {
 }
 
 extern "C" void __not_in_flash() psram_timings_for(uint32_t khz) {
-    if (!new_psram_timings) {
-        const int max_psram_freq = psram_mhz * MHZ;
-        const int clock_hz = khz * 1000;
-        int divisor = (clock_hz + max_psram_freq - 1) / max_psram_freq;
-        if (divisor == 1 && clock_hz > 100000000) {
-            divisor = 2;
-        }
-        int rxdelay = divisor;
-        if (clock_hz / divisor > 100000000) {
-            rxdelay += 1;
-        }
-        qmi_hw->m[1].timing = (qmi_hw->m[1].timing & ~0x000000FFF) |
-                            rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
-                            divisor << QMI_M0_TIMING_CLKDIV_LSB;
-    } else {
+    if (new_psram_timings) {
         qmi_hw->m[1].timing = new_psram_timings;
+    } else if (butter_psram_size) {
+        qmi_hw->m[1].timing = psram_m1_timing(khz * 1000);
     }
 }
 

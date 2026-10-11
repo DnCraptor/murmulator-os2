@@ -21,6 +21,8 @@
 
 #include "tv-software.h"
 
+static double stv_color_freq = 0; // remembered for stv_reclock
+
 #pragma GCC optimize("Ofast")
 
 typedef enum graphics_mode_t {
@@ -227,6 +229,7 @@ void graphics_set_modeTV(tv_out_mode_t mode) {
     };
     video_mode.LVL_BLACK_TMPL = CONV_DAC(video_mode.LVL_BLACK) | (1 << SYNC_PIN);
 
+    stv_color_freq = color_freq;
     sm_config_set_clkdiv(PIO_VIDEO->sm, clock_get_hz(clk_sys) / (color_freq * 4));
 
 };
@@ -1336,3 +1339,8 @@ void stv_set_bgcolor(uint32_t color888) { // определяем зарезер
     // TODO: ensure
     // stv_set_palette(255, color888);
 };
+
+void stv_reclock(void) {
+    if (!stv_color_freq) return;
+    sm_config_set_clkdiv(PIO_VIDEO->sm, clock_get_hz(clk_sys) / (stv_color_freq * 4));
+}

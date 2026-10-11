@@ -160,7 +160,8 @@ void init_spi(void)
     gpio_set_dir(SDCARD_PIN_SPI0_MISO, GPIO_OUT);
     gpio_set_dir(SDCARD_PIN_SPI0_MOSI, GPIO_OUT);
 
-	float clkdiv = 3.0f;
+	float clkdiv = 3.0f * (float)clock_get_hz(clk_sys) / 252000000.0f; // 3.0 at 252 MHz, see sd_reclock
+	if (clkdiv < 1.0f) clkdiv = 1.0f;
 	int cpol = 0;
 	int cpha = 0;
 	uint cpha0_prog_offs = pio_add_program(pio_spi.pio, &spi_cpha0_program);
@@ -174,6 +175,15 @@ void init_spi(void)
 				SDCARD_PIN_SPI0_MOSI,
 				SDCARD_PIN_SPI0_MISO
 	);
+#endif
+}
+
+// PIO SPI: keep the SD clock after a system clock change (clkdiv 3.0 at 252 MHz)
+void sd_reclock(uint32_t cpu_khz) {
+#ifdef SDCARD_PIO
+    float div = 3.0f * (float)cpu_khz / 252000.0f;
+    if (div < 1.0f) div = 1.0f;
+    pio_sm_set_clkdiv(pio_spi.pio, pio_spi.sm, div);
 #endif
 }
 

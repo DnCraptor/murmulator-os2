@@ -9,6 +9,28 @@
 void flash_timings_for(uint32_t khz);
 void psram_timings_for(uint32_t khz);
 void nespad_reclock(uint32_t cpu_khz);
+void psram_spi_reclock(uint32_t cpu_khz);
+void sd_reclock(uint32_t cpu_khz);
+void graphics_reclock(void);
+void i2s_reclock(void);
+#include "FreeRTOS.h"
+#include "task.h"
+#include <hardware/structs/systick.h>
+
+// everything already started on the old clk_sys follows the new one: PIO dividers of the drivers
+// (video, audio, gamepad, SPI PSRAM, PIO SD) and the OS tick
+static void reclock_peripherals(uint32_t khz) {
+    nespad_reclock(khz);
+    psram_spi_reclock(khz);
+    sd_reclock(khz);
+    graphics_reclock();
+    i2s_reclock();
+    if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        // the port computed the SysTick reload from clk_sys at the scheduler start
+        systick_hw->rvr = khz * 1000 / configTICK_RATE_HZ - 1;
+        systick_hw->cvr = 0;
+    }
+}
 
 static uint32_t overclocking_khz = OVERCLOCKING * 1000;
 static uint32_t last_overclocking_khz = 0;
@@ -133,6 +155,6 @@ void overclocking() {
     }
     last_overclocking_khz = khz;
     if (khz != cur_khz) {
-        nespad_reclock(khz);
+        reclock_peripherals(khz);
     }
 }

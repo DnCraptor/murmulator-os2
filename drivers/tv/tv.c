@@ -809,3 +809,8 @@ void tv_lock_buffer(bool b) {
 void tv_set_cursor_color(uint8_t color) {
     _cursor_color = color;
 }
+
+void tv_reclock(void) {
+    if (SM_video < 0) return;
+    pio_sm_set_clkdiv(PIO_VIDEO, SM_video, clock_get_hz(clk_sys) / (2 * v_mode.CLK_SPD));
+}

@@ -1,3 +1,4 @@
+#include "hardware/clocks.h"
 /**
  * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
  *
@@ -197,7 +198,8 @@ void tft_graphics_init() {
 
     offset = pio_add_program(pio, &st7789_lcd_program);
     sm = pio_claim_unused_sm(pio, true);
-    st7789_lcd_program_init(pio, sm, offset, TFT_DATA_PIN, TFT_CLK_PIN, SERIAL_CLK_DIV);
+    float clk_div = SERIAL_CLK_DIV * (float)clock_get_hz(clk_sys) / 252000000.0f; // as at 252 MHz
+    st7789_lcd_program_init(pio, sm, offset, TFT_DATA_PIN, TFT_CLK_PIN, clk_div < 1.0f ? 1.0f : clk_div);
 
     gpio_init(TFT_CS_PIN);
     gpio_init(TFT_DC_PIN);
@@ -414,4 +416,11 @@ int tft_get_mode(void) {
 
 int tft_get_default_mode(void) {
     return 0;
+}
+
+// SERIAL_CLK_DIV is for 252 MHz: keep the same SPI clock for the new clk_sys
+void tft_reclock(void) {
+    float div = SERIAL_CLK_DIV * (float)clock_get_hz(clk_sys) / 252000000.0f;
+    if (div < 1.0f) div = 1.0f;
+    pio_sm_set_clkdiv(pio, sm, div);
 }

@@ -277,6 +277,32 @@ bool __in_hfa() graphics_set_ext_font(uint8_t* t, uint8_t w, uint8_t h) {
 
 void hdmi_init();
 
+void vga_reclock(void);
+void hdmi_reclock(void);
+void tv_reclock(void);
+void stv_reclock(void);
+void tft_reclock(void);
+
+/* After a clk_sys change: the active internal driver re-applies its PIO divider for the new clock
+   (an external driver installed by an application is not touched). */
+void graphics_reclock(void) {
+    const graphics_driver_t* gd = (const graphics_driver_t*)graphics_driver;
+    if (!gd) return;
+    if (gd == &internal_vga_driver) vga_reclock();
+#ifdef HDMI
+    else if (gd == &internal_hdmi_driver) hdmi_reclock();
+#endif
+#ifdef TV
+    else if (gd == &internal_tv_driver) tv_reclock();
+#endif
+#ifdef SOFTTV
+    else if (gd == &internal_stv_driver) stv_reclock();
+#endif
+#if TFT
+    else if (gd == &internal_tft_driver) tft_reclock();
+#endif
+}
+
 void __in_hfa() graphics_init(int drv_type) {
     if (graphics_driver == 0) {
         switch(drv_type) {

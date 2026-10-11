@@ -541,7 +541,7 @@ static inline bool inner_init() {
     sm_config_set_out_shift(&c_c, true, true, 30);
     sm_config_set_fifo_join(&c_c, PIO_FIFO_JOIN_TX);
 
-    sm_config_set_clkdiv(&c_c, clock_get_hz(clk_sys) / 252000000.0f);
+    sm_config_set_clkdiv(&c_c, clock_get_hz(clk_sys) / 252000000.0f); // see hdmi_reclock
     pio_sm_init(PIO_VIDEO, SM_video, offs_prg0, &c_c);
     pio_sm_set_enabled(PIO_VIDEO, SM_video, true);
 
@@ -820,4 +820,10 @@ void hdmi_lock_buffer(bool b) {
 
 void hdmi_set_cursor_color(uint8_t color) {
     _cursor_color = color;
+}
+
+// TMDS bit clock stays 252 MHz for the new clk_sys (divider 1.0 at 252 MHz, 2.0 at 504 MHz)
+void hdmi_reclock(void) {
+    if (SM_video < 0) return;
+    pio_sm_set_clkdiv(PIO_VIDEO, SM_video, clock_get_hz(clk_sys) / 252000000.0f);
 }

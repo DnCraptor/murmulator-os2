@@ -1,4 +1,5 @@
 #include "psram_spi.h"
+#include "hardware/clocks.h"
 #include "sys_table.h"
 
 static psram_spi_inst_t psram_spi;
@@ -42,16 +43,30 @@ uint32_t psram_size() {
     return _res;
 }
 
+// PIO clock of the SPI PSRAM: 126 MHz (clkdiv 2.0 at 252 MHz) for any clk_sys
+static float psram_spi_clkdiv(void) {
+    float div = (float)clock_get_hz(clk_sys) / 126000000.0f;
+    return div < 1.0f ? 1.0f : div;
+}
+
 uint32_t init_psram() {
 #ifdef PSRAM
-    psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, false);
+    psram_spi = psram_spi_init_clkdiv(pio0, -1, psram_spi_clkdiv(), false);
 #ifndef PSRAM_NO_FUGE
     if ( !_psram_size() ) {
-        psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, true);
+        psram_spi = psram_spi_init_clkdiv(pio0, -1, psram_spi_clkdiv(), true);
     }
 #endif
 #endif
     return psram_size();
+}
+
+// keep the PIO clock of the SPI PSRAM at 126 MHz (clkdiv 2.0 at 252 MHz) after a system clock change
+void psram_spi_reclock(uint32_t cpu_khz) {
+#ifdef PSRAM
+    if (!psram_spi.pio || psram_spi.sm < 0) return;
+    pio_sm_set_clkdiv(psram_spi.pio, psram_spi.sm, psram_spi_clkdiv());
+#endif
 }
 
 void psram_cleanup() {

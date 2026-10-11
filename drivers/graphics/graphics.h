@@ -113,6 +113,7 @@ typedef struct graphics_driver {
     pu8v_fn get_font_table;
 } graphics_driver_t;
 void install_graphics_driver(graphics_driver_t*);
+void graphics_reclock(void); // re-apply the active driver's clock dividers after a clk_sys change
 graphics_driver_t* get_graphics_driver();
 void clrScr(uint8_t color);
 bool graphics_set_mode(int mode);

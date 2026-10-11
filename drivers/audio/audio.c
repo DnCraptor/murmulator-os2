@@ -65,7 +65,10 @@ void i2s_deinit(i2s_config_t *i2s_config) {
  * Initialize the I2S driver. Must be called before calling i2s_write or i2s_dma_write
  * i2s_config: I2S context obtained by i2s_get_default_config()
  */
+static i2s_config_t* i2s_last_config = NULL; // for i2s_reclock
+
 void i2s_init(i2s_config_t *i2s_config) {
+    i2s_last_config = i2s_config;
 #ifndef AUDIO_PWM_PIN
     uint8_t func=GPIO_FUNC_PIO1;    // TODO: GPIO_FUNC_PIO0 for pio0 or GPIO_FUNC_PIO1 for pio1
     gpio_set_function(i2s_config->data_pin, func);
@@ -199,4 +202,19 @@ void i2s_decrease_volume(i2s_config_t *i2s_config) {
     if(i2s_config->volume<16) {
         i2s_config->volume++;
     }
+}
+
+// the same sample rate for the new clk_sys
+void i2s_reclock(void) {
+    i2s_config_t* i2s_config = i2s_last_config;
+    if (!i2s_config || !i2s_config->sample_freq) return;
+#ifdef AUDIO_PWM_PIN
+    pwm_set_wrap(pwm_gpio_to_slice_num(PWM_PIN0), clock_get_hz(clk_sys) / i2s_config->sample_freq);
+#else
+    uint32_t divider = clock_get_hz(clk_sys) * 4 / i2s_config->sample_freq;
+#ifdef AUDIO_CS4334
+    divider >>= 3;
+#endif
+    pio_sm_set_clkdiv_int_frac(i2s_config->pio, i2s_config->sm, divider >> 8u, divider & 0xffu);
+#endif
 }

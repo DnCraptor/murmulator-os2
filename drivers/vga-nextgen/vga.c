@@ -39,11 +39,21 @@ void __time_critical_func(dma_handler_VGA)() {
     dma_channel_set_read_addr(dma_chan_ctrl, data, false);
 }
 
+static uint32_t vga_pixel_clock = 0, vga_line_size = 0;
+
 void set_vga_clkdiv(uint32_t pixel_clock, uint32_t line_size) {
+    vga_pixel_clock = pixel_clock;
+    vga_line_size = line_size;
     double fdiv = clock_get_hz(clk_sys) / (pixel_clock * 1.0); // частота пиксельклока
     uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
     PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000; //делитель для конкретной sm
     dma_channel_set_trans_count(dma_chan, line_size >> 2, false);
+}
+
+// the same pixel clock for the new clk_sys
+void vga_reclock(void) {
+    if (_SM_VGA == -1 || !vga_pixel_clock) return;
+    set_vga_clkdiv(vga_pixel_clock, vga_line_size);
 }
 
 void __in_hfa() vga_init() {
