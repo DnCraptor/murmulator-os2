@@ -86,11 +86,11 @@ static enum vreg_voltage mv_to_vreg(int mv) {
     return VREG_VOLTAGE_1_60;
 }
 
-// safe defaults per frequency (as in murm386)
+// default by frequency: 1.60V as MOS always used (PSRAM timings were tuned at it; 1.50V at 252 MHz
+// as in murm386 broke tcc on boards with QSPI PSRAM), 1.65V above 504 MHz
 static int auto_vreg_mv(uint32_t khz) {
     if (khz > 504000) return 1650;
-    if (khz >= 378000) return 1600;
-    return 1500;
+    return 1600;
 }
 
 int get_vreg_mv(void) {
