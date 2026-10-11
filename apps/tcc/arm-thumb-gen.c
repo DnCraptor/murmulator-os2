@@ -610,6 +610,21 @@ int floats_in_core_regs(SValue *sval)
     return 0;
 
   switch (sval->sym->v) {
+    case TOK___aeabi_dadd:
+    case TOK___aeabi_dsub:
+    case TOK___aeabi_dmul:
+    case TOK___aeabi_ddiv:
+    case TOK___aeabi_dcmpeq:
+    case TOK___aeabi_dcmplt:
+    case TOK___aeabi_dcmple:
+    case TOK___aeabi_dcmpgt:
+    case TOK___aeabi_dcmpge:
+    case TOK___aeabi_i2d:
+    case TOK___aeabi_ui2d:
+    case TOK___aeabi_d2iz:
+    case TOK___aeabi_d2uiz:
+    case TOK___aeabi_f2d:
+    case TOK___aeabi_d2f:
     case TOK___floatundisf:
     case TOK___floatundidf:
     case TOK___fixunssfdi:
@@ -1493,11 +1508,52 @@ void gen_opf_cmp (uint32_t opc, uint32_t op)
   th_vmrs (15); // vmrs APSR_nzcv, fpscr: Move FPU status flags
 }
 
+/* Cortex-M33 has single-precision VFP arithmetic.  Double operations use
+   the existing AEABI runtime; VFP registers only transport their bit patterns. */
+static void gen_double_runtime(int func, int nargs, int result_type)
+{
+  CType *ft = &func_old_type;
+  if ((result_type & VT_BTYPE) == VT_DOUBLE ||
+      (result_type & VT_BTYPE) == VT_LDOUBLE)
+    ft = &func_double_type;
+  else if ((result_type & VT_BTYPE) == VT_FLOAT)
+    ft = &func_float_type;
+  vpush_global_sym(ft, func);
+  vrott(nargs + 1);
+  gfunc_call(nargs);
+  vpushi(0);
+  vtop->type.t = result_type;
+  vtop->r = is_float(result_type) ? TREG_F0 : REG_IRET;
+}
+
 /* generate a floating point operation 'v = t1 op t2' instruction. The
    two operands are guaranteed to have the same floating point type */
 void gen_opf(int op)
 {
   uint32_t isdouble = ((vtop->type.t & VT_BTYPE) != VT_FLOAT) ? 0x100 : 0;
+
+  if (isdouble) {
+    int func;
+    int result = VT_INT;
+    switch (op) {
+      case '+': func = TOK___aeabi_dadd; result = VT_DOUBLE; break;
+      case '-': func = TOK___aeabi_dsub; result = VT_DOUBLE; break;
+      case '*': func = TOK___aeabi_dmul; result = VT_DOUBLE; break;
+      case '/': func = TOK___aeabi_ddiv; result = VT_DOUBLE; break;
+      case TOK_EQ: case TOK_NE: func = TOK___aeabi_dcmpeq; break;
+      case TOK_LT: case TOK_ULT: func = TOK___aeabi_dcmplt; break;
+      case TOK_LE: case TOK_ULE: func = TOK___aeabi_dcmple; break;
+      case TOK_GT: case TOK_UGT: func = TOK___aeabi_dcmpgt; break;
+      case TOK_GE: case TOK_UGE: func = TOK___aeabi_dcmpge; break;
+      default: tcc_error("unknown double op %x", op); return;
+    }
+    gen_double_runtime(func, 2, result);
+    if (op == TOK_NE) {
+      vpushi(0);
+      gen_opi(TOK_EQ);
+    }
+    return;
+  }
 
   switch(op) {
     case '+':
@@ -1558,6 +1614,12 @@ ST_FUNC void gen_cvt_itof(int t)
 {
   int bt = vtop->type.t & VT_BTYPE;
 
+  if ((t & VT_BTYPE) != VT_FLOAT &&
+      (bt == VT_INT || bt == VT_SHORT || bt == VT_BYTE || bt == VT_BOOL)) {
+    gen_double_runtime((vtop->type.t & VT_UNSIGNED) ?
+                       TOK___aeabi_ui2d : TOK___aeabi_i2d, 1, t);
+    return;
+  }
   if (bt == VT_INT || bt == VT_SHORT || bt == VT_BYTE) {
     uint32_t r = intr(gv(RC_INT));
     uint32_t r2 = vfpr(vtop->r=get_reg(RC_FLOAT));
@@ -1601,6 +1663,11 @@ void gen_cvt_ftoi(int t)
   int u = t & VT_UNSIGNED;
   t &= VT_BTYPE;
 
+  if (t == VT_INT && r2 != VT_FLOAT) {
+    gen_double_runtime(u ? TOK___aeabi_d2uiz : TOK___aeabi_d2iz,
+                       1, t | u);
+    return;
+  }
   if (t == VT_INT) {
     uint32_t opc = u ? 0x4 : 0x5;
     uint32_t r = vfpr(gv(RC_FLOAT));
@@ -1634,12 +1701,8 @@ void gen_cvt_ftof(int t)
 {
   if (((vtop->type.t & VT_BTYPE) == VT_FLOAT) != ((t & VT_BTYPE) == VT_FLOAT))
   {
-    uint32_t r = vfpr(gv(RC_FLOAT));
-
-    if ((t & VT_BTYPE) != VT_FLOAT)
-      th_vcvt_float_to_double (r, r);
-    else
-      th_vcvt_double_to_float (r, r);
+    gen_double_runtime((t & VT_BTYPE) != VT_FLOAT ?
+                       TOK___aeabi_f2d : TOK___aeabi_d2f, 1, t);
   }
 }
 

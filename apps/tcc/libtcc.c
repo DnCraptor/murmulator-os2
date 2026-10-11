@@ -1612,7 +1612,7 @@ static const TCCOption tcc_options[] = {
     { "Wp,", TCC_OPTION_Wp, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
     { "W", TCC_OPTION_W, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
     { "O", TCC_OPTION_O, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
-#ifdef TCC_TARGET_ARM
+#if defined(TCC_TARGET_ARM) || defined(TCC_TARGET_ARM_THUMB)
     { "mfloat-abi", TCC_OPTION_mfloat_abi, TCC_OPTION_HAS_ARG },
 #endif
     { "m", TCC_OPTION_m, TCC_OPTION_HAS_ARG | TCC_OPTION_NOSEP },
@@ -1992,8 +1992,10 @@ reparse:
             if (set_flag(s, options_f, optarg) < 0)
                 goto unsupported_option;
             break;
-#ifdef TCC_TARGET_ARM
+#if defined(TCC_TARGET_ARM) || defined(TCC_TARGET_ARM_THUMB)
         case TCC_OPTION_mfloat_abi:
+            if (*optarg == '=')
+                ++optarg;
             /* tcc doesn't support soft float yet */
             if (!strcmp(optarg, "softfp")) {
                 s->float_abi = ARM_SOFTFP_FLOAT;
