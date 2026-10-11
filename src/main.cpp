@@ -50,13 +50,13 @@ extern "C" uint32_t flash_size;;
 enum boot_stage_t {
     BS_BEFORE_MAIN = 1, BS_VREG, BS_CLOCK, BS_PSRAM_QMI, BS_KEYBOARD, BS_NESPAD, BS_PSRAM_SPI,
     BS_SCHEDULER, BS_POST_INIT, BS_INPUT, BS_KBD_RESET, BS_MOUNT, BS_FIRMWARE, BS_CONFIG,
-    BS_VIDEO_PINS, BS_VIDEO_CORE1, BS_VIDEO_READY, BS_DONE
+    BS_VIDEO_PINS, BS_VIDEO_CORE1, BS_VIDEO_READY, BS_CONFIG_CLOCK, BS_DONE
 };
 static const char* const boot_stage_names[] = {
     "?", "before main", "vreg", "clock/flash timings", "QSPI PSRAM init", "keyboard init",
     "gamepad init", "SPI PSRAM init", "scheduler start", "post init", "boot keys", "keyboard reset",
     "SD mount", "firmware check", "config.sys", "video pins test", "video core1 start", "video ready",
-    "done"
+    "config.sys CPU/VREG", "done"
 };
 // next to the boot magics at the end of RAM (0x2007FFF8/FC), the area known to survive a reset
 #define boot_stage (*(volatile uint32_t*)(0x20000000 + (512 << 10) - 12))
@@ -471,7 +471,7 @@ static void load_config_sys() {
         init_vram(t2);
         vPortFree(t2);
     }
-    overclocking(); // CPU= / VREG= with flash/PSRAM timings in the safe order
+    // CPU= / VREG= are applied by vPostInit after the video is started (see there)
 }
 
 const char mRP2350[] = "Murmulator (RP2350";
@@ -1111,6 +1111,10 @@ static void __in_hfa() vPostInit(void *pv) {
         startup_vga();
     }
     graphics_set_mode(graphics_get_default_mode());
+    // CPU= / VREG= from config.sys: switched with the video already running, then the drivers are
+    // reclocked (video started directly at 504 MHz gave no picture on HDMI, reclocked one works)
+    BOOT_STAGE(BS_CONFIG_CLOCK);
+    overclocking();
 ///    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);
     show_logo(true);
     graphics_set_con_pos(0, 1);
