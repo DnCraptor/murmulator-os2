@@ -50,13 +50,13 @@ extern "C" uint32_t flash_size;;
 enum boot_stage_t {
     BS_BEFORE_MAIN = 1, BS_VREG, BS_CLOCK, BS_PSRAM_QMI, BS_KEYBOARD, BS_NESPAD, BS_PSRAM_SPI,
     BS_SCHEDULER, BS_POST_INIT, BS_INPUT, BS_KBD_RESET, BS_MOUNT, BS_FIRMWARE, BS_CONFIG,
-    BS_VIDEO_PINS, BS_VIDEO_CORE1, BS_VIDEO_READY, BS_CONFIG_CLOCK, BS_DONE
+    BS_VIDEO_PINS, BS_VIDEO_CORE1, BS_VIDEO_READY, BS_CONFIG_CLOCK, BS_SOUND, BS_INFO, BS_DONE
 };
 static const char* const boot_stage_names[] = {
     "?", "before main", "vreg", "clock/flash timings", "QSPI PSRAM init", "keyboard init",
     "gamepad init", "SPI PSRAM init", "scheduler start", "post init", "boot keys", "keyboard reset",
     "SD mount", "firmware check", "config.sys", "video pins test", "video core1 start", "video ready",
-    "config.sys CPU/VREG", "done"
+    "config.sys CPU/VREG", "sound init", "info screen", "done"
 };
 // next to the boot magics at the end of RAM (0x2007FFF8/FC), the area known to survive a reset
 #define boot_stage (*(volatile uint32_t*)(0x20000000 + (512 << 10) - 12))
@@ -1061,15 +1061,33 @@ void __in_hfa() init(void) {
 }
 
 // the previous start was interrupted (reset button) before it finished: tell where it stopped
-static void __in_hfa() report_prev_boot(void) {
+static const char* const clock_substage_names[] = {
+    "", "core voltage", "flash/PSRAM timings", "PLL", "peripherals reclock", "video reclock", "audio reclock"
+};
+
+// the previous start was interrupted (reset button) before it finished: tell where it stopped;
+// shown on the "insert SD" screen and again on the info screen (the first one is cleared later)
+static void __in_hfa() report_prev_boot(bool final) {
     uint32_t prev = prev_boot_stage;
-    BOOT_STAGE(BS_DONE);
-    if (!prev || prev == BS_DONE) return;
+    if (final) BOOT_STAGE(BS_DONE);
+    uint32_t st = prev & 0xFF, sub = (prev >> 8) & 0xFF;
+    if (!prev || st == BS_DONE) return;
     graphics_set_con_color(12, 0);
-    goutf("Previous start stopped at stage %d: %s\n", prev,
-          prev < sizeof(boot_stage_names) / sizeof(boot_stage_names[0]) ? boot_stage_names[prev] : "?");
+    goutf("Previous start stopped at stage %d: %s", st,
+          st < sizeof(boot_stage_names) / sizeof(boot_stage_names[0]) ? boot_stage_names[st] : "?");
+    if (sub) {
+        goutf(" / %d: %s", sub,
+              sub < sizeof(clock_substage_names) / sizeof(clock_substage_names[0]) ? clock_substage_names[sub] : "?");
+    }
+    goutf("\n");
     graphics_set_con_color(7, 0);
-    prev_boot_stage = 0;
+}
+
+// sub-steps of the clock switch (overclock.c), recorded only while the start is in progress
+extern "C" void boot_substage(int sub) {
+    uint32_t cur = boot_stage;
+    if ((cur & 0xFFFF0000u) != BOOT_STAGE_SIGN || (cur & 0xFF) == BS_DONE) return;
+    boot_stage = BOOT_STAGE_SIGN | (cur & 0xFF) | ((sub & 0xFF) << 8);
 }
 
 static void __in_hfa() vPostInit(void *pv) {
@@ -1093,7 +1111,7 @@ static void __in_hfa() vPostInit(void *pv) {
         graphics_set_con_pos(0, 1);
         show_logo(true);
         info(false);
-        report_prev_boot();
+        report_prev_boot(false);
         graphics_set_con_color(12, 0);
         gouta(err);
         test_cycle(ks);
@@ -1118,11 +1136,13 @@ static void __in_hfa() vPostInit(void *pv) {
 ///    exception_set_exclusive_handler(HARDFAULT_EXCEPTION, hardfault_handler);
     show_logo(true);
     graphics_set_con_pos(0, 1);
+    BOOT_STAGE(BS_SOUND);
     init_sound();
     gpio_put(PICO_DEFAULT_LED_PIN, false);
 
+    BOOT_STAGE(BS_INFO);
     info(true);
-    report_prev_boot();
+    report_prev_boot(true);
 
     setApplicationMallocFailedHookPtr(mallocFailedHandler);
     setApplicationStackOverflowHookPtr(overflowHook);

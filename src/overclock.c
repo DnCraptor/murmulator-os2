@@ -11,6 +11,7 @@ void psram_timings_for(uint32_t khz);
 void nespad_reclock(uint32_t cpu_khz);
 void psram_spi_reclock(uint32_t cpu_khz);
 void sd_reclock(uint32_t cpu_khz);
+void boot_substage(int sub); // main.cpp: start diagnostics
 void graphics_reclock(void);
 void i2s_reclock(void);
 #include "FreeRTOS.h"
@@ -20,10 +21,13 @@ void i2s_reclock(void);
 // everything already started on the old clk_sys follows the new one: PIO dividers of the drivers
 // (video, audio, gamepad, SPI PSRAM, PIO SD) and the OS tick
 static void reclock_peripherals(uint32_t khz) {
+    boot_substage(4);
     nespad_reclock(khz);
     psram_spi_reclock(khz);
     sd_reclock(khz);
+    boot_substage(5);
     graphics_reclock();
+    boot_substage(6);
     i2s_reclock();
     if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         // the port computed the SysTick reload from clk_sys at the scheduler start
@@ -134,13 +138,16 @@ void overclocking() {
     bool v_changed = v != vreg_get_voltage();
     if (khz >= cur_khz) {
         if (v_changed) {
+            boot_substage(1);
             vreg_disable_voltage_limit();
             vreg_set_voltage(v);
             busy_wait_ms(50);
         }
         if (khz != cur_khz) {
+            boot_substage(2);
             flash_timings_for(khz);
             psram_timings_for(khz);
+            boot_substage(3);
             set_sys_clock_pll(vco, postdiv1, postdiv2);
         }
     } else {
