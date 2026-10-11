@@ -134,55 +134,55 @@ do_decl:
             flexible = 0;
             while (tok != '}') {
                 if (!parse_btype(&btype, &ad1)) {
-		    skip(';');
-		    continue;
-		}
+                    skip(';');
+                    continue;
+                }
                 while (1) {
-		    if (flexible)
-		        tcc_error("flexible array member '%s' not at the end of struct",
-                              get_tok_str(v, NULL));
+                    if (flexible)
+                        tcc_error("flexible array member '%s' not at the end of struct", get_tok_str(v, NULL));
                     bit_size = -1;
                     v = 0;
                     type1 = btype;
                     if (tok != ':') {
-			if (tok != ';')
+                        if (tok != ';') {
                             type_decl(&type1, &ad1, &v, TYPE_DIRECT);
+                        }
                         if (v == 0) {
-                    	    if ((type1.t & VT_BTYPE) != VT_STRUCT)
-                        	expect("identifier");
-                    	    else {
-				int v = btype.ref->v;
-				if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
-				    if (tcc_state->ms_extensions == 0)
-                        		expect("identifier");
-				}
-                    	    }
+                            if ((type1.t & VT_BTYPE) != VT_STRUCT) {
+                                expect("identifier");
+                            } else {
+                                int v = btype.ref->v;
+                                if (!(v & SYM_FIELD) && (v & ~SYM_STRUCT) < SYM_FIRST_ANOM) {
+                                    if (tcc_state->ms_extensions == 0)
+                                        expect("identifier");
+                                }
+                            }
                         }
                         if (type_size(&type1, &align) < 0) {
-			    if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
-			        flexible = 1;
-			    else
-			        tcc_error("field '%s' has incomplete type",
-                                      get_tok_str(v, NULL));
-                        }
-                        if ((type1.t & VT_BTYPE) == VT_FUNC ||
-			    (type1.t & VT_BTYPE) == VT_VOID ||
-                            (type1.t & VT_STORAGE))
-                            tcc_error("invalid type for '%s'", 
-                                  get_tok_str(v, NULL));
-                    }
-                    if (tok == ':') {
-                        next();
-                        bit_size = expr_const();
-                        /* XXX: handle v = 0 case for messages */
-                        if (bit_size < 0)
-                            tcc_error("negative width in bit-field '%s'", 
-                                  get_tok_str(v, NULL));
-                        if (v && bit_size == 0)
-                            tcc_error("zero width for bit-field '%s'", 
-                                  get_tok_str(v, NULL));
-			parse_attribute(&ad1);
-                    }
+                        if ((u == VT_STRUCT) && (type1.t & VT_ARRAY) && c)
+                            flexible = 1;
+                        else
+                            tcc_error("field '%s' has incomplete type",
+                                            get_tok_str(v, NULL));
+                                }
+                                if ((type1.t & VT_BTYPE) == VT_FUNC ||
+                        (type1.t & VT_BTYPE) == VT_VOID ||
+                                    (type1.t & VT_STORAGE))
+                                    tcc_error("invalid type for '%s'", 
+                                        get_tok_str(v, NULL));
+                            }
+                            if (tok == ':') {
+                                next();
+                                bit_size = expr_const();
+                                /* XXX: handle v = 0 case for messages */
+                                if (bit_size < 0)
+                                    tcc_error("negative width in bit-field '%s'", 
+                                        get_tok_str(v, NULL));
+                                if (v && bit_size == 0)
+                                    tcc_error("zero width for bit-field '%s'", 
+                                        get_tok_str(v, NULL));
+                    			parse_attribute(&ad1);
+                            }
                     size = type_size(&type1, &align);
                     if (bit_size >= 0) {
                         bt = type1.t & VT_BTYPE;
