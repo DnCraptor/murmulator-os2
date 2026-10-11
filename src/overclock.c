@@ -4,6 +4,8 @@
 #include <pico/stdlib.h>
 #include <hardware/clocks.h>
 #include <hardware/vreg.h>
+#include <hardware/flash.h>
+#include <hardware/structs/qmi.h>
 
 // defined in main.cpp / nespad.cpp
 void flash_timings_for(uint32_t khz);
@@ -164,4 +166,38 @@ void overclocking() {
     if (khz != cur_khz) {
         reclock_peripherals(khz);
     }
+}
+
+/* Flash erase/program/command at any clk_sys. The SDK leaves XIP through the bootrom and re-enters
+   it with the boot-time XIP setup, which also restores the boot-time QMI M0 (flash) timing: its
+   clock divider was chosen for the boot clock and reads flash far too fast at an overclocked
+   clk_sys (e.g. 504 MHz), so the next instruction fetch from flash fails. Our timing is put back
+   right after the call, still from RAM. */
+void __no_inline_not_in_flash_func(mos_flash_range_erase)(uint32_t flash_offs, size_t count) {
+    uint32_t timing = qmi_hw->m[0].timing;
+    flash_range_erase(flash_offs, count);
+    qmi_hw->m[0].timing = timing;
+}
+
+void __no_inline_not_in_flash_func(mos_flash_range_program)(uint32_t flash_offs, const uint8_t *data, size_t count) {
+    uint32_t timing = qmi_hw->m[0].timing;
+    flash_range_program(flash_offs, data, count);
+    qmi_hw->m[0].timing = timing;
+}
+
+void __no_inline_not_in_flash_func(mos_flash_do_cmd)(const uint8_t *txbuf, uint8_t *rxbuf, size_t count) {
+    uint32_t timing = qmi_hw->m[0].timing;
+    flash_do_cmd(txbuf, rxbuf, count);
+    qmi_hw->m[0].timing = timing;
+}
+
+/* Before a watchdog reset / reboot to BOOTSEL: back to the default clock and core voltage, so the
+   bootrom and the next firmware (also a UF2 launched from MOS) start from a sane state; the VREG
+   setting survives the watchdog reset. Flash timings for the higher clock are only slower here. */
+void mos_prepare_reset(void) {
+    if (clock_get_hz(clk_sys) > 150000000) {
+        set_sys_clock_khz(150000, false);
+    }
+    vreg_set_voltage(VREG_VOLTAGE_DEFAULT);
+    busy_wait_us(1000);
 }

@@ -25,6 +25,7 @@
 /* Local headers. */
 
 #include "usbfs.h"
+#include "overclock.h"
 
 
 /* Module variables. */
@@ -84,11 +85,11 @@ int32_t storage_write( uint32_t p_sector, uint32_t p_offset,
   /* Erasing with an offset of 0? Seems odd, but... */
   if ( p_offset == 0 )
   {
-    flash_range_erase( m_storage_offset + p_sector * FLASH_SECTOR_SIZE, FLASH_SECTOR_SIZE );
+    mos_flash_range_erase( m_storage_offset + p_sector * FLASH_SECTOR_SIZE, FLASH_SECTOR_SIZE );
   }
 
   /* And just write the data now. */
-  flash_range_program( 
+  mos_flash_range_program( 
     m_storage_offset + p_sector * FLASH_SECTOR_SIZE + p_offset, 
     p_buffer, p_size_bytes
   );

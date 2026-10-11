@@ -261,9 +261,9 @@ unsigned long __in_systable() __aligned(4096) sys_table_ptrs[] = {
     //
     qsort, // 169
     strnlen,  // 170
-    flash_do_cmd, // 171
-    flash_range_erase, // 172
-    flash_range_program, // 173
+    mos_flash_do_cmd, // 171
+    mos_flash_range_erase, // 172
+    mos_flash_range_program, // 173
     flash_get_unique_id, // 174
     multicore_lockout_start_blocking, // 175
     multicore_lockout_end_blocking, // 176

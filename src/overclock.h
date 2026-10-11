@@ -15,3 +15,11 @@ int get_vreg_mv(void);          // current
 int get_vreg_override_mv(void); // 0 - automatic (by frequency)
 void set_vreg_mv(int mv);       // 0 - automatic; applied by overclocking()
 int parse_vreg_mv(const char* t); // "1.60", "1600", "AUTO", old vreg_voltage index
+
+#include <stddef.h>
+// flash operations that keep the overclock flash timing (use instead of the SDK ones)
+void mos_flash_range_erase(uint32_t flash_offs, size_t count);
+void mos_flash_range_program(uint32_t flash_offs, const uint8_t *data, size_t count);
+void mos_flash_do_cmd(const uint8_t *txbuf, uint8_t *rxbuf, size_t count);
+// default clock and core voltage before a watchdog reset / reboot
+void mos_prepare_reset(void);

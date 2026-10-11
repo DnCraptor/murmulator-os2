@@ -268,6 +268,7 @@ void __time_critical_func(render_core)() {
         pcm_call();
         tight_loop_contents();
     }
+    mos_prepare_reset();
     watchdog_enable(1, true);
     while(true) ;
     __unreachable();
@@ -308,6 +309,7 @@ static void __always_inline check_firmware() {
         f_close(&f);
         f_unmount(SD);
         *(uint32_t*)(0x20000000 + (512 << 10) - 8) = 0x383da910; // magic 3
+        mos_prepare_reset();
         watchdog_enable(100, false);
         while(1);
         __unreachable();
@@ -835,6 +837,7 @@ void caseF10(void) {
         FIL f;
         link_firmware(&f, "unknown");
     }
+    mos_prepare_reset();
     watchdog_enable(1, false);
     while(1);
 }
@@ -843,6 +846,7 @@ void caseF12(void) {
     if (FR_OK == f_mount(&fs, SD, 1)) {
         unlink_firmware();
     }
+    mos_prepare_reset();
     reset_usb_boot(0, 0);
     while(1);
 }

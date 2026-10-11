@@ -12,6 +12,7 @@
 #include "sys_table.h"
 #include "elf32.h"
 #include "../../api/m-os-api-c-hash.h"
+#include "overclock.h"
 
 extern const char TEMP[];
 const char _flash_me[] = ".flash_me";
@@ -130,8 +131,8 @@ void __not_in_flash_func(flash_block)(uint8_t* buffer, size_t flash_target_offse
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     multicore_lockout_start_blocking();
     const uint32_t ints = save_and_disable_interrupts();
-    flash_range_erase(flash_target_offset, FLASH_SECTOR_SIZE);
-    flash_range_program(flash_target_offset, buffer, FLASH_SECTOR_SIZE);
+    mos_flash_range_erase(flash_target_offset, FLASH_SECTOR_SIZE);
+    mos_flash_range_program(flash_target_offset, buffer, FLASH_SECTOR_SIZE);
     restore_interrupts(ints);
     multicore_lockout_end_blocking();
     gpio_put(PICO_DEFAULT_LED_PIN, false);

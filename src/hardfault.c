@@ -78,6 +78,7 @@ uint32_t get_cpu_ram_size(void) {
 
 #include <hardware/flash.h>
 #include <pico/multicore.h>
+#include "overclock.h"
 
 uint32_t get_cpu_flash_size(void) {
     uint8_t rx[4] = {0};
@@ -91,7 +92,7 @@ void get_cpu_flash_jedec_id(uint8_t _rx[4]) {
         uint8_t tx[4] = {0x9f};
         multicore_lockout_start_blocking();
         const uint32_t ints = save_and_disable_interrupts();
-        flash_do_cmd(tx, rx, 4);
+        mos_flash_do_cmd(tx, rx, 4);
         restore_interrupts(ints);
         multicore_lockout_end_blocking();
     }

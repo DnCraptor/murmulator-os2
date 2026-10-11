@@ -294,6 +294,7 @@ bool __not_in_flash() handleScancode(const uint32_t ps2scancode) {
             break;
     }
     if (ks.bCtrlPressed && ks.bAltPressed && ks.bDelPressed) {
+        mos_prepare_reset();
         watchdog_enable(1, true);
         goto ex;
     }
