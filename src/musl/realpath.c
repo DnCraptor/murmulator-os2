@@ -44,19 +44,34 @@ int __chdir(const char* name)
         errno = EINVAL;
         return -1;
     }
+    // CD keeps an absolute normalized path: a relative name ("src", "..") is resolved against it
+    char* path = __realpath(name, 0);
+    if (!path) {
+        // errno installed by __realpath
+        return -1;
+    }
 	struct stat* sbp = pvPortMalloc(sizeof(struct stat));
     if (!sbp) {
+        vPortFree(path);
         errno = ENOMEM;
         return -1;
     }
-	if (__stat(name, sbp) < 0) {
+	if (__stat(path, sbp) < 0) {
 		vPortFree(sbp);
+        vPortFree(path);
 		// errno installed by __stat
 		return -1;
 	}
+    if (!S_ISDIR(sbp->st_mode)) {
+		vPortFree(sbp);
+        vPortFree(path);
+        errno = ENOTDIR;
+        return -1;
+    }
 	vPortFree(sbp);
 
-    set_ctx_var(get_cmd_ctx(), CD, name);
+    set_ctx_var(get_cmd_ctx(), CD, path);
+    vPortFree(path);
     errno = 0;
 	//goutf("CD: %s\n", name);
     return 0;
