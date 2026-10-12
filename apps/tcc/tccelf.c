@@ -725,27 +725,37 @@ ST_FUNC int set_elf_sym(Section *s, addr_t value, unsigned long size,
     return sym_index;
 }
 
+/* Reserve the section-name buffer only when creating a relocation section. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static Section *new_reloc_section(Section *symtab, Section *s)
+{
+    char buf[256];
+    Section *sr;
+    /* if no relocation section, create it */
+    snprintf(buf, sizeof(buf), REL_SECTION_FMT, s->name);
+    /* if the symtab is allocated, then we consider the relocation
+       are also */
+    sr = new_section(s->s1, buf, SHT_RELX, symtab->sh_flags);
+    sr->sh_entsize = sizeof(ElfW_Rel);
+    sr->link = symtab;
+    sr->sh_info = s->sh_num;
+    s->reloc = sr;
+    return sr;
+}
+
 /* put relocation */
 ST_FUNC void put_elf_reloca(Section *symtab, Section *s, unsigned long offset,
                             int type, int symbol, addr_t addend)
 {
     TCCState *s1 = s->s1;
-    char buf[256];
     Section *sr;
     ElfW_Rel *rel;
 
     sr = s->reloc;
-    if (!sr) {
-        /* if no relocation section, create it */
-        snprintf(buf, sizeof(buf), REL_SECTION_FMT, s->name);
-        /* if the symtab is allocated, then we consider the relocation
-           are also */
-        sr = new_section(s->s1, buf, SHT_RELX, symtab->sh_flags);
-        sr->sh_entsize = sizeof(ElfW_Rel);
-        sr->link = symtab;
-        sr->sh_info = s->sh_num;
-        s->reloc = sr;
-    }
+    if (!sr)
+        sr = new_reloc_section(symtab, s);
     rel = section_ptr_add(sr, sizeof(ElfW_Rel));
     rel->r_offset = offset;
     rel->r_info = ELFW(R_INFO)(symbol, type);

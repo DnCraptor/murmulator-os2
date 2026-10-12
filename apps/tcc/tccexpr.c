@@ -187,6 +187,80 @@ static void unary_func_call(void)
         CODE_OFF();
 }
 
+/* _Generic has its own parser state; do not reserve it in every unary
+   recursion, including ordinary parenthesized expressions. */
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static void unary_generic(void)
+{
+	CType controlling_type;
+	int has_default = 0;
+	int has_match = 0;
+	int learn = 0;
+	TokenString *str = NULL;
+	int saved_const_wanted = const_wanted;
+
+	next();
+	skip('(');
+	const_wanted = 0;
+	expr_type(&controlling_type, expr_eq);
+	controlling_type.t &= ~(VT_CONSTANT | VT_VOLATILE | VT_ARRAY);
+	if ((controlling_type.t & VT_BTYPE) == VT_FUNC)
+	  mk_pointer(&controlling_type);
+	const_wanted = saved_const_wanted;
+	for (;;) {
+	    learn = 0;
+	    skip(',');
+	    if (tok == TOK_DEFAULT) {
+		if (has_default)
+		    tcc_error("too many 'default'");
+		has_default = 1;
+		if (!has_match)
+		    learn = 1;
+		next();
+	    } else {
+	        AttributeDef ad_tmp;
+		int itmp;
+	        CType cur_type;
+
+                in_generic++;
+		parse_btype(&cur_type, &ad_tmp);
+                in_generic--;
+
+		type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
+		if (compare_types(&controlling_type, &cur_type, 0)) {
+		    if (has_match) {
+		      tcc_error("type match twice");
+		    }
+		    has_match = 1;
+		    learn = 1;
+		}
+	    }
+	    skip(':');
+	    if (learn) {
+		if (str)
+		    tok_str_free(str);
+		skip_or_save_block(&str);
+	    } else {
+		skip_or_save_block(NULL);
+	    }
+	    if (tok == ')')
+		break;
+	}
+	if (!str) {
+	    type_description_error(&controlling_type,
+	        "type '%s' does not match any association", 60);
+	}
+	begin_macro(str, 1);
+	next();
+	expr_eq();
+	if (tok != TOK_EOF)
+	    expect(",");
+	end_macro();
+        next();
+}
+
 ST_FUNC void unary(void)
 {
     int n, t, align, size, r, sizeof_caller;
@@ -598,74 +672,8 @@ ST_FUNC void unary(void)
         break;
 
     case TOK_GENERIC:
-    {
-	CType controlling_type;
-	int has_default = 0;
-	int has_match = 0;
-	int learn = 0;
-	TokenString *str = NULL;
-	int saved_const_wanted = const_wanted;
-
-	next();
-	skip('(');
-	const_wanted = 0;
-	expr_type(&controlling_type, expr_eq);
-	controlling_type.t &= ~(VT_CONSTANT | VT_VOLATILE | VT_ARRAY);
-	if ((controlling_type.t & VT_BTYPE) == VT_FUNC)
-	  mk_pointer(&controlling_type);
-	const_wanted = saved_const_wanted;
-	for (;;) {
-	    learn = 0;
-	    skip(',');
-	    if (tok == TOK_DEFAULT) {
-		if (has_default)
-		    tcc_error("too many 'default'");
-		has_default = 1;
-		if (!has_match)
-		    learn = 1;
-		next();
-	    } else {
-	        AttributeDef ad_tmp;
-		int itmp;
-	        CType cur_type;
-
-                in_generic++;
-		parse_btype(&cur_type, &ad_tmp);
-                in_generic--;
-
-		type_decl(&cur_type, &ad_tmp, &itmp, TYPE_ABSTRACT);
-		if (compare_types(&controlling_type, &cur_type, 0)) {
-		    if (has_match) {
-		      tcc_error("type match twice");
-		    }
-		    has_match = 1;
-		    learn = 1;
-		}
-	    }
-	    skip(':');
-	    if (learn) {
-		if (str)
-		    tok_str_free(str);
-		skip_or_save_block(&str);
-	    } else {
-		skip_or_save_block(NULL);
-	    }
-	    if (tok == ')')
-		break;
-	}
-	if (!str) {
-	    type_description_error(&controlling_type,
-	        "type '%s' does not match any association", 60);
-	}
-	begin_macro(str, 1);
-	next();
-	expr_eq();
-	if (tok != TOK_EOF)
-	    expect(",");
-	end_macro();
-        next();
-	break;
-    }
+        unary_generic();
+        break;
     // special qnan , snan and infinity values
     case TOK___NAN__:
         n = 0x7fc00000;
