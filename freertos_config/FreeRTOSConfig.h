@@ -152,7 +152,7 @@ to exclude the API function. */
 #define configENABLE_MPU                        0
 #define configENABLE_TRUSTZONE                  0
 #define configRUN_FREERTOS_SECURE_ONLY          1
-#define configENABLE_FPU                        0
+#define configENABLE_FPU                        1
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY    16
 ///#ifndef configCPU_CLOCK_HZ
 ///#define configCPU_CLOCK_HZ                      378000000
