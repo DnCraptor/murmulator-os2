@@ -1,5 +1,5 @@
 # murmulator-os
-Murmulator OS v.2.3.2<br/>
+Murmulator OS v.2.3.3<br/>
 
 # Hardware needed
 Raspberry Pi Pico 2 (RP2350)<br/>
@@ -75,6 +75,7 @@ kill [n] - send SIGKILL to a "process" (FreeRTOS task), [n] - task number return
 dhrystone [n] [kHz] - small performance test (see: https://github.com/DnCraptor/arm_benchmarks)<br/>
 whetstone [n] - MIPS (whetstone) double precision performance test (see: https://github.com/DnCraptor/arm_benchmarks)<br/>
 linpack [n] - Kflops single precision performance test (see: https://github.com/DnCraptor/arm_benchmarks)<br/>
+tcc - C-compiler (TinyCC)<br/>
 <br/>
 [cmd] &gt; [file] - output redirection to file<br/>
 [ENTER] - start command / flash and run .uf2 file in "demo" format (NESPAD [A] button in mc)<br/>
