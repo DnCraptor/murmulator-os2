@@ -383,7 +383,9 @@ static void load_config_sys() {
                 t = next_token(t);
                 if (!boot_drv_override) {
                     if(strcmp(t, "HDMI") == 0) {
+#ifdef HDMI
                         override_drv = HDMI_DRV;
+#endif
                     }
                     else if(strcmp(t, "VGA") == 0) {
                         override_drv = VGA_DRV;
@@ -838,7 +840,11 @@ void caseF12(void) {
 }
 
 void selectDRV1(void) {
+#ifdef HDMI
     override_drv = HDMI_DRV;
+#else
+    override_drv = VGA_DRV;
+#endif
 }
 
 void selectDRV2(void) {
